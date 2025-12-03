@@ -20,3 +20,6 @@ __pycache__/
 # PDFs cargados por usuarios
 storage/pdfs/*
 !storage/pdfs/.gitkeep
+
+# Permitir el archivo de ejemplo de entorno
+!.env.example
