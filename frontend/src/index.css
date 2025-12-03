@@ -1,0 +1,10 @@
+@import "tailwindcss";
+
+/* Reseteos suaves sin forzar layout */
+:root {
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+html, body, #root { height: 100%; }
+body { margin: 0; background: #fafafa; color: #111827; }

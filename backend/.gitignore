@@ -1,0 +1,22 @@
+# Entorno virtual
+.venv/
+venv/
+env/
+ENV/
+
+# Variables de entorno
+.env
+.env.*
+
+# Caché de Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Logs
+*.log
+
+# PDFs cargados por usuarios
+storage/pdfs/*
+!storage/pdfs/.gitkeep
