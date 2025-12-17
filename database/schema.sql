@@ -230,3 +230,10 @@ CREATE TABLE rag_log (
   INDEX idx_rag_articulo (articulo_id),
   INDEX idx_rag_run (run_id)
 ) ENGINE=InnoDB;
+
+
+select * from resultado_brecha
+
+DELETE FROM archivo
+DELETE FROM articulo
+DELETE FROM proyecto
