@@ -31,10 +31,10 @@ const DESTACADAS = ["N3.1", "N1.2", "N3.2", "N4.2"];
 /* ---------------------------------------------------------------- piezas */
 function Etiqueta({ children, tono = "gris" }) {
   const tonos = {
-    gris: "bg-gray-100 text-gray-700 border-gray-200",
-    verde: "bg-green-50 text-green-800 border-green-200",
-    ambar: "bg-amber-50 text-amber-800 border-amber-200",
-    azul: "bg-blue-50 text-blue-800 border-blue-200",
+    gris: "bg-hundido text-tinta-media border-borde",
+    verde: "bg-bien-claro text-bien border-bien-borde",
+    ambar: "bg-aviso-claro text-aviso border-aviso-borde",
+    azul: "bg-acento-claro text-acento-fuerte border-acento-borde",
   };
   return (
     <span
@@ -51,15 +51,15 @@ function Tarjeta({ metrica }) {
   if (!metrica) return null;
   const { nombre, mediana, iqr, discrimina, descripcion, rango, n } = metrica;
   return (
-    <div className="border rounded-lg p-3 bg-white shadow-sm" title={descripcion}>
+    <div className="border border-borde rounded-lg p-3 bg-superficie" title={descripcion}>
       <div className="flex items-start justify-between gap-2">
-        <div className="text-gray-600 text-sm leading-tight">{nombre}</div>
+        <div className="text-tinta-media text-sm leading-tight">{nombre}</div>
         <Etiqueta tono={discrimina ? "verde" : "ambar"}>
           {discrimina ? "discrimina" : "poca variación"}
         </Etiqueta>
       </div>
       <div className="text-2xl font-semibold mt-1">{fmt(mediana)}</div>
-      <div className="text-[11px] text-gray-500 mt-1">
+      <div className="text-[11px] text-tinta-suave mt-1">
         mediana · IQR {fmt(iqr)} · n={n} · {rango}
       </div>
     </div>
@@ -69,7 +69,7 @@ function Tarjeta({ metrica }) {
 /** Explica por qué el estado de validación es "pendiente". */
 export function AvisoValidacion() {
   return (
-    <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+    <div className="rounded-lg border border-aviso-borde bg-aviso-claro p-3 text-sm text-aviso">
       <div className="font-medium mb-1">
         La validación automática está desactivada a propósito
       </div>
@@ -116,8 +116,8 @@ export function IndicadorConsumo({ proyectoId }) {
     <div
       className={`rounded-lg border p-3 text-sm ${
         alcanza
-          ? "border-gray-200 bg-white text-gray-700"
-          : "border-red-300 bg-red-50 text-red-800"
+          ? "border-borde bg-superficie text-tinta-media"
+          : "border-mal-borde bg-mal-claro text-mal"
       }`}
     >
       <div className="flex items-center justify-between gap-3">
@@ -127,9 +127,9 @@ export function IndicadorConsumo({ proyectoId }) {
         </span>
       </div>
 
-      <div className="mt-2 h-1.5 w-full rounded-full bg-gray-200 overflow-hidden">
+      <div className="mt-2 h-1.5 w-full rounded-full bg-hundido overflow-hidden">
         <div
-          className={`h-full ${alcanza ? "bg-blue-500" : "bg-red-500"}`}
+          className={`h-full ${alcanza ? "bg-acento" : "bg-mal"}`}
           style={{ width: `${pct}%` }}
         />
       </div>
@@ -144,7 +144,7 @@ export function IndicadorConsumo({ proyectoId }) {
 
       <button
         onClick={() => setAbierto((v) => !v)}
-        className="mt-2 text-[11px] text-blue-700 hover:underline"
+        className="mt-2 text-[11px] text-acento hover:underline"
       >
         {abierto ? "Ocultar" : "¿Qué cuenta como generación?"}
       </button>
@@ -165,7 +165,7 @@ export function IndicadorConsumo({ proyectoId }) {
                   <span>{x.concepto}</span>
                   <span className="tabular-nums font-medium">×{x.cantidad}</span>
                 </div>
-                <div className="text-gray-500">{x.detalle}</div>
+                <div className="text-tinta-suave">{x.detalle}</div>
               </div>
             ))}
             <div className="flex justify-between gap-2 border-t pt-1 mt-1 font-medium">
@@ -179,12 +179,12 @@ export function IndicadorConsumo({ proyectoId }) {
             {(d.no_cuentan || []).map((x, i) => (
               <div key={i} className="mb-1.5">
                 <div>{x.concepto}</div>
-                <div className="text-gray-500">{x.detalle}</div>
+                <div className="text-tinta-suave">{x.detalle}</div>
               </div>
             ))}
           </div>
 
-          <div className="border-t pt-2 text-gray-500">{d.nota}</div>
+          <div className="border-t pt-2 text-tinta-suave">{d.nota}</div>
         </div>
       )}
     </div>
@@ -210,21 +210,21 @@ export function PanelMetricas({ proyectoId }) {
 
   if (error) {
     return (
-      <div className="text-sm text-gray-600 border rounded-lg p-3 bg-white">
+      <div className="text-sm text-tinta-media border border-borde rounded-lg p-3 bg-superficie">
         No se pudieron cargar las métricas.
       </div>
     );
   }
   if (!datos) {
     return (
-      <div className="text-sm text-gray-500 border rounded-lg p-3 bg-white">
+      <div className="text-sm text-tinta-suave border border-borde rounded-lg p-3 bg-superficie">
         Cargando métricas…
       </div>
     );
   }
   if (!datos.run) {
     return (
-      <div className="text-sm text-gray-600 border rounded-lg p-3 bg-white">
+      <div className="text-sm text-tinta-media border border-borde rounded-lg p-3 bg-superficie">
         {datos.aviso || "El proyecto todavía no se ha analizado."}
       </div>
     );
@@ -241,7 +241,7 @@ export function PanelMetricas({ proyectoId }) {
         ))}
       </div>
 
-      <div className="flex flex-wrap items-center gap-2 text-xs text-gray-600">
+      <div className="flex flex-wrap items-center gap-2 text-xs text-tinta-media">
         <Etiqueta tono="azul">{datos.conteos.brechas} brechas</Etiqueta>
         <Etiqueta tono="azul">{datos.conteos.articulos} artículos</Etiqueta>
         <Etiqueta>
@@ -261,7 +261,7 @@ export function PanelMetricas({ proyectoId }) {
 
       <button
         onClick={() => setAbierto((v) => !v)}
-        className="text-sm text-blue-700 hover:underline"
+        className="text-sm text-acento hover:underline"
       >
         {abierto ? "Ocultar" : "Ver"} las {datos.metricas.length} métricas en detalle
       </button>
@@ -273,9 +273,9 @@ export function PanelMetricas({ proyectoId }) {
 
 export function TablaDistribuciones({ metricas }) {
   return (
-    <div className="overflow-x-auto border rounded-xl bg-white shadow-sm">
+    <div className="overflow-x-auto border border-borde rounded-xl bg-superficie">
       <table className="min-w-full text-sm">
-        <thead className="bg-gray-100 text-left">
+        <thead className="bg-hundido text-left text-tinta-media">
           <tr>
             <th className="px-3 py-2">Métrica</th>
             <th className="px-3 py-2 w-20">Mediana</th>
@@ -288,21 +288,21 @@ export function TablaDistribuciones({ metricas }) {
         </thead>
         <tbody>
           {metricas.map((m) => (
-            <tr key={m.codigo} className="border-t align-top">
+            <tr key={m.codigo} className="border-t border-borde align-top">
               <td className="px-3 py-2">
                 <div className="font-medium">{m.nombre}</div>
-                <div className="text-[11px] text-gray-500">
+                <div className="text-[11px] text-tinta-suave">
                   {m.codigo} · {m.nivel} · mejor {m.mejor}
                 </div>
-                <div className="text-[11px] text-gray-600 mt-1 max-w-md">
+                <div className="text-[11px] text-tinta-media mt-1 max-w-md">
                   {m.descripcion}
                 </div>
               </td>
               <td className="px-3 py-2 font-medium">{fmt(m.mediana)}</td>
-              <td className="px-3 py-2 text-gray-600">{fmt(m.p25)}</td>
-              <td className="px-3 py-2 text-gray-600">{fmt(m.p75)}</td>
-              <td className="px-3 py-2 text-gray-600">{fmt(m.iqr)}</td>
-              <td className="px-3 py-2 text-gray-600">{m.n}</td>
+              <td className="px-3 py-2 text-tinta-media">{fmt(m.p25)}</td>
+              <td className="px-3 py-2 text-tinta-media">{fmt(m.p75)}</td>
+              <td className="px-3 py-2 text-tinta-media">{fmt(m.iqr)}</td>
+              <td className="px-3 py-2 text-tinta-media">{m.n}</td>
               <td className="px-3 py-2">
                 <Etiqueta tono={m.discrimina ? "verde" : "ambar"}>
                   {m.veredicto}
@@ -325,25 +325,25 @@ export function DetalleBrecha({ brecha }) {
   return (
     <div className="space-y-4 text-sm">
       <div>
-        <div className="text-gray-500">Tipo de brecha</div>
+        <div className="text-tinta-suave">Tipo de brecha</div>
         <div className="font-medium">{brecha.tipo_brecha}</div>
       </div>
 
       <div>
-        <div className="text-gray-500">Brecha</div>
+        <div className="text-tinta-suave">Brecha</div>
         <p className="whitespace-pre-wrap leading-relaxed">{brecha.brecha}</p>
       </div>
 
       <div>
-        <div className="text-gray-500">Oportunidad de innovación</div>
+        <div className="text-tinta-suave">Oportunidad de innovación</div>
         <p className="whitespace-pre-wrap leading-relaxed">{brecha.oportunidad}</p>
       </div>
 
       {!brecha.validacion_calibrada && <AvisoValidacion />}
 
       {/* Trazabilidad: es lo que permite comprobar de dónde sale la brecha. */}
-      <details className="border rounded-lg" open>
-        <summary className="cursor-pointer select-none px-3 py-2 bg-gray-50 rounded-t-lg">
+      <details className="border border-borde rounded-lg" open>
+        <summary className="cursor-pointer select-none px-3 py-2 bg-hundido rounded-t-lg">
           En qué se apoyó el análisis ({respaldo.length} fragmentos del artículo)
         </summary>
         <div className="p-3 space-y-2">
@@ -357,13 +357,13 @@ export function DetalleBrecha({ brecha }) {
             </div>
           )}
           {respaldo.length === 0 && (
-            <div className="text-gray-500">
+            <div className="text-tinta-suave">
               No se registró el respaldo de este análisis.
             </div>
           )}
           {respaldo.map((h, i) => (
-            <div key={i} className="border rounded p-2 bg-gray-50">
-              <div className="flex items-center justify-between text-[11px] text-gray-500">
+            <div key={i} className="border border-borde rounded-lg p-2 bg-hundido">
+              <div className="flex items-center justify-between text-[11px] text-tinta-suave">
                 <span>sección: {h.seccion || "—"}</span>
                 <span>relevancia {fmt(h.score, 3)}</span>
               </div>
@@ -372,24 +372,24 @@ export function DetalleBrecha({ brecha }) {
         </div>
       </details>
 
-      <details className="border rounded-lg">
-        <summary className="cursor-pointer select-none px-3 py-2 bg-gray-50 rounded-t-lg">
+      <details className="border border-borde rounded-lg">
+        <summary className="cursor-pointer select-none px-3 py-2 bg-hundido rounded-t-lg">
           Métricas de esta brecha ({metricas.length})
         </summary>
         <div className="p-3 grid grid-cols-1 md:grid-cols-2 gap-2">
           {metricas.map((m) => (
-            <div key={m.codigo} className="border rounded-lg p-2" title={m.interpretacion}>
+            <div key={m.codigo} className="border border-borde rounded-lg p-2" title={m.interpretacion}>
               <div className="flex items-center justify-between gap-2">
-                <span className="text-gray-600">{m.nombre}</span>
+                <span className="text-tinta-media">{m.nombre}</span>
                 <span className="font-medium">{fmt(m.valor)}</span>
               </div>
-              <div className="text-[11px] text-gray-500 mt-1">
+              <div className="text-[11px] text-tinta-suave mt-1">
                 {m.codigo} · mejor {m.mejor} · {m.rango}
               </div>
             </div>
           ))}
           {metricas.length === 0 && (
-            <div className="text-gray-500">Sin métricas registradas.</div>
+            <div className="text-tinta-suave">Sin métricas registradas.</div>
           )}
         </div>
       </details>

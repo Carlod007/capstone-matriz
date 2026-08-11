@@ -1,10 +1,167 @@
 @import "tailwindcss";
 
-/* Reseteos suaves sin forzar layout */
+/* ==========================================================================
+   Sistema de color
+
+   El blanco puro sobre pantalla retroilumina más de lo necesario y cansa en
+   sesiones largas, que es justo el uso de esta herramienta: leer artículos y
+   comparar resultados durante un buen rato.
+
+   Se parte de un tono papel, ligeramente cálido, y se construyen las
+   superficies por encima de él en lugar de por debajo. Así las tarjetas
+   destacan aclarando en vez de que el fondo oscurezca, y el contraste entre
+   niveles se mantiene suave.
+
+   Decisiones:
+   - Ningún negro puro: la tinta es un gris cálido muy oscuro.
+   - Un solo acento (verde azulado) para lo informativo e interactivo.
+   - El dorado se reserva a la acción principal, para que signifique algo.
+   - Los colores semánticos van desaturados: en una interfaz densa, el rojo
+     saturado grita más de lo que informa.
+   ========================================================================== */
+
+@theme {
+  /* --- superficies --- */
+  --color-papel: #f7f4ef;
+  --color-lienzo: #fdfbf7;
+  --color-superficie: #fffefb;
+  --color-hundido: #f1ece3;
+
+  /* --- trazos --- */
+  --color-borde: #e6dfd3;
+  --color-borde-fuerte: #d5cbba;
+
+  /* --- tinta --- */
+  --color-tinta: #2c2a26;
+  --color-tinta-media: #5d574d;
+  /* El gris terciario se usa en etiquetas de 11 px. Un tono más claro se
+     veía elegante pero se quedaba en 3.7:1 de contraste, por debajo del
+     4.5:1 que exige WCAG AA para texto pequeño. */
+  --color-tinta-suave: #746d61;
+
+  /* --- acento --- */
+  --color-acento: #2f6360;
+  --color-acento-claro: #e3efed;
+  --color-acento-borde: #b9d5d1;
+  --color-acento-fuerte: #234b49;
+
+  /* --- accion principal --- */
+  --color-oro: #c08a2e;
+  --color-oro-claro: #fbf1de;
+  --color-oro-borde: #e9d3a4;
+  --color-oro-fuerte: #9c6f20;
+
+  /* --- semanticos, desaturados --- */
+  --color-bien: #3f7350;
+  --color-bien-claro: #e6efe7;
+  --color-bien-borde: #bfd7c4;
+
+  --color-aviso: #a9701f;
+  --color-aviso-claro: #faf0dd;
+  --color-aviso-borde: #e6cf9f;
+
+  --color-mal: #a04236;
+  --color-mal-claro: #f8e9e6;
+  --color-mal-borde: #e3bcb5;
+
+  /* --- sombras: tintadas en calido, nunca negro puro --- */
+  --sombra-1: 0 1px 2px rgb(68 58 42 / 0.05);
+  --sombra-2: 0 1px 3px rgb(68 58 42 / 0.07), 0 4px 12px rgb(68 58 42 / 0.05);
+  --sombra-3: 0 8px 32px rgb(68 58 42 / 0.12);
+}
+
+/* --------------------------------------------------------------------------
+   Modo oscuro
+
+   No es el claro invertido: en oscuro el contraste alto fatiga igual, así que
+   la tinta baja a un hueso cálido y las superficies suben poco a poco desde
+   un carbón azulado.
+   -------------------------------------------------------------------------- */
+:root[data-tema="oscuro"] {
+  --color-papel: #16181c;
+  --color-lienzo: #1b1e23;
+  --color-superficie: #212429;
+  --color-hundido: #191c20;
+
+  --color-borde: #2f343b;
+  --color-borde-fuerte: #414852;
+
+  --color-tinta: #e6e1d8;
+  --color-tinta-media: #a8a297;
+  --color-tinta-suave: #948d82;
+
+  --color-acento: #6fb3ad;
+  --color-acento-claro: #1e2f2e;
+  --color-acento-borde: #33514e;
+  --color-acento-fuerte: #8fcac4;
+
+  --color-oro: #d9a44f;
+  --color-oro-claro: #2b2418;
+  --color-oro-borde: #4d3f24;
+  --color-oro-fuerte: #e8bd75;
+
+  --color-bien: #7bb389;
+  --color-bien-claro: #1c2a20;
+  --color-bien-borde: #334a39;
+
+  --color-aviso: #d3a054;
+  --color-aviso-claro: #2a2318;
+  --color-aviso-borde: #4a3d24;
+
+  --color-mal: #d38a7e;
+  --color-mal-claro: #2b1e1c;
+  --color-mal-borde: #4d3430;
+
+  --sombra-1: 0 1px 2px rgb(0 0 0 / 0.3);
+  --sombra-2: 0 1px 3px rgb(0 0 0 / 0.35), 0 4px 12px rgb(0 0 0 / 0.25);
+  --sombra-3: 0 8px 32px rgb(0 0 0 / 0.45);
+}
+
+/* ==========================================================================
+   Base
+   ========================================================================== */
+
 :root {
-  font-family: system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial,
+    sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  color-scheme: light;
 }
-html, body, #root { height: 100%; }
-body { margin: 0; background: #fafafa; color: #111827; }
+
+:root[data-tema="oscuro"] {
+  color-scheme: dark;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--color-papel);
+  color: var(--color-tinta);
+  /* El cambio de tema no debe dar un salto brusco. */
+  transition: background-color 0.25s ease, color 0.25s ease;
+}
+
+/* Cifras alineadas en las tablas de métricas: comparar columnas de números
+   con anchos distintos obliga a releer cada fila. */
+.tabular-nums {
+  font-variant-numeric: tabular-nums;
+}
+
+/* El foco debe verse sin depender del color, para navegación con teclado. */
+:where(button, a, input, textarea, summary):focus-visible {
+  outline: 2px solid var(--color-acento);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Barras de desplazamiento discretas, en la gama del fondo. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-borde-fuerte) transparent;
+}

@@ -10,27 +10,46 @@ const API_BASE = import.meta.env.VITE_API_BASE || "http://127.0.0.1:8000";
 /* ---------------- UI core ---------------- */
 function Page({ title, subtitle, children }) {
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-50 via-white to-white">
-      <div className="max-w-6xl mx-auto px-4 py-8">
-        <h1 className="text-3xl font-semibold mb-1">{title}</h1>
-        {subtitle && <p className="text-sm text-gray-600 mb-6">{subtitle}</p>}
+    <div className="min-h-screen bg-papel">
+      <div className="max-w-6xl mx-auto px-4 py-10">
+        <h1 className="text-3xl font-semibold mb-1 text-tinta tracking-tight">
+          {title}
+        </h1>
+        {subtitle && (
+          <p className="text-sm text-tinta-media mb-8 max-w-2xl leading-relaxed">
+            {subtitle}
+          </p>
+        )}
         {children}
       </div>
     </div>
   );
 }
+
 function Btn({ children, kind = "ghost", ...props }) {
+  const base =
+    "rounded-lg px-4 py-2 text-sm transition-colors disabled:opacity-45 " +
+    "disabled:cursor-not-allowed";
   const k = {
+    // Contorno: la acción corriente, presente sin reclamar atención.
     ghost:
-      "border rounded-lg px-4 py-2 bg-white hover:bg-gray-50 transition-colors",
-    blue: "rounded-lg px-4 py-2 border border-blue-600 text-blue-700 bg-white hover:bg-blue-50 transition-colors",
+      `${base} border border-borde bg-superficie text-tinta hover:bg-hundido`,
+    // Acento: acciones de consulta y navegación.
+    blue:
+      `${base} border border-acento-borde bg-acento-claro text-acento-fuerte ` +
+      "hover:border-acento",
     green:
-      "rounded-lg px-4 py-2 border border-green-600 text-green-700 bg-white hover:bg-green-50 transition-colors",
+      `${base} border border-bien-borde bg-bien-claro text-bien hover:border-bien`,
+    // Dorado: reservado a la acción principal de cada pantalla, para que el
+    // usuario sepa siempre cuál es sin tener que leerlas todas.
     yellow:
-      "rounded-lg px-4 py-2 bg-yellow-400 hover:bg-yellow-500 text-black font-medium transition-transform active:scale-[0.98]",
-    gray: "rounded-lg px-4 py-2 bg-gray-200 hover:bg-gray-300 transition-colors",
+      "rounded-lg px-4 py-2 text-sm font-medium bg-oro text-white shadow-[var(--sombra-1)] " +
+      "hover:bg-oro-fuerte transition-[background-color,transform] " +
+      "active:scale-[0.985] disabled:opacity-45 disabled:cursor-not-allowed " +
+      "disabled:hover:bg-oro",
+    gray: `${base} border border-borde bg-hundido text-tinta-media hover:text-tinta`,
     danger:
-      "rounded-lg px-4 py-2 bg-red-50 border border-red-500 text-red-700 hover:bg-red-100 transition-colors",
+      `${base} border border-mal-borde bg-mal-claro text-mal hover:border-mal`,
   };
   return (
     <button className={k[kind] || k.ghost} {...props}>
@@ -43,13 +62,22 @@ function Btn({ children, kind = "ghost", ...props }) {
 function Modal({ open, onClose, title, children, footer }) {
   if (!open) return null;
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40">
-      <div className="w-full max-w-5xl rounded-2xl bg-white shadow-2xl overflow-hidden">
-        <div className="p-4 border-b">
-          <h3 className="text-lg font-semibold">{title}</h3>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-tinta/35 backdrop-blur-[2px]"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-5xl rounded-2xl bg-lienzo border border-borde overflow-hidden"
+        style={{ boxShadow: "var(--sombra-3)" }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="px-5 py-4 border-b border-borde bg-superficie">
+          <h3 className="text-lg font-semibold text-tinta leading-snug">
+            {title}
+          </h3>
         </div>
-        <div className="p-6 max-h-[80vh] overflow-y-auto">{children}</div>
-        <div className="p-4 border-t flex flex-wrap gap-2 justify-end bg-gray-50">
+        <div className="p-6 max-h-[78vh] overflow-y-auto">{children}</div>
+        <div className="px-5 py-4 border-t border-borde flex flex-wrap gap-2 justify-end bg-hundido">
           {footer}
         </div>
       </div>
@@ -62,12 +90,15 @@ function LoadingOverlay({ show, text = "Procesando…" }) {
   if (!show) return null;
   return (
     <div className="fixed inset-0 z-50">
-      <div className="absolute inset-0 bg-black/40" />
+      <div className="absolute inset-0 bg-tinta/35 backdrop-blur-[2px]" />
       <div className="absolute inset-0 flex items-center justify-center p-6">
-        <div className="w-full max-w-md rounded-2xl bg-white shadow-xl p-6 text-center">
-          <div className="mx-auto mb-4 h-10 w-10 rounded-full border-4 border-gray-200 border-t-gray-700 animate-spin" />
-          <p className="text-gray-800 font-medium">{text}</p>
-          <p className="text-xs text-gray-500 mt-1">
+        <div
+          className="w-full max-w-md rounded-2xl bg-lienzo border border-borde p-7 text-center"
+          style={{ boxShadow: "var(--sombra-3)" }}
+        >
+          <div className="mx-auto mb-4 h-9 w-9 rounded-full border-[3px] border-borde border-t-acento animate-spin" />
+          <p className="text-tinta font-medium">{text}</p>
+          <p className="text-xs text-tinta-suave mt-2 leading-relaxed">
             Este proceso puede tardar según la cantidad de artículos.
           </p>
         </div>
@@ -89,13 +120,13 @@ function ErrorModal({ error, onClose }) {
         </Btn>
       }
     >
-      <div className="text-sm text-red-700">
+      <div className="text-sm text-mal leading-relaxed">
         {typeof error === "string"
           ? error
           : error?.message || "Ocurrió un error"}
       </div>
       {error?.detail && (
-        <pre className="mt-3 text-xs p-3 bg-red-50 border border-red-200 rounded whitespace-pre-wrap">
+        <pre className="mt-3 text-xs p-3 bg-mal-claro border border-mal-borde text-tinta-media rounded-lg whitespace-pre-wrap overflow-x-auto">
           {JSON.stringify(error.detail, null, 2)}
         </pre>
       )}
@@ -163,45 +194,42 @@ async function downloadFile(url, filename) {
 /* ================ 0) WELCOME ================ */
 function WelcomeScreen({ onStart, onList }) {
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50">
+    <div className="min-h-screen bg-papel">
       <div className="max-w-5xl mx-auto px-4 py-16">
-        <div className="rounded-3xl bg-white shadow-xl border border-gray-100 overflow-hidden">
-          <div className="p-8 md:p-12 grid md:grid-cols-2 gap-8 items-center">
+        <div
+          className="rounded-3xl bg-lienzo border border-borde overflow-hidden"
+          style={{ boxShadow: "var(--sombra-2)" }}
+        >
+          <div className="p-8 md:p-12 grid md:grid-cols-2 gap-10 items-center">
             <div>
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-50 text-indigo-700 text-xs font-medium mb-4">
-                <span className="h-2 w-2 rounded-full bg-indigo-500"></span>
-                Matriz de brechas con IAG
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-acento-claro text-acento-fuerte text-xs font-medium mb-5 border border-acento-borde">
+                <span className="h-1.5 w-1.5 rounded-full bg-acento"></span>
+                Matriz de brechas con IA generativa
               </div>
-              <h1 className="text-3xl md:text-4xl font-bold text-gray-900 leading-tight">
-                Bienvenido 👋
+              <h1 className="text-3xl md:text-4xl font-bold text-tinta leading-tight tracking-tight">
+                Bienvenido
               </h1>
-              <p className="mt-3 text-gray-600">
-                Este asistente te ayuda a cargar artículos científicos,
-                analizarlos y generar automáticamente brechas y estado del arte.
-                Puedes iniciar creando un tema o revisar tus proyectos
-                existentes.
+              <p className="mt-4 text-tinta-media leading-relaxed">
+                Carga artículos científicos, analízalos y obtén las brechas de
+                investigación y el estado del arte. Puedes empezar creando un
+                tema o revisar tus proyectos existentes.
               </p>
 
-              <ul className="mt-6 space-y-2 text-sm text-gray-700">
-                <li className="flex items-start gap-2">
-                  <span className="mt-[6px] h-2 w-2 rounded-full bg-gray-300"></span>
-                  Crea un tema y define tu objetivo (PRISMA/DSRM, etc.)
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="mt-[6px] h-2 w-2 rounded-full bg-gray-300"></span>
-                  Sube PDFs con DOI y ejecuta el análisis
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="mt-[6px] h-2 w-2 rounded-full bg-gray-300"></span>
-                  Consulta brechas, oportunidades y estado del arte generado
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="mt-[6px] h-2 w-2 rounded-full bg-gray-300"></span>
-                  Descarga la matriz (PDF) y el dashboard de métricas
-                </li>
+              <ul className="mt-7 space-y-3 text-sm text-tinta-media">
+                {[
+                  "Define el tema, el objetivo y la metodología",
+                  "Sube los PDFs y ejecuta el análisis",
+                  "Consulta brechas, oportunidades y su respaldo documental",
+                  "Descarga la matriz y las métricas del proyecto",
+                ].map((t, i) => (
+                  <li key={i} className="flex items-start gap-3">
+                    <span className="mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full bg-acento" />
+                    <span className="leading-relaxed">{t}</span>
+                  </li>
+                ))}
               </ul>
 
-              <div className="mt-8 flex flex-wrap gap-3">
+              <div className="mt-9 flex flex-wrap gap-3">
                 <Btn kind="yellow" onClick={onStart}>
                   Comenzar
                 </Btn>
@@ -211,39 +239,34 @@ function WelcomeScreen({ onStart, onList }) {
               </div>
             </div>
 
-            <div className="relative">
-              <div className="absolute -inset-6 rounded-3xl bg-gradient-to-tr from-yellow-100 via-purple-100 to-indigo-100 blur-2xl opacity-60" />
-              <div className="relative rounded-2xl border bg-white p-6 shadow-md">
-                <div className="text-sm text-gray-800 font-medium">
-                  Vista previa
-                </div>
-                <div className="mt-3 space-y-2 text-xs text-gray-600">
-                  <div className="rounded-lg border p-3">
-                    <div className="text-gray-500">Proyecto</div>
-                    <div className="font-medium">
-                      IA generativa en educación
-                    </div>
+            <div className="rounded-2xl border border-borde bg-superficie p-6">
+              <div className="text-xs text-tinta-suave font-medium uppercase tracking-wide">
+                Vista previa
+              </div>
+              <div className="mt-4 space-y-2 text-xs">
+                {[
+                  ["Proyecto", "IA aplicada a procesos de ingeniería"],
+                  ["Artículos", "5 / 5"],
+                  ["Brechas detectadas", "5"],
+                  ["Estado del arte", "versión 1"],
+                ].map(([k, v]) => (
+                  <div
+                    key={k}
+                    className="rounded-lg border border-borde bg-lienzo px-3 py-2.5"
+                  >
+                    <div className="text-tinta-suave">{k}</div>
+                    <div className="font-medium text-tinta mt-0.5">{v}</div>
                   </div>
-                  <div className="rounded-lg border p-3">
-                    <div className="text-gray-500">Artículos</div>
-                    <div className="font-medium">5 / 5</div>
-                  </div>
-                  <div className="rounded-lg border p-3">
-                    <div className="text-gray-500">Acciones</div>
-                    <div className="font-medium">
-                      Analizar • Matriz PDF • Dashboard
-                    </div>
-                  </div>
-                </div>
-                <div className="mt-4 text-[10px] text-gray-400">
-                  * Ilustrativo
-                </div>
+                ))}
+              </div>
+              <div className="mt-4 text-[10px] text-tinta-suave">
+                Ilustrativo
               </div>
             </div>
           </div>
 
-          <div className="px-8 py-4 bg-gray-50/60 border-t text-xs text-gray-500">
-            Requiere backend activo para procesar artículos.
+          <div className="px-8 py-4 bg-hundido border-t border-borde text-xs text-tinta-suave">
+            Requiere el backend en ejecución para procesar artículos.
           </div>
         </div>
       </div>
@@ -310,9 +333,9 @@ function Lista({ goCreate, goProyecto }) {
       title="Lista"
       subtitle="Para generar el estado del arte, sube como mínimo 5 artículos en PDF con DOI."
     >
-      <div className="overflow-x-auto bg-white border rounded-xl shadow-sm">
+      <div className="overflow-x-auto bg-superficie border border-borde rounded-xl">
         <table className="min-w-full">
-          <thead className="bg-gray-100 text-left">
+          <thead className="bg-hundido text-left text-tinta-media">
             <tr>
               <th className="px-4 py-3">Tema</th>
               <th className="px-4 py-3 w-28">Artículos</th>
@@ -323,20 +346,20 @@ function Lista({ goCreate, goProyecto }) {
           <tbody>
             {loading && (
               <tr>
-                <td className="px-4 py-5 text-gray-500" colSpan={4}>
+                <td className="px-4 py-5 text-tinta-suave" colSpan={4}>
                   Cargando…
                 </td>
               </tr>
             )}
             {!loading && rows.length === 0 && (
               <tr>
-                <td className="px-4 py-6 text-gray-500" colSpan={4}>
+                <td className="px-4 py-6 text-tinta-suave" colSpan={4}>
                   Sin proyectos. Crea uno nuevo.
                 </td>
               </tr>
             )}
             {rows.map((p) => (
-              <tr key={p.id} className="border-t hover:bg-gray-50/60">
+              <tr key={p.id} className="border-t hover:bg-hundido/60">
                 <td className="px-4 py-4">
                   {p.tema_principal || "(Sin tema)"}
                 </td>
@@ -347,7 +370,7 @@ function Lista({ goCreate, goProyecto }) {
                       Ver
                     </Btn>
                   ) : (
-                    <span className="text-gray-600">No generado</span>
+                    <span className="text-tinta-media">No generado</span>
                   )}
                 </td>
                 <td className="px-4 py-4">
@@ -385,7 +408,7 @@ function Lista({ goCreate, goProyecto }) {
       >
         {sotaModal.data ? (
           <div className="space-y-2 text-sm">
-            <div className="text-gray-600">
+            <div className="text-tinta-media">
               Versión:{" "}
               <span className="font-medium">{sotaModal.data.version}</span> ·{" "}
               Fecha:{" "}
@@ -393,12 +416,12 @@ function Lista({ goCreate, goProyecto }) {
                 {new Date(sotaModal.data.created_at).toLocaleString()}
               </span>
             </div>
-            <article className="whitespace-pre-wrap leading-relaxed border rounded-lg p-4 bg-gray-50 text-gray-800 text-justify">
+            <article className="whitespace-pre-wrap leading-relaxed border border-borde rounded-lg p-4 bg-hundido text-tinta text-justify">
               {sotaModal.data.texto}
             </article>
           </div>
         ) : (
-          <div className="text-gray-500">Cargando…</div>
+          <div className="text-tinta-suave">Cargando…</div>
         )}
       </Modal>
 
@@ -585,9 +608,9 @@ function SubirArticulos({ proyecto, goBack }) {
       title="Subir artículos"
       subtitle={`Suba ${objetivo} artículos en PDF`}
     >
-      <div className="overflow-x-auto bg-white border rounded-xl shadow-sm">
+      <div className="overflow-x-auto bg-superficie border border-borde rounded-xl">
         <table className="min-w-full">
-          <thead className="bg-gray-800 text-white">
+          <thead className="bg-acento-fuerte text-white">
             <tr>
               <th className="px-4 py-3 text-left">Nombre del artículo</th>
               <th className="px-4 py-3 w-60 text-left">DOI</th>
@@ -601,13 +624,13 @@ function SubirArticulos({ proyecto, goBack }) {
                   {row ? (
                     row.titulo || "(sin título detectado)"
                   ) : (
-                    <em className="text-gray-500">Pendiente</em>
+                    <em className="text-tinta-suave">Pendiente</em>
                   )}
                 </td>
                 <td className="px-4 py-3">{row ? row.doi || "—" : "—"}</td>
                 <td className="px-4 py-3">
                   {row ? (
-                    <span className="text-green-700 font-medium">Cargado</span>
+                    <span className="text-bien font-medium">Cargado</span>
                   ) : (
                     <Btn
                       kind="yellow"
@@ -622,7 +645,7 @@ function SubirArticulos({ proyecto, goBack }) {
             ))}
             {filas.length === 0 && (
               <tr>
-                <td colSpan={3} className="px-4 py-5 text-gray-500 text-center">
+                <td colSpan={3} className="px-4 py-5 text-tinta-suave text-center">
                   Sin filas
                 </td>
               </tr>
@@ -631,7 +654,7 @@ function SubirArticulos({ proyecto, goBack }) {
         </table>
       </div>
 
-      <div className="mt-3 text-sm text-gray-600">
+      <div className="mt-3 text-sm text-tinta-media">
         Cargados: <span className="font-semibold">{arts.length}</span> /{" "}
         {objetivo}
       </div>
@@ -771,9 +794,9 @@ function BrechasProyecto({ proyecto, goBack }) {
       </div>
 
       {/* Tabla de artículos */}
-      <div className="overflow-x-auto bg-white border rounded-xl shadow-sm">
+      <div className="overflow-x-auto bg-superficie border border-borde rounded-xl">
         <table className="min-w-full">
-          <thead className="bg-gray-800 text-white">
+          <thead className="bg-acento-fuerte text-white">
             <tr>
               <th className="px-4 py-3 text-left">Nombre del artículo</th>
               <th className="px-4 py-3 w-60 text-left">DOI</th>
@@ -794,7 +817,7 @@ function BrechasProyecto({ proyecto, goBack }) {
             ))}
             {arts.length === 0 && (
               <tr>
-                <td className="px-4 py-5 text-gray-500" colSpan={3}>
+                <td className="px-4 py-5 text-tinta-suave" colSpan={3}>
                   Sin artículos
                 </td>
               </tr>
@@ -833,12 +856,12 @@ function BrechasProyecto({ proyecto, goBack }) {
 
             {modal.payload.length > 1 && (
               <details className="border rounded-lg">
-                <summary className="cursor-pointer select-none px-3 py-2 bg-gray-50 rounded-t-lg text-sm">
+                <summary className="cursor-pointer select-none px-3 py-2 bg-hundido rounded-t-lg text-sm">
                   Análisis anteriores de este artículo (
                   {modal.payload.length - 1})
                 </summary>
                 <div className="p-3 space-y-6">
-                  <p className="text-xs text-gray-600">
+                  <p className="text-xs text-tinta-media">
                     Cada vez que se analiza el proyecto se genera una brecha
                     nueva y se conserva la anterior, de modo que puedas
                     comparar cómo cambia el resultado al ajustar el sistema.
@@ -846,7 +869,7 @@ function BrechasProyecto({ proyecto, goBack }) {
                   </p>
                   {modal.payload.slice(1).map((b) => (
                     <div key={b.id} className="border-t pt-4">
-                      <div className="text-xs text-gray-500 mb-2">
+                      <div className="text-xs text-tinta-suave mb-2">
                         {new Date(b.creado_en).toLocaleString()}
                       </div>
                       <DetalleBrecha brecha={b} />
@@ -891,13 +914,13 @@ function BrechasProyecto({ proyecto, goBack }) {
         }
       >
         {mx.loading ? (
-          <div className="text-gray-600">Cargando matriz…</div>
+          <div className="text-tinta-media">Cargando matriz…</div>
         ) : mx.rows.length === 0 ? (
-          <div className="text-gray-600">No hay datos para la matriz.</div>
+          <div className="text-tinta-media">No hay datos para la matriz.</div>
         ) : (
           <div className="overflow-x-auto">
             <table className="min-w-full text-sm">
-              <thead className="bg-gray-100 text-left">
+              <thead className="bg-hundido text-left text-tinta-media">
                 <tr>
                   <th className="px-3 py-2">Artículo</th>
                   <th className="px-3 py-2">DOI</th>
@@ -909,7 +932,7 @@ function BrechasProyecto({ proyecto, goBack }) {
                 {mx.rows.map((r, i) => (
                   <tr
                     key={i}
-                    className="border-t align-top hover:bg-gray-50/60"
+                    className="border-t border-borde align-top hover:bg-hundido/60"
                   >
                     <td className="px-3 py-2">{r.titulo}</td>
                     <td className="px-3 py-2">{r.doi}</td>
@@ -937,6 +960,22 @@ export default function App() {
   const [view, setView] = useState("welcome"); // welcome | list | create | subir | brechas
   const [proyectoSel, setProyectoSel] = useState(null);
   const [fontSize, setFontSize] = useState(16); // tamaño base
+
+  // Tema claro u oscuro. Se respeta la preferencia del sistema la primera vez
+  // y se recuerda la elección: en sesiones largas de lectura es lo primero
+  // que se ajusta y molesta tener que repetirlo.
+  const [tema, setTema] = useState(() => {
+    const guardado = localStorage.getItem("tema");
+    if (guardado) return guardado;
+    return window.matchMedia?.("(prefers-color-scheme: dark)").matches
+      ? "oscuro"
+      : "claro";
+  });
+
+  useEffect(() => {
+    document.documentElement.setAttribute("data-tema", tema);
+    localStorage.setItem("tema", tema);
+  }, [tema]);
 
   const increaseFont = () => {
     setFontSize((prev) => (prev < 22 ? prev + 2 : prev));
@@ -975,20 +1014,56 @@ export default function App() {
 
   return (
     <div style={{ fontSize: `${fontSize}px` }}>
-      {/* Control de tamaño de letra fijo arriba a la derecha */}
-      <div className="fixed top-3 right-4 z-50 flex items-center gap-2 bg-white/80 backdrop-blur px-3 py-1 rounded-full border shadow-sm">
-        <span className="text-xs text-gray-600">Tamaño texto</span>
+      {/* Controles de lectura, fijos arriba a la derecha. */}
+      <div
+        className="fixed top-3 right-4 z-50 flex items-center gap-1 bg-lienzo/90 backdrop-blur px-2 py-1.5 rounded-full border border-borde"
+        style={{ boxShadow: "var(--sombra-1)" }}
+      >
+        <span className="text-[11px] text-tinta-suave px-1.5 select-none">
+          Texto
+        </span>
         <button
           onClick={decreaseFont}
-          className="text-sm px-2 py-1 border rounded-full hover:bg-gray-100"
+          title="Reducir el tamaño del texto"
+          aria-label="Reducir el tamaño del texto"
+          className="text-xs w-7 h-7 grid place-items-center border border-borde rounded-full text-tinta-media hover:bg-hundido hover:text-tinta transition-colors"
         >
-          A-
+          A−
         </button>
         <button
           onClick={increaseFont}
-          className="text-sm px-2 py-1 border rounded-full hover:bg-gray-100"
+          title="Aumentar el tamaño del texto"
+          aria-label="Aumentar el tamaño del texto"
+          className="text-xs w-7 h-7 grid place-items-center border border-borde rounded-full text-tinta-media hover:bg-hundido hover:text-tinta transition-colors"
         >
           A+
+        </button>
+
+        <span className="w-px h-5 bg-borde mx-1" />
+
+        <button
+          onClick={() => setTema((t) => (t === "oscuro" ? "claro" : "oscuro"))}
+          title={tema === "oscuro" ? "Cambiar a tema claro" : "Cambiar a tema oscuro"}
+          aria-label={
+            tema === "oscuro" ? "Cambiar a tema claro" : "Cambiar a tema oscuro"
+          }
+          className="w-7 h-7 grid place-items-center border border-borde rounded-full text-tinta-media hover:bg-hundido hover:text-tinta transition-colors"
+        >
+          {tema === "oscuro" ? (
+            /* Sol */
+            <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="none"
+                 stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+              <circle cx="12" cy="12" r="4" />
+              <path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4" />
+            </svg>
+          ) : (
+            /* Luna */
+            <svg viewBox="0 0 24 24" className="w-3.5 h-3.5" fill="none"
+                 stroke="currentColor" strokeWidth="2" strokeLinecap="round"
+                 strokeLinejoin="round">
+              <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" />
+            </svg>
+          )}
         </button>
       </div>
 
