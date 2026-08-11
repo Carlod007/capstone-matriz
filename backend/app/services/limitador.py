@@ -22,60 +22,88 @@ import random
 import re
 import threading
 import time
+from collections import deque
 from typing import Callable, TypeVar
 
 T = TypeVar("T")
 
 # Límites del nivel gratuito. Se dejan configurables porque un plan de pago
 # los amplía y no tendría sentido frenar de más.
-LIMITE_EMBEDDINGS_MIN = int(os.getenv("LIMITE_EMBEDDINGS_MIN", "90"))
-LIMITE_GENERACION_MIN = int(os.getenv("LIMITE_GENERACION_MIN", "10"))
+#
+# El límite real de embeddings es 100 por minuto. Se deja margen por dos
+# motivos: el contador vive en el proceso y se pierde al reiniciar el
+# servidor, de modo que puede quedar consumo reciente sin registrar; y la
+# ventana del servicio no tiene por qué alinearse con la nuestra.
+LIMITE_EMBEDDINGS_MIN = int(os.getenv("LIMITE_EMBEDDINGS_MIN", "70"))
+LIMITE_GENERACION_MIN = int(os.getenv("LIMITE_GENERACION_MIN", "8"))
 MAX_REINTENTOS = int(os.getenv("MAX_REINTENTOS", "5"))
 ESPERA_MAXIMA = float(os.getenv("ESPERA_MAXIMA_SEG", "70"))
 
 
-class Limitador:
-    """Cubo de fichas sencillo, seguro entre hilos.
+VENTANA = 60.0  # segundos
 
-    Se reponen `por_minuto` fichas de forma continua. `adquirir(n)` bloquea
-    hasta que haya n fichas disponibles, de modo que las peticiones se
-    reparten en el tiempo en lugar de agotar la cuota de golpe.
+
+class Limitador:
+    """Ventana deslizante de peticiones, segura entre hilos.
+
+    Se registra la marca de tiempo de cada petición emitida y se garantiza
+    que en ningún intervalo de 60 segundos haya más de `por_minuto`.
+
+    La primera versión usaba un cubo de fichas que arrancaba lleno. Eso
+    permitía una ráfaga inicial de `por_minuto` peticiones y, mientras
+    seguía reponiendo, podía llegar a emitir casi el doble dentro del primer
+    minuto: exactamente lo que volvió a agotar la cuota. Un cubo de fichas
+    limita el caudal medio; el servicio limita el conteo dentro de una
+    ventana, que no es lo mismo.
     """
 
     def __init__(self, por_minuto: int, nombre: str = ""):
         self.por_minuto = max(1, por_minuto)
         self.nombre = nombre
-        self._fichas = float(self.por_minuto)
-        self._ultimo = time.monotonic()
+        self._marcas: deque[float] = deque()
         self._cerrojo = threading.Lock()
 
-    def _reponer(self) -> None:
-        ahora = time.monotonic()
-        transcurrido = ahora - self._ultimo
-        self._ultimo = ahora
-        self._fichas = min(
-            float(self.por_minuto),
-            self._fichas + transcurrido * (self.por_minuto / 60.0),
-        )
+    def _purgar(self, ahora: float) -> None:
+        limite = ahora - VENTANA
+        while self._marcas and self._marcas[0] <= limite:
+            self._marcas.popleft()
+
+    def usadas(self) -> int:
+        """Peticiones emitidas en los últimos 60 segundos."""
+        with self._cerrojo:
+            self._purgar(time.monotonic())
+            return len(self._marcas)
 
     def adquirir(self, n: int = 1) -> float:
-        """Espera lo necesario para consumir n fichas. Devuelve la espera."""
+        """Espera lo necesario para emitir n peticiones. Devuelve la espera.
+
+        Si n supera la capacidad de la ventana se consume por tramos, en vez
+        de bloquear indefinidamente a la espera de un hueco imposible.
+        """
         n = max(1, n)
         esperado = 0.0
-        while True:
+        restantes = n
+
+        while restantes > 0:
             with self._cerrojo:
-                self._reponer()
-                if self._fichas >= n or n > self.por_minuto:
-                    # Si n supera la capacidad total no se puede satisfacer
-                    # nunca por completo: se consume lo que haya y se sigue,
-                    # dejando que el reintento absorba el exceso.
-                    self._fichas = max(0.0, self._fichas - n)
-                    return esperado
-                faltan = n - self._fichas
-                espera = faltan / (self.por_minuto / 60.0)
-            espera = min(espera, 5.0)
-            time.sleep(espera)
-            esperado += espera
+                ahora = time.monotonic()
+                self._purgar(ahora)
+                hueco = self.por_minuto - len(self._marcas)
+                if hueco > 0:
+                    toma = min(hueco, restantes)
+                    self._marcas.extend([ahora] * toma)
+                    restantes -= toma
+                    if restantes == 0:
+                        return esperado
+                # Quede hueco o no, para seguir hay que aguardar a que la
+                # marca más antigua salga de la ventana. Calcularlo siempre
+                # desde esa marca evita esperas cortas arbitrarias, que
+                # desplazaban las emisiones y hacían que dos grupos cayeran
+                # dentro del mismo minuto.
+                espera = self._marcas[0] + VENTANA - ahora
+            time.sleep(max(0.0, min(espera, 5.0)))
+            esperado += max(0.0, min(espera, 5.0))
+        return esperado
 
 
 limitador_embeddings = Limitador(LIMITE_EMBEDDINGS_MIN, "embeddings")

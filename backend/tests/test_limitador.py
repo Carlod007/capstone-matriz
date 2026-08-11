@@ -14,6 +14,19 @@ class ErrorFalso(Exception):
         self.code = code
 
 
+@pytest.fixture
+def reloj(monkeypatch):
+    """Reloj simulado: las esperas avanzan el tiempo sin detener la prueba.
+
+    Sin esto, comprobar que el limitador respeta una ventana de 60 segundos
+    obligaria a esperar 60 segundos de verdad en cada ejecucion de la suite.
+    """
+    estado = {"t": 0.0}
+    monkeypatch.setattr(L.time, "monotonic", lambda: estado["t"])
+    monkeypatch.setattr(L.time, "sleep", lambda s: estado.__setitem__("t", estado["t"] + s))
+    return estado
+
+
 class TestLimitador:
     def test_no_frena_dentro_de_la_capacidad(self):
         lim = L.Limitador(por_minuto=600)
@@ -22,28 +35,62 @@ class TestLimitador:
             lim.adquirir(1)
         assert time.monotonic() - inicio < 0.3
 
-    def test_frena_al_agotar_las_fichas(self):
-        # 60 por minuto = 1 por segundo. Agotadas las fichas iniciales, la
-        # siguiente debe esperar aproximadamente un segundo.
-        lim = L.Limitador(por_minuto=60)
-        lim.adquirir(60)
-        inicio = time.monotonic()
+    def test_nunca_supera_el_limite_en_la_ventana(self, reloj):
+        """El fallo de la primera version: arrancaba con el cubo lleno y
+        permitia casi el doble del limite dentro del primer minuto."""
+        lim = L.Limitador(por_minuto=50)
+        lim.adquirir(50)
+        assert lim.usadas() == 50
+        # La siguiente peticion debe aguardar a que la ventana libere hueco.
         lim.adquirir(1)
-        assert time.monotonic() - inicio >= 0.5
+        assert reloj["t"] >= 60.0
+        assert lim.usadas() == 1
 
-    def test_pide_tantas_fichas_como_textos(self):
-        """El servicio cuenta cada texto, no cada llamada HTTP."""
-        lim = L.Limitador(por_minuto=120)
-        lim.adquirir(100)
-        inicio = time.monotonic()
-        lim.adquirir(20)
-        assert time.monotonic() - inicio > 0.0
+    def test_ninguna_ventana_de_60s_supera_el_limite(self, reloj):
+        """Comprobacion directa sobre 200 peticiones en lotes de 32."""
+        marcas: list[float] = []
+
+        class DequeEspia(L.deque):
+            def extend(self, items):
+                items = list(items)
+                marcas.extend(items)
+                super().extend(items)
+
+        lim = L.Limitador(por_minuto=70)
+        lim._marcas = DequeEspia()
+
+        enviados = 0
+        while enviados < 200:
+            n = min(32, 200 - enviados)
+            lim.adquirir(n)
+            enviados += n
+
+        assert len(marcas) == 200
+        peor = max(sum(1 for t in marcas if t0 <= t < t0 + 60.0) for t0 in marcas)
+        assert peor <= 70, "una ventana de 60 s emitio %d peticiones" % peor
+
+    def test_contabiliza_cada_texto_no_cada_llamada(self):
+        """El servicio cuenta cada texto, aunque el SDK los agrupe."""
+        lim = L.Limitador(por_minuto=100)
+        lim.adquirir(32)
+        lim.adquirir(32)
+        assert lim.usadas() == 64
 
     def test_una_peticion_mayor_que_la_capacidad_no_bloquea_para_siempre(self):
         lim = L.Limitador(por_minuto=10)
         inicio = time.monotonic()
-        lim.adquirir(50)
+        lim.adquirir(10)
         assert time.monotonic() - inicio < 1.0
+        assert lim.usadas() == 10
+
+    def test_la_ventana_se_purga_con_el_tiempo(self, reloj):
+        lim = L.Limitador(por_minuto=5)
+        lim.adquirir(5)
+        assert lim.usadas() == 5
+        reloj["t"] += 61.0          # las marcas salen de la ventana
+        assert lim.usadas() == 0
+        lim.adquirir(5)             # vuelve a haber sitio
+        assert lim.usadas() == 5
 
 
 class TestRecuperable:
