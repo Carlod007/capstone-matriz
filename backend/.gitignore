@@ -23,3 +23,6 @@ storage/pdfs/*
 
 # Permitir el archivo de ejemplo de entorno
 !.env.example
+
+# Cache de pytest
+.pytest_cache/
