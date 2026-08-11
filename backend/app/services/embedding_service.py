@@ -3,6 +3,7 @@ import os, uuid, json
 from typing import List, Tuple, Dict, Any
 from dotenv import load_dotenv
 from google import genai
+from google.genai import types
 from sqlalchemy.orm import Session
 
 from app.models.embedding_doc import EmbeddingDoc
@@ -20,9 +21,17 @@ load_dotenv()
 
 MODE = os.getenv("GEMINI_MODE", "mock").lower()
 API_KEY = os.getenv("GEMINI_API_KEY", "")
-EMBED_MODEL = os.getenv("EMBED_MODEL", "text-embedding-004").replace("models/", "")
+# text-embedding-004 fue retirado por Google y devuelve 404: el sistema no
+# podía indexar nada en modo real. El sustituto es gemini-embedding-001 (C-13).
+EMBED_MODEL = os.getenv("EMBED_MODEL", "gemini-embedding-001").replace("models/", "")
 
-MOCK_DIM = 768
+# El modelo entrega 3072 dimensiones por defecto. Se reducen a 768 porque los
+# vectores se guardan como JSON en MySQL y la búsqueda recorre todos los
+# fragmentos en memoria: cuadruplicar el tamaño penaliza sin necesidad. El
+# modelo admite truncado por diseño, así que la pérdida de calidad es menor.
+EMBED_DIM = int(os.getenv("EMBED_DIM", "768"))
+
+MOCK_DIM = EMBED_DIM
 _client = None
 
 
@@ -95,6 +104,7 @@ def _embed_texts(texts: list[str], batch: int = 32) -> list[list[float]]:
         resp = client.models.embed_content(
             model=EMBED_MODEL,
             contents=[t for _i, t in trozo],
+            config=types.EmbedContentConfig(output_dimensionality=EMBED_DIM),
         )
         emb = getattr(resp, "embeddings", None) or []
         if len(emb) != len(trozo):
