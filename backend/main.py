@@ -31,7 +31,8 @@ from app.models.run_item import RunItem
 from app.models.embedding_doc import EmbeddingDoc
 from app.models.resultado_brecha import ResultadoBrecha
 from app.models.estado_arte import EstadoDelArte
-from app.models.resultado_resumen import ResultadoResumen   # <--- NUEVO
+from app.models.resultado_resumen import ResultadoResumen
+from app.models.rag_log import RagLog
 
 # -------------------------------
 # CREAR TABLAS SI NO EXISTEN

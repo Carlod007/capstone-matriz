@@ -211,11 +211,17 @@ CREATE TABLE embedding_doc (
   chunk_orden INT NOT NULL,
   texto       LONGTEXT NOT NULL,
   embedding   JSON NOT NULL,
+  -- Seccion del articulo a la que pertenece el fragmento: permite exigir
+  -- cobertura de metodo, resultados y discusion al recuperar contexto.
+  seccion     VARCHAR(24) NULL,
+  char_inicio INT NULL,
+  char_fin    INT NULL,
   creado_en   DATETIME DEFAULT CURRENT_TIMESTAMP,
   CONSTRAINT fk_embedding_articulo
     FOREIGN KEY (articulo_id) REFERENCES articulo(id)
     ON DELETE CASCADE ON UPDATE RESTRICT,
-  INDEX idx_embedding_articulo (articulo_id)
+  INDEX idx_embedding_articulo (articulo_id),
+  INDEX idx_embedding_seccion (articulo_id, seccion)
 ) ENGINE=InnoDB;
 
 DROP TABLE IF EXISTS rag_log;

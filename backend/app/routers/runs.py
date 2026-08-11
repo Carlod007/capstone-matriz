@@ -14,8 +14,10 @@ from app.models.proyecto import Proyecto
 from app.models.resultado_resumen import ResultadoResumen  # modelo de resúmenes
 from app.schemas.run import RunCreate, RunOut, RunItemOut
 
+from app.models.rag_log import RagLog
+
 from app.services.gemini_service import analyze
-from app.services.embedding_service import get_top_chunks
+from app.services.embedding_service import recuperar_contexto, construir_consulta
 from app.services.metrics import (
     validate_breach_with_rag,
     shannon_entropy_bits_and_norm,
@@ -24,7 +26,7 @@ from app.services.metrics import (
     lexical_density,  # usamos esto para la densidad léxica del resumen
 )
 
-from app.utils.text_extractor import extract_full_text
+from app.utils.text_extractor import extraer_con_diagnostico
 
 router = APIRouter(prefix="/proyectos", tags=["runs"])
 
@@ -171,16 +173,18 @@ def process_next_item(run_id: str, db: Session = Depends(get_db)):
             n_items_ok=run.n_items_ok,
         )
 
-    texto = extract_full_text(arc.ruta)
-    if len(texto.strip()) < 300:
+    diag = extraer_con_diagnostico(arc.ruta)
+    texto = diag.texto
+    if not diag.utilizable:
         from app.services.ocr_fallback import ocr_disponible
         ok_ocr, motivo_ocr = ocr_disponible()
+        motivos = list(diag.avisos) or ["Texto insuficiente."]
+        if not ok_ocr and diag.metodo != "ocr":
+            motivos.append("OCR no disponible. " + motivo_ocr)
         item.estado = EstadoRunItem.fallido
-        item.error_msg = (
-            "Texto insuficiente: el PDF parece escaneado o protegido."
-            if ok_ocr
-            else "Texto insuficiente (PDF escaneado) y OCR no disponible. " + motivo_ocr
-        )
+        # El diagnóstico N0 sustituye al escueto "Texto insuficiente": ahora el
+        # usuario sabe por qué falló y si es recuperable.
+        item.error_msg = " | ".join(motivos)[:2000]
         db.commit()
         return RunOut.model_construct(
             id=run.id,
@@ -203,8 +207,30 @@ def process_next_item(run_id: str, db: Session = Depends(get_db)):
         run.iniciado_en = datetime.utcnow()
 
     try:
-        # --- Paso 1: recuperar fragmentos RAG (si existen) ---
-        support = get_top_chunks(db, art.id, k=8)  # list[str] o []
+        # --- Paso 1: recuperar fragmentos por relevancia ---
+        # Antes se usaba get_top_chunks(), que devolvía los primeros ocho
+        # fragmentos del documento: el modelo solo veía resumen e introducción
+        # y nunca método, resultados ni discusión (M-10).
+        recuperados = recuperar_contexto(db, art.id, contexto, k=8)
+        support = [r["texto"] for r in recuperados]
+
+        # Trazabilidad: qué fragmentos se usaron en este análisis.
+        if recuperados:
+            db.add(RagLog(
+                id=str(uuid.uuid4()),
+                run_id=run_id,
+                articulo_id=art.id,
+                consulta=construir_consulta(contexto)[:2000],
+                top_k=len(recuperados),
+                scores=[
+                    {
+                        "embedding_id": r["embedding_id"],
+                        "seccion": r["seccion"],
+                        "score": r["score"],
+                    }
+                    for r in recuperados
+                ],
+            ))
 
         # --- Paso 2: análisis de brecha con Gemini usando RAG ---
         res = analyze(texto, contexto, context_docs=(support if support else None))

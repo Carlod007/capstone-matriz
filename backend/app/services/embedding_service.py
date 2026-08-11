@@ -8,8 +8,13 @@ from sqlalchemy.orm import Session
 from app.models.embedding_doc import EmbeddingDoc
 from app.models.archivo import Archivo
 from app.models.articulo import Articulo
-from app.utils.text_extractor import extract_full_text
-from app.utils.chunker import split_into_chunks
+from app.utils.text_extractor import extract_full_text, extraer_con_diagnostico
+from app.utils.chunker import split_into_chunks, fragmentar
+from app.services.document_structure import (
+    detectar_secciones,
+    seccion_en,
+    SECCIONES_SUSTANTIVAS,
+)
 
 load_dotenv()
 
@@ -132,22 +137,30 @@ def index_articulo(db: Session, articulo_id: str, max_chars=1200, overlap=200) -
     if not arc:
         return 0
 
-    texto = extract_full_text(arc.ruta)
-    chunks = split_into_chunks(texto, max_chars=max_chars, overlap=overlap)
-    if not chunks:
+    diag = extraer_con_diagnostico(arc.ruta)
+    texto = diag.texto
+    fragmentos = fragmentar(texto, max_chars=max_chars, overlap=overlap)
+    if not fragmentos:
         return 0
 
-    vectors = _embed_texts(chunks)
+    # Cada fragmento se etiqueta con la sección del artículo en la que cae,
+    # para poder exigir cobertura al recuperar contexto (M-10).
+    secciones = detectar_secciones(texto)
+
+    vectors = _embed_texts([f.texto for f in fragmentos])
     count = 0
-    for i, (txt, vec) in enumerate(zip(chunks, vectors)):
+    for i, (frag, vec) in enumerate(zip(fragmentos, vectors)):
         if not vec:  # salta fragmentos vacíos si los hubiera
             continue
         db.add(EmbeddingDoc(
             id=str(uuid.uuid4()),
             articulo_id=articulo_id,
             chunk_orden=i,          # <- requiere columna en modelo/BD
-            texto=txt,
+            texto=frag.texto,
             embedding=vec,          # <- JSON nativo (no json.dumps)
+            seccion=seccion_en(secciones, frag.inicio),
+            char_inicio=frag.inicio,
+            char_fin=frag.fin,
         ))
         count += 1
     db.commit()
@@ -180,7 +193,14 @@ def embed_query(db: Session, articulo_ids: List[str], query: str, top_k: int = 5
     return scored[:top_k]
 
 def get_top_chunks(db: Session, articulo_id: str, k: int = 8) -> list[str]:
-    """Primeros k fragmentos en orden de aparición."""
+    """Primeros k fragmentos en orden de aparición.
+
+    OBSOLETA. Pese al nombre, el criterio es posicional y no de relevancia:
+    devuelve siempre el principio del artículo. Usada como contexto del
+    modelo, hacía que el análisis viera solo resumen e introducción y nunca
+    método, resultados ni discusión (M-10). Se conserva para usos de
+    depuración; para obtener contexto usar `recuperar_contexto`.
+    """
     rows = (
         db.query(EmbeddingDoc)
         .filter(EmbeddingDoc.articulo_id == articulo_id)
@@ -189,6 +209,138 @@ def get_top_chunks(db: Session, articulo_id: str, k: int = 8) -> list[str]:
         .all()
     )
     return [r.texto for r in rows]
+
+
+def construir_consulta(contexto: Dict[str, Any]) -> str:
+    """Consulta de recuperación a partir del contexto del proyecto.
+
+    Sin esto la recuperación no tiene contra qué medir relevancia. Incluye el
+    tema, el objetivo y el sector declarados por el investigador, más términos
+    que orientan la búsqueda hacia lo que revela una brecha.
+    """
+    partes = [
+        (contexto.get("tema_principal") or "").strip(),
+        (contexto.get("objetivo") or "").strip(),
+        (contexto.get("sector_txt") or "").strip(),
+        (contexto.get("metodologia_txt") or "").strip(),
+        "limitaciones del estudio, vacíos de investigación, trabajo futuro, "
+        "diseño metodológico, muestra, validación, resultados y hallazgos",
+    ]
+    return " ".join(p for p in partes if p)
+
+
+def recuperar_contexto(
+    db: Session,
+    articulo_id: str,
+    contexto: Dict[str, Any],
+    k: int = 8,
+    lambda_diversidad: float = 0.7,
+    min_sustantivos: int = 3,
+) -> List[Dict[str, Any]]:
+    """Selecciona los fragmentos que se entregarán al modelo.
+
+    Combina tres criterios, en sustitución del corte posicional anterior:
+
+    1. **Relevancia**: similitud coseno frente a la consulta construida a
+       partir del contexto del proyecto.
+    2. **Diversidad** (MMR): penaliza el fragmento que se parece a los ya
+       elegidos, para no llenar la ventana con variantes del mismo párrafo.
+    3. **Cuota seccional**: reserva plazas para método, resultados, discusión
+       y limitaciones, de modo que el ranking no deje fuera las secciones
+       donde de verdad se aprecia una brecha.
+
+    Devuelve una lista de diccionarios con texto, sección y puntuación, apta
+    para registrar trazabilidad además de para construir el prompt.
+    """
+    docs = (
+        db.query(EmbeddingDoc)
+        .filter(EmbeddingDoc.articulo_id == articulo_id)
+        .order_by(EmbeddingDoc.chunk_orden.asc())
+        .all()
+    )
+    if not docs:
+        return []
+
+    consulta = construir_consulta(contexto)
+    q_vec = _embed_texts([consulta])[0]
+
+    candidatos = []
+    for d in docs:
+        vec = d.embedding
+        if isinstance(vec, str):
+            try:
+                vec = json.loads(vec)
+            except Exception:
+                vec = []
+        if not vec:
+            continue
+        candidatos.append({
+            "id": d.id,
+            "texto": d.texto,
+            "seccion": d.seccion or "otro",
+            "orden": d.chunk_orden,
+            "char_inicio": d.char_inicio,
+            "char_fin": d.char_fin,
+            "vector": vec,
+            "score": _cos(q_vec, vec),
+        })
+    if not candidatos:
+        return []
+
+    candidatos.sort(key=lambda c: c["score"], reverse=True)
+
+    seleccion: List[Dict[str, Any]] = []
+    restantes = list(candidatos)
+
+    def _elegir(pool: list) -> dict | None:
+        """Mejor candidato del pool según relevancia penalizada por redundancia."""
+        mejor, mejor_val = None, None
+        for c in pool:
+            if not seleccion:
+                val = c["score"]
+            else:
+                redundancia = max(_cos(c["vector"], s["vector"]) for s in seleccion)
+                val = lambda_diversidad * c["score"] - (1 - lambda_diversidad) * redundancia
+            if mejor_val is None or val > mejor_val:
+                mejor, mejor_val = c, val
+        return mejor
+
+    # 1) Cuota seccional: asegura presencia de las secciones sustantivas.
+    disponibles_sustantivas = {
+        c["seccion"] for c in restantes if c["seccion"] in SECCIONES_SUSTANTIVAS
+    }
+    for seccion in sorted(disponibles_sustantivas):
+        if len(seleccion) >= min(min_sustantivos, k):
+            break
+        pool = [c for c in restantes if c["seccion"] == seccion]
+        elegido = _elegir(pool)
+        if elegido is not None:
+            seleccion.append(elegido)
+            restantes.remove(elegido)
+
+    # 2) El resto por relevancia con diversificación.
+    while len(seleccion) < k and restantes:
+        elegido = _elegir(restantes)
+        if elegido is None:
+            break
+        seleccion.append(elegido)
+        restantes.remove(elegido)
+
+    # Se devuelve en orden de aparición: el modelo razona mejor con el
+    # documento en su secuencia natural que con un ranking de relevancia.
+    seleccion.sort(key=lambda c: c["orden"])
+    return [
+        {
+            "embedding_id": c["id"],
+            "texto": c["texto"],
+            "seccion": c["seccion"],
+            "orden": c["orden"],
+            "score": round(c["score"], 4),
+            "char_inicio": c["char_inicio"],
+            "char_fin": c["char_fin"],
+        }
+        for c in seleccion
+    ]
 
 def build_rag_context(db: Session, articulo_id: str, k: int = 8, max_chars: int = 3000) -> str:
     """

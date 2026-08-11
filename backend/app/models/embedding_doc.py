@@ -12,4 +12,10 @@ class EmbeddingDoc(Base):
     chunk_orden = Column(Integer, nullable=False)             # <- requerido por el servicio
     texto = Column(Text, nullable=False)
     embedding = Column(MySQLJSON, nullable=False)             # guarda lista de floats (no string)
+    # Sección del artículo a la que pertenece el fragmento. Permite exigir
+    # cobertura de método, resultados y discusión al recuperar contexto, en
+    # lugar de quedarse siempre con la introducción (M-10).
+    seccion = Column(String(24), nullable=True, index=True)
+    char_inicio = Column(Integer, nullable=True)              # trazabilidad hacia el PDF
+    char_fin = Column(Integer, nullable=True)
     creado_en = Column(DateTime, server_default=func.now())
