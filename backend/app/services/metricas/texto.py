@@ -139,6 +139,35 @@ def rouge_l(referencia: str, generado: str) -> tuple[float, float, float]:
 
 
 # ---------------------------------------------------------------- densidad
+# ---------------------------------------------------------------- idioma
+def idioma(texto: str, minimo: int = 12) -> str:
+    """Detecta si el texto es español, inglés o indeterminado.
+
+    Se apoya en las palabras funcionales, que son las más frecuentes y las
+    que menos varían con el tema. No hace falta una biblioteca externa para
+    distinguir dos idiomas tan separados.
+
+    Es necesario porque ROUGE mide solape léxico: comparar un resumen en
+    español con un abstract en inglés da casi cero por construcción, con
+    independencia de lo fiel que sea el resumen. Sin esta comprobación, la
+    cifra parece una medida de calidad y no lo es.
+    """
+    toks = tokenizar(texto, normalizar=True)
+    if len(toks) < minimo:
+        return "indeterminado"
+    solo_es = VACIAS_ES - VACIAS_EN
+    solo_en = VACIAS_EN - VACIAS_ES
+    es = sum(1 for t in toks if t in solo_es)
+    en = sum(1 for t in toks if t in solo_en)
+    if es == 0 and en == 0:
+        return "indeterminado"
+    if es >= en * 1.5:
+        return "es"
+    if en >= es * 1.5:
+        return "en"
+    return "indeterminado"
+
+
 def densidad_lexica(texto: str) -> float:
     """Proporción de palabras de contenido (N4.4).
 

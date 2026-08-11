@@ -114,12 +114,31 @@ limitador_generacion = Limitador(LIMITE_GENERACION_MIN, "generacion")
 _RE_RETRY = re.compile(r"'?retryDelay'?\s*:\s*'?(\d+(?:\.\d+)?)s", re.IGNORECASE)
 
 
+class CuotaDiariaAgotada(RuntimeError):
+    """La cuota del día se ha consumido; no se recupera esperando."""
+
+
+def es_cuota_diaria(exc: Exception) -> bool:
+    """Distingue el límite diario del límite por minuto.
+
+    Ambos llegan como 429, pero solo el segundo se resuelve esperando. El
+    servicio identifica el diario en `quotaId` con el sufijo `PerDay`, y aun
+    así devuelve un `retryDelay` de un minuto: obedecerlo supone encadenar
+    reintentos inútiles durante minutos para acabar fallando igual.
+    """
+    texto = str(exc)
+    return "PerDay" in texto or "per day" in texto.lower()
+
+
 def es_recuperable(exc: Exception) -> bool:
     """Distingue un fallo transitorio de uno definitivo.
 
     Reintentar un 400 por petición mal formada solo gasta tiempo; reintentar
-    un 429 o un 503 casi siempre funciona.
+    un 429 por límite de minuto casi siempre funciona. El límite diario, en
+    cambio, es definitivo hasta el día siguiente.
     """
+    if es_cuota_diaria(exc):
+        return False
     codigo = getattr(exc, "code", None) or getattr(exc, "status_code", None)
     if codigo in (429, 500, 502, 503, 504):
         return True
@@ -154,6 +173,13 @@ def con_reintentos(fn: Callable[[], T], descripcion: str = "llamada",
             return fn()
         except Exception as exc:  # noqa: BLE001
             ultimo = exc
+            if es_cuota_diaria(exc):
+                # Mensaje accionable en lugar de un volcado de la API.
+                raise CuotaDiariaAgotada(
+                    "Se ha agotado la cuota diaria del nivel gratuito para %s. "
+                    "No se recupera esperando: se restablece al dia siguiente. "
+                    "Detalle del servicio: %s" % (descripcion, str(exc)[:300])
+                ) from exc
             if intento >= intentos or not es_recuperable(exc):
                 raise
             espera = espera_sugerida(exc)

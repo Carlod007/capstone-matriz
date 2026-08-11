@@ -143,6 +143,9 @@ class MetricasResumen:
     densidad_lexica: float = 0.0
     compresion: float = 0.0
     referencia_valida: bool = False
+    rouge_aplicable: bool = False
+    idioma_referencia: str = ""
+    idioma_generado: str = ""
     motivo: str = ""
 
     def dict(self) -> dict:
@@ -172,14 +175,36 @@ def n4_calidad_resumen(resumen_generado: str, abstract: str | None) -> MetricasR
         return m
 
     m.referencia_valida = True
-    p1, r1, f1 = T.rouge_n(ref, gen, 1)
-    m.rouge1_prec, m.rouge1_rec, m.rouge1_f1 = round(p1, 4), round(r1, 4), round(f1, 4)
-    m.rouge2_f1 = round(T.rouge_n(ref, gen, 2)[2], 4)
-    m.rougeL_f1 = round(T.rouge_l(ref, gen)[2], 4)
+    m.idioma_referencia = T.idioma(ref)
+    m.idioma_generado = T.idioma(gen)
+
+    # ROUGE mide solape de palabras: entre idiomas distintos da casi cero por
+    # construcción, por fiel que sea el resumen. En el primer lote real los
+    # artículos estaban en inglés y el resumen se generaba en español, con lo
+    # que ROUGE-1 salía en 0.05 mientras la similitud semántica era 0.90. Dar
+    # esa cifra como medida de calidad seria engañoso.
+    m.rouge_aplicable = (
+        m.idioma_referencia == m.idioma_generado
+        and m.idioma_referencia in ("es", "en")
+    )
+
+    if m.rouge_aplicable:
+        p1, r1, f1 = T.rouge_n(ref, gen, 1)
+        m.rouge1_prec, m.rouge1_rec, m.rouge1_f1 = round(p1, 4), round(r1, 4), round(f1, 4)
+        m.rouge2_f1 = round(T.rouge_n(ref, gen, 2)[2], 4)
+        m.rougeL_f1 = round(T.rouge_l(ref, gen)[2], 4)
+    else:
+        m.motivo = (
+            "ROUGE no es aplicable: el resumen está en '%s' y el abstract en "
+            "'%s'. Al medir solape léxico, entre idiomas distintos daría un "
+            "valor cercano a cero con independencia de la calidad. Se usa la "
+            "similitud semántica, que sí funciona entre idiomas."
+            % (m.idioma_generado, m.idioma_referencia)
+        )
 
     # N4.2: capta la paráfrasis correcta que ROUGE penaliza por no compartir
-    # vocabulario literal. Juntas dan una lectura más honesta que cualquiera
-    # de las dos por separado.
+    # vocabulario literal, y es la única de las dos que sigue siendo válida
+    # cuando resumen y abstract están en idiomas distintos.
     vs = _embed_texts([ref, gen])
     m.similitud_semantica = round(_cos(vs[0], vs[1]), 4) if vs[0] and vs[1] else 0.0
 

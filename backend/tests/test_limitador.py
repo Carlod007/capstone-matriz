@@ -108,6 +108,46 @@ class TestRecuperable:
         assert not L.es_recuperable(ErrorFalso("404 NOT_FOUND", code=404))
 
 
+class TestCuotaDiaria:
+    """El limite diario y el limite por minuto llegan ambos como 429, pero
+    solo el segundo se resuelve esperando."""
+
+    DIARIA = ("429 RESOURCE_EXHAUSTED. {'error': {'details': [{'quotaId': "
+              "'GenerateRequestsPerDayPerProjectPerModel-FreeTier'}], "
+              "'retryDelay': '58s'}}")
+    POR_MINUTO = ("429 RESOURCE_EXHAUSTED. {'error': {'details': [{'quotaId': "
+                  "'EmbedContentRequestsPerMinutePerUserPerProjectPerModel-FreeTier'}], "
+                  "'retryDelay': '14s'}}")
+
+    def test_reconoce_la_cuota_diaria(self):
+        assert L.es_cuota_diaria(ErrorFalso(self.DIARIA))
+
+    def test_no_confunde_con_la_cuota_por_minuto(self):
+        assert not L.es_cuota_diaria(ErrorFalso(self.POR_MINUTO))
+
+    def test_la_cuota_diaria_no_es_recuperable(self):
+        assert not L.es_recuperable(ErrorFalso(self.DIARIA, code=429))
+
+    def test_la_cuota_por_minuto_si_es_recuperable(self):
+        assert L.es_recuperable(ErrorFalso(self.POR_MINUTO, code=429))
+
+    def test_falla_de_inmediato_sin_reintentar(self, monkeypatch):
+        """Reintentar cinco veces con esperas de un minuto solo retrasa el
+        mismo fallo varios minutos."""
+        monkeypatch.setattr(L.time, "sleep", lambda s: None)
+        intentos = {"n": 0}
+
+        def agotada():
+            intentos["n"] += 1
+            raise ErrorFalso(self.DIARIA, code=429)
+
+        with pytest.raises(L.CuotaDiariaAgotada) as exc:
+            L.con_reintentos(agotada, descripcion="analyze", intentos=5)
+        assert intentos["n"] == 1
+        assert "cuota diaria" in str(exc.value).lower()
+        assert "analyze" in str(exc.value)
+
+
 class TestEsperaSugerida:
     def test_extrae_el_retry_delay_del_mensaje(self):
         msg = ("429 RESOURCE_EXHAUSTED. {'error': {'details': "

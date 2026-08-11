@@ -204,6 +204,51 @@ class TestN4:
         assert "resumen generado" in m.motivo.lower()
 
 
+class TestIdiomaYRouge:
+    """ROUGE mide solape lexico: entre idiomas distintos no significa nada."""
+
+    ABSTRACT_EN = ("Predicting cellular metabolism from molecular data is a central "
+                   "challenge in systems biology, with direct implications for the "
+                   "engineering of microbial cell factories and their applications.")
+    RESUMEN_ES = ("El articulo introduce un marco de modelado hibrido que integra "
+                  "modelos metabolicos a escala genomica con restricciones "
+                  "enzimaticas en arquitecturas de redes neuronales profundas.")
+
+    def test_detecta_espanol(self):
+        assert T.idioma(self.RESUMEN_ES) == "es"
+
+    def test_detecta_ingles(self):
+        assert T.idioma(self.ABSTRACT_EN) == "en"
+
+    def test_texto_corto_es_indeterminado(self):
+        assert T.idioma("dos palabras") == "indeterminado"
+
+    def test_no_calcula_rouge_entre_idiomas_distintos(self):
+        m = N.n4_calidad_resumen(self.RESUMEN_ES, self.ABSTRACT_EN)
+        assert m.referencia_valida is True
+        assert m.rouge_aplicable is False
+        assert m.rouge1_f1 == 0.0
+        assert "no es aplicable" in m.motivo.lower()
+
+    def test_la_similitud_semantica_si_se_calcula(self):
+        """Se calcula aunque ROUGE quede descartado.
+
+        Aqui solo se comprueba que la ruta se ejecuta. Su valor no es
+        interpretable en las pruebas: en modo simulado los embeddings son
+        lexicos por construccion, asi que entre idiomas distintos rondan
+        cero. Con embeddings reales, este mismo par dio 0.90 sobre el lote
+        de articulos.
+        """
+        m = N.n4_calidad_resumen(self.RESUMEN_ES, self.ABSTRACT_EN)
+        assert isinstance(m.similitud_semantica, float)
+        assert m.rouge_aplicable is False
+
+    def test_calcula_rouge_cuando_coincide_el_idioma(self):
+        m = N.n4_calidad_resumen(self.ABSTRACT_EN, self.ABSTRACT_EN)
+        assert m.rouge_aplicable is True
+        assert m.rouge1_f1 == pytest.approx(1.0)
+
+
 # ------------------------------------------------------------ distribucion
 class TestDistribucion:
     def test_detecta_una_metrica_cuasi_constante(self):
