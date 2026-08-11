@@ -16,6 +16,14 @@ from app.services.document_structure import (
     seccion_en,
     SECCIONES_SUSTANTIVAS,
 )
+from app.services.limitador import con_reintentos, limitador_embeddings
+
+# Tamaño de fragmento. Se hace configurable porque incide directamente en la
+# cuota: cada fragmento es un texto embebido y el nivel gratuito los cuenta de
+# uno en uno. Con 1200 caracteres un artículo largo generaba más de sesenta
+# fragmentos y dos artículos bastaban para agotar el minuto.
+CHUNK_CHARS = int(os.getenv("CHUNK_CHARS", "1800"))
+CHUNK_OVERLAP = int(os.getenv("CHUNK_OVERLAP", "250"))
 
 load_dotenv()
 
@@ -101,10 +109,19 @@ def _embed_texts(texts: list[str], batch: int = 32) -> list[list[float]]:
     client = _get_client()
     for ini in range(0, len(pend), batch):
         trozo = pend[ini:ini + batch]
-        resp = client.models.embed_content(
-            model=EMBED_MODEL,
-            contents=[t for _i, t in trozo],
-            config=types.EmbedContentConfig(output_dimensionality=EMBED_DIM),
+
+        # El SDK agrupa los textos en una sola llamada HTTP, pero el servicio
+        # contabiliza cada texto por separado contra la cuota por minuto. Se
+        # piden tantas fichas como textos, no una por llamada (A-02).
+        limitador_embeddings.adquirir(len(trozo))
+
+        resp = con_reintentos(
+            lambda: client.models.embed_content(
+                model=EMBED_MODEL,
+                contents=[t for _i, t in trozo],
+                config=types.EmbedContentConfig(output_dimensionality=EMBED_DIM),
+            ),
+            descripcion="embed_content(%d textos)" % len(trozo),
         )
         emb = getattr(resp, "embeddings", None) or []
         if len(emb) != len(trozo):
@@ -133,10 +150,32 @@ def _cos(a: list[float], b: list[float]) -> float:
 # ---------------------------
 # Indexación (RAG - fase build)
 # ---------------------------
-def index_articulo(db: Session, articulo_id: str, max_chars=1200, overlap=200) -> int:
+def index_articulo(db: Session, articulo_id: str, max_chars: int | None = None,
+                   overlap: int | None = None, reindexar: bool = False) -> int:
+    """Indexa un artículo. Es idempotente.
+
+    Si ya tiene fragmentos se devuelve el número existente sin volver a
+    llamar a la API. Antes no se comprobaba, de modo que reintentar tras un
+    fallo a mitad de lote duplicaba los fragmentos del artículo ya procesado
+    y volvía a gastar cuota por ellos.
+
+    Con `reindexar=True` se descartan los fragmentos previos y se recalculan,
+    que es lo que hace falta al cambiar el tamaño de fragmento o el modelo.
+    """
+    max_chars = CHUNK_CHARS if max_chars is None else max_chars
+    overlap = CHUNK_OVERLAP if overlap is None else overlap
+
     art: Articulo | None = db.query(Articulo).filter(Articulo.id == articulo_id).first()
     if not art:
         return 0
+
+    existentes = (db.query(EmbeddingDoc)
+                  .filter(EmbeddingDoc.articulo_id == articulo_id).count())
+    if existentes and not reindexar:
+        return existentes
+    if existentes and reindexar:
+        db.query(EmbeddingDoc).filter(EmbeddingDoc.articulo_id == articulo_id).delete()
+        db.flush()
 
     arc: Archivo | None = (
         db.query(Archivo)

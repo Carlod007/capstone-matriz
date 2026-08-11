@@ -3,6 +3,9 @@ import os, json
 from google import genai
 from google.genai import types
 from dotenv import load_dotenv
+
+from app.services.limitador import con_reintentos, limitador_generacion
+
 load_dotenv()
 
 MODE = os.getenv("GEMINI_MODE", "mock").lower()
@@ -196,14 +199,18 @@ def analyze(texto: str, contexto: dict, context_docs: list[str] | None = None) -
         texto=texto[:120_000]
     )
 
-    resp = client.models.generate_content(
-        model=CHAT_MODEL,
-        contents=prompt,
-        config=types.GenerateContentConfig(
-            system_instruction=SYS_PROMPT,
-            response_mime_type="application/json",
-            temperature=0.1,
+    limitador_generacion.adquirir(1)
+    resp = con_reintentos(
+        lambda: client.models.generate_content(
+            model=CHAT_MODEL,
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                system_instruction=SYS_PROMPT,
+                response_mime_type="application/json",
+                temperature=0.1,
+            ),
         ),
+        descripcion="analyze",
     )
 
     raw_text = _resp_text(resp)
@@ -282,13 +289,17 @@ BRECHAS:
 {brechas_txt}
 """
 
-    resp = client.models.generate_content(
-        model=CHAT_MODEL,
-        contents=prompt,
-        config=types.GenerateContentConfig(
-            system_instruction="Redacta un estado del arte a partir de las brechas detectadas.",
-            temperature=0.2,
+    limitador_generacion.adquirir(1)
+    resp = con_reintentos(
+        lambda: client.models.generate_content(
+            model=CHAT_MODEL,
+            contents=prompt,
+            config=types.GenerateContentConfig(
+                system_instruction="Redacta un estado del arte a partir de las brechas detectadas.",
+                temperature=0.2,
+            ),
         ),
+        descripcion="synthesize_estado_arte",
     )
 
     text = _resp_text(resp)
