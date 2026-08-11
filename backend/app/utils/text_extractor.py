@@ -32,7 +32,20 @@ def extract_full_text(pdf_path: str, max_chars: int = 120_000) -> str:
         except Exception:
             pass
 
-    # 3) Limpiar texto
+    # 3) Si sigue habiendo poco texto, el PDF es probablemente un escaneo:
+    #    se recurre al OCR. Antes este módulo existía pero nadie lo llamaba,
+    #    así que el OCR nunca llegaba a ejecutarse (C-04).
+    if len(txt.strip()) < 300:
+        try:
+            from app.services.ocr_fallback import ocr_pdf_to_text, OCRNoDisponible
+            txt = ocr_pdf_to_text(pdf_path) or txt
+        except OCRNoDisponible:
+            # Sin motor de OCR se devuelve lo que haya; el llamador decide.
+            pass
+        except Exception:
+            pass
+
+    # 4) Limpiar texto
     txt = clean_text(txt)
     if len(txt) > max_chars:
         txt = txt[:max_chars]

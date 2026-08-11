@@ -1,11 +1,13 @@
 # app/services/gemini_service.py
 import os, json
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 from dotenv import load_dotenv
 load_dotenv()
 
 MODE = os.getenv("GEMINI_MODE", "mock").lower()
 API_KEY = os.getenv("GEMINI_API_KEY", "")
+CHAT_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 
 # Prompt del sistema: salida estrictamente en JSON y regla clara de tipificación
 SYS_PROMPT = (
@@ -89,11 +91,55 @@ ARTÍCULO:
 """
 
 
-def _ensure_api():
-    if MODE == "real" and not API_KEY:
-        raise RuntimeError("Falta GEMINI_API_KEY en .env")
-    if MODE == "real":
-        genai.configure(api_key=API_KEY)
+_client = None
+
+
+def _get_client() -> "genai.Client":
+    """Devuelve el cliente del SDK, creándolo una sola vez.
+
+    El SDK anterior (google.generativeai) está descontinuado y sin
+    mantenimiento; se migró a google-genai (C-11).
+    """
+    global _client
+    if MODE != "real":
+        raise RuntimeError("_get_client() solo debe usarse en GEMINI_MODE=real")
+    if not API_KEY:
+        raise RuntimeError(
+            "Falta GEMINI_API_KEY en .env. Usa GEMINI_MODE=mock para ejecutar "
+            "el sistema sin consumir cuota de API."
+        )
+    if _client is None:
+        _client = genai.Client(api_key=API_KEY)
+    return _client
+
+
+def _usage(resp) -> dict:
+    """Extrae el consumo de tokens de la respuesta.
+
+    El SDK nuevo lo expone de forma directa; esto habilita poblar
+    run.tokens_in / tokens_out y costo_estimado, que hoy quedan en cero (S-04).
+    """
+    um = getattr(resp, "usage_metadata", None)
+    if um is None:
+        return {"tokens_in": 0, "tokens_out": 0, "tokens_total": 0}
+    return {
+        "tokens_in": int(getattr(um, "prompt_token_count", 0) or 0),
+        "tokens_out": int(getattr(um, "candidates_token_count", 0) or 0),
+        "tokens_total": int(getattr(um, "total_token_count", 0) or 0),
+    }
+
+
+def _resp_text(resp) -> str:
+    """Lectura robusta del texto de la respuesta."""
+    txt = getattr(resp, "text", None)
+    if txt:
+        return txt
+    for cand in (getattr(resp, "candidates", None) or []):
+        content = getattr(cand, "content", None)
+        for part in (getattr(content, "parts", None) or []):
+            if getattr(part, "text", None):
+                return part.text
+    return ""
 
 # Heurística mínima para corregir sesgo evidente en 'tipo_brecha'
 def _rebalance_tipo(brecha_text: str, tipo_modelo: str) -> str:
@@ -131,11 +177,11 @@ def analyze(texto: str, contexto: dict, context_docs: list[str] | None = None) -
             "oportunidad": demo["oportunidad"],
             "tipo_brecha": demo["tipo_brecha"],
             "resumen": resumen_mock,
+            "_usage": {"tokens_in": 0, "tokens_out": 0, "tokens_total": 0},
         }
 
     # --- MODO REAL ---
-    _ensure_api()
-    model = genai.GenerativeModel("models/gemini-2.5-flash")
+    client = _get_client()
 
     bloque_rag = _mk_rag_block(context_docs)
     few_shots_json = json.dumps(FEW_SHOTS, ensure_ascii=False, indent=2)
@@ -150,27 +196,17 @@ def analyze(texto: str, contexto: dict, context_docs: list[str] | None = None) -
         texto=texto[:120_000]
     )
 
-    resp = model.generate_content(
-        [
-            {"role": "user", "parts": [SYS_PROMPT]},
-            {"role": "user", "parts": [prompt]},
-        ],
-        generation_config={
-            "response_mime_type": "application/json",
-            "temperature": 0.1
-        }
+    resp = client.models.generate_content(
+        model=CHAT_MODEL,
+        contents=prompt,
+        config=types.GenerateContentConfig(
+            system_instruction=SYS_PROMPT,
+            response_mime_type="application/json",
+            temperature=0.1,
+        ),
     )
 
-    # --- Lectura robusta de respuesta ---
-    if hasattr(resp, "text") and resp.text:
-        raw_text = resp.text
-    else:
-        raw_text = ""
-        if hasattr(resp, "candidates") and resp.candidates:
-            parts = resp.candidates[0].content.parts
-            if parts and hasattr(parts[0], "text"):
-                raw_text = parts[0].text
-
+    raw_text = _resp_text(resp)
     if not raw_text.strip():
         raise RuntimeError("Gemini devolvió respuesta vacía.")
 
@@ -203,6 +239,7 @@ def analyze(texto: str, contexto: dict, context_docs: list[str] | None = None) -
             "oportunidad": op,
             "tipo_brecha": tipo,
             "resumen": resumen,
+            "_usage": _usage(resp),
         }
 
 
@@ -220,8 +257,7 @@ def synthesize_estado_arte(brechas: list[dict], contexto: dict) -> str:
             "Líneas futuras: estandarizar métricas, replicación y estudios longitudinales."
         )
 
-    _ensure_api()
-    model = genai.GenerativeModel("models/gemini-2.5-flash")
+    client = _get_client()
     items = []
     for b in brechas[:50]:
         items.append(
@@ -246,21 +282,16 @@ BRECHAS:
 {brechas_txt}
 """
 
-    resp = model.generate_content(
-        [{"role": "user", "parts": ["Redacta estado del arte a partir de brechas."]},
-         {"role": "user", "parts": [prompt]}],
-        generation_config={"temperature": 0.2}
+    resp = client.models.generate_content(
+        model=CHAT_MODEL,
+        contents=prompt,
+        config=types.GenerateContentConfig(
+            system_instruction="Redacta un estado del arte a partir de las brechas detectadas.",
+            temperature=0.2,
+        ),
     )
 
-    if hasattr(resp, "text") and resp.text:
-        text = resp.text
-    else:
-        text = ""
-        if getattr(resp, "candidates", None):
-            parts = resp.candidates[0].content.parts
-            if parts and hasattr(parts[0], "text"):
-                text = parts[0].text
-
+    text = _resp_text(resp)
     if not text.strip():
         raise RuntimeError("Gemini devolvió respuesta vacía al sintetizar estado del arte.")
     return text.strip()

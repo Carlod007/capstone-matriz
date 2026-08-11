@@ -2,7 +2,7 @@
 import os, uuid, json
 from typing import List, Tuple, Dict, Any
 from dotenv import load_dotenv
-import google.generativeai as genai
+from google import genai
 from sqlalchemy.orm import Session
 
 from app.models.embedding_doc import EmbeddingDoc
@@ -13,43 +13,96 @@ from app.utils.chunker import split_into_chunks
 
 load_dotenv()
 
+MODE = os.getenv("GEMINI_MODE", "mock").lower()
 API_KEY = os.getenv("GEMINI_API_KEY", "")
-EMBED_MODEL = os.getenv("EMBED_MODEL", "models/text-embedding-004")  # consistente con ListModels
+EMBED_MODEL = os.getenv("EMBED_MODEL", "text-embedding-004").replace("models/", "")
 
-if not API_KEY:
-    raise RuntimeError("Falta GEMINI_API_KEY en .env")
+MOCK_DIM = 768
+_client = None
 
-genai.configure(api_key=API_KEY)
+
+def _get_client() -> "genai.Client":
+    """Devuelve el cliente del SDK, creándolo una sola vez.
+
+    Antes la configuración ocurría en tiempo de importación y lanzaba
+    RuntimeError si faltaba la clave, lo que impedía arrancar el backend para
+    pruebas sin consumir cuota (C-09). Migrado a google-genai (C-11).
+    """
+    global _client
+    if MODE != "real":
+        raise RuntimeError("_get_client() solo debe usarse en GEMINI_MODE=real")
+    if not API_KEY:
+        raise RuntimeError(
+            "Falta GEMINI_API_KEY en .env. Usa GEMINI_MODE=mock para ejecutar "
+            "el sistema sin consumir cuota de API."
+        )
+    if _client is None:
+        _client = genai.Client(api_key=API_KEY)
+    return _client
+
+
+def _mock_embed(text: str, dim: int = MOCK_DIM) -> list[float]:
+    """Embedding determinista por 'hashing trick', sin llamadas de red.
+
+    No es semántico, pero sí es estable entre ejecuciones y conserva la
+    propiedad que importa para probar el pipeline: dos textos con vocabulario
+    parecido obtienen vectores parecidos, así que el coseno se comporta de
+    forma sensata en las pruebas.
+    """
+    import hashlib, math, re
+
+    vec = [0.0] * dim
+    for tok in re.findall(r"\w+", (text or "").lower()):
+        h = hashlib.md5(tok.encode("utf-8")).digest()
+        idx = int.from_bytes(h[:4], "big") % dim
+        signo = 1.0 if h[4] % 2 == 0 else -1.0
+        vec[idx] += signo
+    norma = math.sqrt(sum(x * x for x in vec))
+    if norma == 0.0:
+        return [0.0] * dim
+    return [x / norma for x in vec]
+
 
 # ---------------------------
 # Helpers de embeddings
 # ---------------------------
-def _embed_texts(texts: list[str]) -> list[list[float]]:
-    """Devuelve una lista de vectores (lista de floats) para cada texto."""
-    model = EMBED_MODEL
-    vectors: list[list[float]] = []
-    for t in texts:
-        t = (t or "").strip()
-        if not t:
-            vectors.append([])  # preserva índice; se filtrará luego si hace falta
-            continue
-        resp = genai.embed_content(model=model, content=t)
+def _embed_texts(texts: list[str], batch: int = 32) -> list[list[float]]:
+    """Devuelve una lista de vectores (lista de floats) para cada texto.
 
-        emb = None
-        # Respuestas posibles del SDK
-        if isinstance(resp, dict):
-            emb = resp.get("embedding")
-        else:
-            # objetos con atributo .embedding
-            emb = getattr(resp, "embedding", None)
+    El SDK nuevo acepta varios textos por llamada, así que se envían por lotes
+    en lugar de uno a uno como hacía la versión anterior.
+    """
+    vectors: list[list[float]] = [[] for _ in texts]
 
-        if isinstance(emb, dict) and "values" in emb:
-            vectors.append(emb["values"])
-        elif isinstance(emb, list):
-            vectors.append(emb)
-        else:
-            raise RuntimeError("Formato de embedding desconocido")
-    # Validación mínima
+    # Índices con contenido real; los vacíos conservan su posición.
+    pend = [(i, (t or "").strip()) for i, t in enumerate(texts) if (t or "").strip()]
+    if not pend:
+        raise RuntimeError("No se generaron embeddings")
+
+    if MODE != "real":
+        for i, t in pend:
+            vectors[i] = _mock_embed(t)
+        return vectors
+
+    client = _get_client()
+    for ini in range(0, len(pend), batch):
+        trozo = pend[ini:ini + batch]
+        resp = client.models.embed_content(
+            model=EMBED_MODEL,
+            contents=[t for _i, t in trozo],
+        )
+        emb = getattr(resp, "embeddings", None) or []
+        if len(emb) != len(trozo):
+            raise RuntimeError(
+                "El servicio devolvió %d embeddings para %d textos"
+                % (len(emb), len(trozo))
+            )
+        for (i, _t), e in zip(trozo, emb):
+            vals = getattr(e, "values", None)
+            if not vals:
+                raise RuntimeError("Formato de embedding desconocido")
+            vectors[i] = list(vals)
+
     if not any(v for v in vectors):
         raise RuntimeError("No se generaron embeddings")
     return vectors

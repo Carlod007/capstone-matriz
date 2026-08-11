@@ -14,7 +14,6 @@ from app.routers import embeddings
 from app.routers import metrics
 from app.routers import export
 from app.routers import metrics_plots
-from app.routers import batch
 from app.routers import dashboard
 from app.routers import pipeline
 
@@ -78,6 +77,5 @@ app.include_router(embeddings.router)
 app.include_router(metrics.router)
 app.include_router(export.router)
 app.include_router(metrics_plots.router)
-app.include_router(batch.router)
 app.include_router(dashboard.router)
 app.include_router(pipeline.router)

@@ -173,8 +173,14 @@ def process_next_item(run_id: str, db: Session = Depends(get_db)):
 
     texto = extract_full_text(arc.ruta)
     if len(texto.strip()) < 300:
+        from app.services.ocr_fallback import ocr_disponible
+        ok_ocr, motivo_ocr = ocr_disponible()
         item.estado = EstadoRunItem.fallido
-        item.error_msg = "Texto insuficiente (PDF vacío o escaneado)."
+        item.error_msg = (
+            "Texto insuficiente: el PDF parece escaneado o protegido."
+            if ok_ocr
+            else "Texto insuficiente (PDF escaneado) y OCR no disponible. " + motivo_ocr
+        )
         db.commit()
         return RunOut.model_construct(
             id=run.id,

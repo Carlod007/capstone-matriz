@@ -1,14 +1,20 @@
 # app/models/resultado_resumen.py
 from sqlalchemy import Column, String, Text, DateTime, ForeignKey, func, Float
-from sqlalchemy.dialects.postgresql import UUID  # si usas Postgres; si no, usa String
 from app.models.proyecto import Base
 
 
 class ResultadoResumen(Base):
     __tablename__ = "resultado_resumen"
 
-    id = Column(String(36), primary_key=True)  # o UUID / Integer según uses en el resto
-    articulo_id = Column(String(36), ForeignKey("articulo.id"), nullable=False)
+    id = Column(String(36), primary_key=True)
+    # ondelete explícito: sin él la tabla quedó sin integridad referencial y
+    # acumuló filas huérfanas al borrarse los artículos (C-07).
+    articulo_id = Column(
+        String(36),
+        ForeignKey("articulo.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
 
     resumen_generado = Column(Text, nullable=False)
     resumen_referencia = Column(Text, nullable=False)

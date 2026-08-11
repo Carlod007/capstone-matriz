@@ -231,9 +231,10 @@ CREATE TABLE rag_log (
   INDEX idx_rag_run (run_id)
 ) ENGINE=InnoDB;
 
-
-select * from resultado_brecha
-
-DELETE FROM archivo
-DELETE FROM articulo
-DELETE FROM proyecto
+-- ===========================================
+-- NOTA
+-- ===========================================
+-- Este archivo contiene UNICAMENTE el DDL del esquema.
+-- No incluir aqui sentencias de consulta ni de borrado: el archivo
+-- esta pensado para ejecutarse completo al preparar una base nueva.
+-- Para limpiar datos durante el desarrollo usar un script aparte.

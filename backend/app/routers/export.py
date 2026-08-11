@@ -105,7 +105,7 @@ def export_brechas_csv(proyecto_id: str, db: Session = Depends(get_db)):
                 getattr(rb, "entropia", ""),
                 getattr(rb, "val_score", ""),
                 getattr(rb, "val_reason", ""),
-                getattr(rb, "es_duplicida", ""),
+                getattr(rb, "es_duplicada", ""),
                 getattr(rb, "dup_de", ""),
             ]
         )
