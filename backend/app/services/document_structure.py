@@ -34,12 +34,19 @@ SECCIONES = (
     "discusion",
     "limitaciones",
     "conclusion",
+    "cuerpo",
     "agradecimientos",
     "referencias",
 )
 
 # Secciones que concentran la información útil para detectar una brecha.
-SECCIONES_SUSTANTIVAS = ("metodo", "resultados", "discusion", "limitaciones", "conclusion")
+# "cuerpo" son secciones numeradas de primer nivel con título propio del
+# dominio —"Finite element analysis", "Machine learning framework",
+# "System description"— que no encajan en ninguna categoría canónica pero
+# contienen el desarrollo técnico. Enumerar todos sus nombres posibles sería
+# imposible; reconocerlas por su forma sí.
+SECCIONES_SUSTANTIVAS = ("metodo", "resultados", "discusion", "limitaciones",
+                         "conclusion", "cuerpo")
 
 # Patrones por sección. Se comparan contra el texto de la línea ya despojado
 # de numeración ("3.", "IV.", "1.2") y en minúsculas.
@@ -49,13 +56,18 @@ _PATRONES: list[tuple[str, str]] = [
     ("relacionados",    r"^(related work|background|literature review|state of the art|"
                         r"trabajos relacionados|antecedentes|marco teorico|marco teórico|"
                         r"revision de literatura|revisión de literatura|estado del arte)$"),
-    ("metodo",          r"^(method|methods|methodology|methodological approach|"
-                        r"materials and methods|material and methods|experimental setup|"
-                        r"research method(ology)?|metodo|método|metodos|métodos|metodologia|"
-                        r"metodología|materiales y metodos|materiales y métodos|"
-                        r"diseno metodologico|diseño metodológico)$"),
-    ("resultados",      r"^(results?|findings|results and discussion|"
-                        r"resultados?|hallazgos|resultados y discusion|resultados y discusión)$"),
+    ("metodo",          r"^(methods?|methodology|methodological approach|"
+                        r"materials?\s+and\s+methods?|methods?\s+and\s+materials?|"
+                        r"experimental\s+(setup|methodology|method|procedure|design)|"
+                        r"research\s+method(ology)?|proposed\s+(approach|method(ology)?|framework)|"
+                        r"metodo|método|metodos|métodos|metodologia|metodología|"
+                        r"materiales y metodos|materiales y métodos|"
+                        r"diseno metodologico|diseño metodológico|"
+                        r"metodologia experimental|metodología experimental)$"),
+    ("resultados",      r"^(results?|findings|results?\s+and\s+discussions?|"
+                        r"experimental\s+results?|results?\s+and\s+analysis|"
+                        r"resultados?|hallazgos|resultados y discusion(es)?|"
+                        r"resultados y discusión|resultados experimentales)$"),
     ("discusion",       r"^(discussion|analysis and discussion|discusion|discusión|"
                         r"analisis|análisis)$"),
     ("limitaciones",    r"^(limitations?|limitations and future (work|research)|threats to validity|"
@@ -70,9 +82,18 @@ _PATRONES: list[tuple[str, str]] = [
 _COMPILADOS = [(nombre, re.compile(pat, re.IGNORECASE)) for nombre, pat in _PATRONES]
 
 # Numeración inicial: "3.", "3.1", "IV.", "(2)", "Capítulo 3"
+#
+# El número romano exige separador detrás. Sin esa condición, y al comparar
+# sin distinguir mayúsculas, `[IVXLC]+` devoraba la primera letra de cualquier
+# título que empezara por esas letras: "Conclusions" quedaba en "onclusions" e
+# "Introduction" en "ntroduction". Solo se detectaban por ir numeradas, y un
+# encabezado suelto pasaba inadvertido.
 _NUMERACION = re.compile(
     r"^\s*(?:capitulo|capítulo|chapter|section|seccion|sección)?\s*"
-    r"(?:\(?\d+(?:\.\d+)*\)?|[IVXLC]+)\s*[\.\)\-–—:]*\s*",
+    r"(?:"
+    r"\(?\d+(?:\.\d+)*\)?\s*[\.\)\-–—:]*"      # 3   3.1   (3)   3.
+    r"|[IVXLC]{1,7}\s*[\.\)\-–—:]+"            # IV.  X)   — separador obligatorio
+    r")\s*",
     re.IGNORECASE,
 )
 
@@ -93,12 +114,51 @@ class Seccion:
         return max(0, self.fin - self.inicio)
 
 
+# Encabezado con las letras separadas: "A B S T R A C T". Es el estilo
+# tipográfico de varias editoriales y, al extraer el texto, llega tal cual.
+# Los cinco artículos del primer lote real lo usaban, de modo que el resumen
+# no se detectaba en ninguno y ROUGE no llegaba a calcularse nunca.
+_ESPACIADO = re.compile(r"^\s*(?:[^\W\d_]\s+){2,}[^\W\d_]\s*$")
+
+# Encabezado numerado de primer nivel: "3. Machine learning framework".
+_NUMERADO_NIVEL1 = re.compile(r"^\s*(\d{1,2})[\.\)]?\s+([^\W\d_][^\n]{2,55})$")
+
+
+def _colapsar_espaciado(linea: str) -> str:
+    """Une las letras de un encabezado espaciado, si lo es."""
+    if _ESPACIADO.match(linea or ""):
+        return re.sub(r"\s+", "", linea)
+    return linea
+
+
 def _normalizar_encabezado(linea: str) -> str:
     """Deja la línea lista para comparar: sin numeración ni ruido."""
-    t = linea.strip()
+    t = _colapsar_espaciado(linea).strip()
     t = _NUMERACION.sub("", t)
     t = _RUIDO.sub("", t)
     return t.strip()
+
+
+def _es_encabezado_estructural(linea: str) -> bool:
+    """Encabezado numerado de primer nivel, aunque su título no sea canónico.
+
+    Los artículos de ingeniería titulan sus secciones según el dominio, no
+    según un vocabulario fijo. Reconocer la forma —número, título corto, sin
+    punto final— captura ese desarrollo técnico que de otro modo quedaría
+    etiquetado como "otro" y fuera de la cuota seccional.
+    """
+    s = (linea or "").strip()
+    if not s or len(s) > LONGITUD_MAX_ENCABEZADO or s.endswith((".", ",", ";", ":")):
+        return False
+    m = _NUMERADO_NIVEL1.match(s)
+    if not m:
+        return False
+    if int(m.group(1)) > 12:          # numeraciones altas suelen ser listas
+        return False
+    titulo = m.group(2).strip()
+    # Un título de sección no acaba en preposición ni contiene demasiadas
+    # palabras: eso delataría una frase partida por el salto de línea.
+    return 1 <= len(titulo.split()) <= 7
 
 
 def _clasificar_linea(linea: str) -> str | None:
@@ -117,6 +177,9 @@ def _clasificar_linea(linea: str) -> str | None:
     for nombre, patron in _COMPILADOS:
         if patron.match(t):
             return nombre
+    # Sin coincidencia de vocabulario, pero con forma de sección numerada.
+    if _es_encabezado_estructural(linea):
+        return "cuerpo"
     return None
 
 

@@ -103,9 +103,19 @@ class TestContenidoInformativo:
 # ------------------------------------------------------------------ niveles
 class TestN1:
     def test_cobertura_seccional_completa(self):
-        rec = [{"seccion": s} for s in
-               ("metodo", "resultados", "discusion", "limitaciones", "conclusion")]
+        # Se deriva de la constante para que anadir una seccion sustantiva no
+        # deje la prueba comprobando una definicion obsoleta.
+        from app.services.document_structure import SECCIONES_SUSTANTIVAS
+
+        rec = [{"seccion": s} for s in SECCIONES_SUSTANTIVAS]
         assert N.n1_2_cobertura_seccional(rec) == 1.0
+
+    def test_cobertura_seccional_parcial(self):
+        from app.services.document_structure import SECCIONES_SUSTANTIVAS
+
+        rec = [{"seccion": SECCIONES_SUSTANTIVAS[0]}, {"seccion": "introduccion"}]
+        esperado = round(1.0 / len(SECCIONES_SUSTANTIVAS), 4)
+        assert N.n1_2_cobertura_seccional(rec) == esperado
 
     def test_cobertura_seccional_solo_introduccion(self):
         # El escenario que producia la implementacion anterior de M-10.

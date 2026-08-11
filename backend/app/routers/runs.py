@@ -17,6 +17,7 @@ from app.schemas.run import RunCreate, RunOut, RunItemOut
 from app.models.rag_log import RagLog
 
 from app.models.metrica import Metrica, AMBITO_BRECHA, AMBITO_ARTICULO
+from app.models.embedding_doc import EmbeddingDoc
 
 from app.services.gemini_service import analyze
 from app.services.embedding_service import recuperar_contexto, construir_consulta
@@ -104,7 +105,14 @@ def _registrar_metricas(db, art, rb, res, texto, recuperados, ruta_pdf) -> None:
 
     # --- N3: especificidad ---
     _metrica(db, art.proyecto_id, AMBITO_BRECHA, rb.id, "N3.2", N.n3_2_densidad_anclajes(brecha_txt))
-    corpus = [r["texto"] for r in recuperados]
+
+    # El IDF necesita un corpus amplio para distinguir lo raro de lo frecuente.
+    # Calculado sobre los ocho fragmentos recuperados, casi todos los términos
+    # aparecían en todos los documentos y la métrica salía cuasi-constante
+    # (IQR 0.018 en el primer lote real). Se usa el proyecto entero.
+    corpus = [t for (t,) in db.query(EmbeddingDoc.texto)
+              .join(Articulo, Articulo.id == EmbeddingDoc.articulo_id)
+              .filter(Articulo.proyecto_id == art.proyecto_id).all()]
     _metrica(db, art.proyecto_id, AMBITO_BRECHA, rb.id, "N3.3",
              N.n3_3_contenido_informativo(brecha_txt, corpus),
              {"tamano_corpus": len(corpus)})
@@ -374,6 +382,13 @@ def process_next_item(run_id: str, db: Session = Depends(get_db)):
         )
         db.add(rb)
         db.flush()
+
+        # Contabilidad de consumo (S-04). El SDK nuevo expone usage_metadata,
+        # así que los campos del esquema dejan de quedarse en cero y se puede
+        # conocer el coste real de cada ejecución.
+        uso = res.get("_usage") or {}
+        run.tokens_in = (run.tokens_in or 0) + int(uso.get("tokens_in", 0))
+        run.tokens_out = (run.tokens_out or 0) + int(uso.get("tokens_out", 0))
 
         # --- Paso 4: métricas locales N1, N3 y N4 ---
         _registrar_metricas(db, art, rb, res, texto, recuperados, arc.ruta)
