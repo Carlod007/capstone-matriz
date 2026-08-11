@@ -27,6 +27,7 @@ from app.models.proyecto import Proyecto
 from app.models.resultado_brecha import ResultadoBrecha
 from app.models.run import Run, EstadoRun
 from app.models.run_item import RunItem
+from app.services import registro_api
 from app.services.metricas import distribucion as D
 from app.services.metricas.catalogo import CATALOGO, ficha
 
@@ -184,11 +185,25 @@ def consumo(proyecto_id: str, db: Session = Depends(get_db)):
     """
     desde = datetime.utcnow() - timedelta(hours=24)
 
-    brechas_hoy = (db.query(ResultadoBrecha)
-                   .filter(ResultadoBrecha.created_at >= desde).count())
-    sintesis_hoy = (db.query(EstadoDelArte)
-                    .filter(EstadoDelArte.created_at >= desde).count())
-    generaciones = brechas_hoy + sintesis_hoy
+    # Fuente preferente: el registro de llamadas, que anota tambien las
+    # fallidas. Contar solo los resultados guardados dejaba fuera los
+    # intentos con error, que consumen cuota igualmente, y el indicador se
+    # quedaba corto justo tras una racha de 429.
+    registrado = registro_api.consumo(horas=24)
+    if registrado.get("disponible") and registrado.get("generaciones"):
+        generaciones = registrado["generaciones"]
+        fallidas = registrado["fallidas"]
+        embeddings = registrado["embeddings"]
+        fuente = "registro de llamadas"
+    else:
+        brechas_hoy = (db.query(ResultadoBrecha)
+                       .filter(ResultadoBrecha.created_at >= desde).count())
+        sintesis_hoy = (db.query(EstadoDelArte)
+                        .filter(EstadoDelArte.created_at >= desde).count())
+        generaciones = brechas_hoy + sintesis_hoy
+        fallidas = 0
+        embeddings = 0
+        fuente = "resultados guardados"
 
     LIMITE_DIARIO = 20
     n_articulos = db.query(Articulo).filter(Articulo.proyecto_id == proyecto_id).count()
@@ -237,7 +252,29 @@ def consumo(proyecto_id: str, db: Session = Depends(get_db)):
                             "generados, sin ninguna llamada adicional."),
             },
         ],
-        "nota": ("Estimacion a partir de los resultados guardados. No incluye "
-                 "llamadas fallidas ni consumo de otras aplicaciones que usen "
-                 "la misma clave. Consulta oficial en ai.dev/rate-limit"),
+        "fuente": fuente,
+        "generaciones_fallidas": fallidas,
+        "embeddings_ventana": embeddings,
+        # Se declara explicitamente el alcance del recuento. Un contador que
+        # se presenta como exacto sin serlo lleva a decisiones equivocadas,
+        # que es justo el problema que este proyecto vino a corregir.
+        "exactitud": {
+            "cuenta": (
+                "Todas las llamadas hechas por esta aplicacion, incluidas las "
+                "que fallaron: un intento con error consume cuota igual."
+                if fuente == "registro de llamadas" else
+                "Solo los resultados guardados. Las llamadas fallidas no se "
+                "contabilizan, asi que el consumo real puede ser mayor."
+            ),
+            "no_cuenta": [
+                "Llamadas de otras aplicaciones que usen la misma clave.",
+                "Llamadas anteriores a la puesta en marcha de este registro.",
+            ],
+            "ventana": (
+                "Se miden las ultimas 24 horas moviles. El proveedor reinicia "
+                "su cuota a una hora fija, de modo que el momento de "
+                "renovacion puede no coincidir."
+            ),
+            "fuente_oficial": "ai.dev/rate-limit",
+        },
     }

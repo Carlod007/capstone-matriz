@@ -184,7 +184,39 @@ export function IndicadorConsumo({ proyectoId }) {
             ))}
           </div>
 
-          <div className="border-t pt-2 text-tinta-suave">{d.nota}</div>
+          {/* Se dice de dónde sale el número y qué no alcanza a ver. Un
+              contador presentado como exacto sin serlo lleva a decisiones
+              equivocadas. */}
+          {d.exactitud && (
+            <div className="border-t pt-2 space-y-1 text-tinta-suave">
+              <div>
+                <span className="font-medium">Qué cuenta este indicador: </span>
+                {d.exactitud.cuenta}
+              </div>
+              {d.generaciones_fallidas > 0 && (
+                <div>
+                  De las {usadas} registradas, {d.generaciones_fallidas}{" "}
+                  fallaron. Consumen cuota igual.
+                </div>
+              )}
+              <div>
+                <span className="font-medium">No cuenta: </span>
+                {(d.exactitud.no_cuenta || []).join(" ")}
+              </div>
+              <div>{d.exactitud.ventana}</div>
+              <div>
+                Cifra oficial en{" "}
+                <a
+                  href="https://ai.dev/rate-limit"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-acento hover:underline"
+                >
+                  ai.dev/rate-limit
+                </a>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>

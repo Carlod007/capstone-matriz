@@ -37,6 +37,7 @@ from app.models.estado_arte import EstadoDelArte
 from app.models.resultado_resumen import ResultadoResumen
 from app.models.rag_log import RagLog
 from app.models.metrica import Metrica
+from app.models.llamada_api import LlamadaAPI
 
 # -------------------------------
 # CREAR TABLAS SI NO EXISTEN

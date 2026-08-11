@@ -17,6 +17,7 @@ from app.services.document_structure import (
     SECCIONES_SUSTANTIVAS,
 )
 from app.services.limitador import con_reintentos, limitador_embeddings
+from app.services.registro_api import OP_EMBEDDING, anotar
 
 # Tamaño de fragmento. Se hace configurable porque incide directamente en la
 # cuota: cada fragmento es un texto embebido y el nivel gratuito los cuenta de
@@ -115,14 +116,23 @@ def _embed_texts(texts: list[str], batch: int = 32) -> list[list[float]]:
         # piden tantas fichas como textos, no una por llamada (A-02).
         limitador_embeddings.adquirir(len(trozo))
 
+        def _llamar(trozo=trozo):
+            try:
+                r = client.models.embed_content(
+                    model=EMBED_MODEL,
+                    contents=[t for _i, t in trozo],
+                    config=types.EmbedContentConfig(output_dimensionality=EMBED_DIM),
+                )
+            except Exception as exc:
+                anotar(OP_EMBEDDING, modelo=EMBED_MODEL, exito=False,
+                       unidades=len(trozo), motivo=str(exc))
+                raise
+            anotar(OP_EMBEDDING, modelo=EMBED_MODEL, exito=True,
+                   unidades=len(trozo))
+            return r
+
         resp = con_reintentos(
-            lambda: client.models.embed_content(
-                model=EMBED_MODEL,
-                contents=[t for _i, t in trozo],
-                config=types.EmbedContentConfig(output_dimensionality=EMBED_DIM),
-            ),
-            descripcion="embed_content(%d textos)" % len(trozo),
-        )
+            _llamar, descripcion="embed_content(%d textos)" % len(trozo))
         emb = getattr(resp, "embeddings", None) or []
         if len(emb) != len(trozo):
             raise RuntimeError(
