@@ -12,6 +12,7 @@ from app.routers import brechas
 from app.routers import estado_arte
 from app.routers import embeddings
 from app.routers import metrics
+from app.routers import metricas_v2
 from app.routers import export
 from app.routers import metrics_plots
 from app.routers import dashboard
@@ -79,6 +80,7 @@ app.include_router(brechas.router)
 app.include_router(estado_arte.router)
 app.include_router(embeddings.router)
 app.include_router(metrics.router)
+app.include_router(metricas_v2.router)
 app.include_router(export.router)
 app.include_router(metrics_plots.router)
 app.include_router(dashboard.router)

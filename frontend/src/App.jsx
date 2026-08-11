@@ -1,4 +1,9 @@
 import { useEffect, useState } from "react";
+import {
+  DetalleBrecha,
+  IndicadorConsumo,
+  PanelMetricas,
+} from "./components/Metricas";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "http://127.0.0.1:8000";
 
@@ -658,7 +663,6 @@ function SubirArticulos({ proyecto, goBack }) {
 /* ============ 4) BRECHAS DETECTADAS ============ */
 function BrechasProyecto({ proyecto, goBack }) {
   const [arts, setArts] = useState([]);
-  const [metrics, setMetrics] = useState(null);
   const [modal, setModal] = useState({ open: false, title: "", payload: null });
   const [err, setErr] = useState(null);
 
@@ -680,26 +684,20 @@ function BrechasProyecto({ proyecto, goBack }) {
         setArts([]);
         setErr(e);
       }
-      try {
-        const m = await jget(
-          `${API_BASE}/proyectos/${proyecto.id}/metrics/resumen`
-        );
-        setMetrics(m);
-      } catch {
-        setMetrics(null);
-      }
+      // Las métricas las carga PanelMetricas desde /metricas, que sirve la
+      // capa v2. El endpoint /metrics/resumen leía las columnas retiradas.
     })();
   }, [proyecto.id]);
 
   async function verBrechas(art) {
     try {
       const rows = await jget(`${API_BASE}/articulos/${art.id}/brechas`);
-      const r = rows?.[0];
-      if (!r) {
-        alert("Sin brechas");
+      if (!rows?.length) {
+        setErr(new Error("Este artículo todavía no tiene brechas analizadas."));
         return;
       }
-      setModal({ open: true, title: art.titulo || "Brecha", payload: r });
+      // Antes se tomaba rows[0] y se descartaba el resto en silencio.
+      setModal({ open: true, title: art.titulo || "Brecha", payload: rows });
     } catch (e) {
       setErr(e);
     }
@@ -725,60 +723,49 @@ function BrechasProyecto({ proyecto, goBack }) {
 
   return (
     <Page title="Brechas detectadas">
-      {/* Panel de métricas de proyecto */}
-      <div className="mb-6 flex items-start justify-between gap-4">
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 w-full">
-          <div className="border rounded-lg p-3 bg-white shadow-sm">
-            <div className="text-gray-500 text-sm">Entropía promedio</div>
-            <div className="text-2xl font-semibold">
-              {metrics ? Number(metrics.avg_entropia).toFixed(3) : "—"}
-            </div>
-          </div>
-          <div className="border rounded-lg p-3 bg-white shadow-sm">
-            <div className="text-gray-500 text-sm">Similitud promedio</div>
-            <div className="text-2xl font-semibold">
-              {metrics ? Number(metrics.avg_sim_promedio).toFixed(3) : "—"}
-            </div>
-          </div>
-          <div className="border rounded-lg p-3 bg-white shadow-sm">
-            <div className="text-gray-500 text-sm">Score validación</div>
-            <div className="text-2xl font-semibold">
-              {metrics ? Number(metrics.avg_val_score).toFixed(3) : "—"}
-            </div>
-          </div>
+      {/* Panel de métricas del proyecto.
+          Antes mostraba entropía, similitud y score de validación: las tres
+          métricas retiradas, que llegaban siempre en cero y hacían parecer
+          que el sistema estaba averiado. */}
+      <div className="mb-6 flex items-start gap-4">
+        <div className="w-full">
+          <PanelMetricas proyectoId={proyecto.id} />
         </div>
 
-        {/* Acciones */}
-        <div className="shrink-0 flex flex-col gap-2">
-          <Btn
-            kind="blue"
-            onClick={() =>
-              downloadFile(
-                `${API_BASE}/proyectos/${proyecto.id}/metrics/plots`,
-                `metricas_${proyecto.id}.zip`
-              ).catch(() => alert("No se pudo descargar métricas"))
-            }
-          >
-            Descargar métricas (ZIP)
+        <div className="shrink-0 flex flex-col gap-2 w-56">
+          <IndicadorConsumo proyectoId={proyecto.id} />
+          <Btn kind="gray" onClick={abrirMatriz}>
+            Ver matriz
           </Btn>
           <Btn
             kind="yellow"
             onClick={async () => {
               try {
                 await downloadFile(
-                  `${API_BASE}/export/proyectos/${proyecto.id}/dashboard.pdf`,
-                  `dashboard_${proyecto.id}.pdf`
+                  `${API_BASE}/export/proyectos/${proyecto.id}/matriz.pdf`,
+                  `matriz_${proyecto.id}.pdf`
                 );
               } catch (e) {
-                console.error(e);
                 setErr(e);
               }
             }}
           >
-            Dashboard (PDF)
+            Matriz (PDF)
           </Btn>
-          <Btn kind="gray" onClick={abrirMatriz}>
-            Ver matriz
+          <Btn
+            kind="blue"
+            onClick={async () => {
+              try {
+                await downloadFile(
+                  `${API_BASE}/export/proyectos/${proyecto.id}/brechas.csv`,
+                  `brechas_${proyecto.id}.csv`
+                );
+              } catch (e) {
+                setErr(e);
+              }
+            }}
+          >
+            Brechas (CSV)
           </Btn>
         </div>
       </div>
@@ -836,60 +823,27 @@ function BrechasProyecto({ proyecto, goBack }) {
           </Btn>
         }
       >
-        {modal.payload && (
-          <div className="space-y-3 text-sm">
-            <div>
-              <div className="text-gray-500">Tipo de brecha</div>
-              <div className="font-medium">{modal.payload.tipo_brecha}</div>
-            </div>
-            <div>
-              <div className="text-gray-500">Brecha</div>
-              <p className="whitespace-pre-wrap">{modal.payload.brecha}</p>
-            </div>
-            <div>
-              <div className="text-gray-500">Oportunidad de innovación</div>
-              <p className="whitespace-pre-wrap">{modal.payload.oportunidad}</p>
-            </div>
-
-            <details className="mt-3">
-              <summary className="cursor-pointer select-none">
-                Mostrar resultados
-              </summary>
-              <div className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-3">
-                <div className="border rounded-lg p-3">
-                  <div className="text-gray-500">Similitud promedio</div>
-                  <div className="font-medium">
-                    {modal.payload.sim_promedio ?? 0}
-                  </div>
-                </div>
-                <div className="border rounded-lg p-3">
-                  <div className="text-gray-500">Entropía (bits)</div>
-                  <div className="font-medium">
-                    {modal.payload.entropia ?? 0}
-                  </div>
-                </div>
-                <div className="border rounded-lg p-3">
-                  <div className="text-gray-500">Score de validación</div>
-                  <div className="font-medium">
-                    {modal.payload.val_score ?? 0}
-                  </div>
-                </div>
-                <div className="border rounded-lg p-3">
-                  <div className="text-gray-500">Estado de validación</div>
-                  <div className="font-medium">
-                    {modal.payload.estado_validacion}
-                  </div>
-                </div>
-                {modal.payload.val_reason && (
-                  <div className="md:col-span-2 border rounded-lg p-3">
-                    <div className="text-gray-500">Razón</div>
-                    <div className="font-medium">
-                      {modal.payload.val_reason}
-                    </div>
+        {Array.isArray(modal.payload) && (
+          <div className="space-y-6">
+            {modal.payload.length > 1 && (
+              <div className="text-xs text-gray-600">
+                {modal.payload.length} brechas registradas para este artículo,
+                de la más reciente a la más antigua.
+              </div>
+            )}
+            {modal.payload.map((b, i) => (
+              <div
+                key={b.id}
+                className={i > 0 ? "border-t pt-6" : ""}
+              >
+                {modal.payload.length > 1 && (
+                  <div className="text-xs text-gray-500 mb-2">
+                    {new Date(b.creado_en).toLocaleString()}
                   </div>
                 )}
+                <DetalleBrecha brecha={b} />
               </div>
-            </details>
+            ))}
           </div>
         )}
       </Modal>
