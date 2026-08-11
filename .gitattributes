@@ -1,2 +1,16 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+
+# Binarios: nunca normalizar saltos de linea (los corromperia)
+*.pdf   binary
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.ico   binary
+*.zip   binary
+*.svg   text
+
+# El formato de estos archivos depende de la herramienta que los consume
+*.sql   text eol=lf
+requirements.txt text eol=lf
