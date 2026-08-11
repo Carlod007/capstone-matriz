@@ -16,6 +16,9 @@ Notas de diseño:
 
 import os
 import fitz  # PyMuPDF
+from dotenv import load_dotenv
+
+load_dotenv()
 
 try:
     import pytesseract
@@ -26,10 +29,19 @@ except Exception as e:  # pragma: no cover
     _IMPORTS_OK = False
     _IMPORT_ERR = str(e)
 
-# Permite apuntar al ejecutable en Windows sin tenerlo en el PATH.
-_TESSERACT_CMD = os.getenv("TESSERACT_CMD", "").strip()
-if _IMPORTS_OK and _TESSERACT_CMD:
-    pytesseract.pytesseract.tesseract_cmd = _TESSERACT_CMD
+
+def _aplicar_ruta_tesseract() -> None:
+    """Apunta pytesseract al ejecutable indicado en TESSERACT_CMD.
+
+    Se resuelve en cada llamada y no una sola vez al importar: así funciona
+    aunque el .env se cargue después de este módulo, y permite corregir la
+    ruta sin reiniciar el proceso.
+    """
+    if not _IMPORTS_OK:
+        return
+    ruta = os.getenv("TESSERACT_CMD", "").strip().strip('"')
+    if ruta:
+        pytesseract.pytesseract.tesseract_cmd = ruta
 
 
 class OCRNoDisponible(RuntimeError):
@@ -44,6 +56,13 @@ def ocr_disponible() -> tuple[bool, str]:
     """
     if not _IMPORTS_OK:
         return False, "Faltan dependencias de Python para OCR (%s)." % _IMPORT_ERR
+
+    _aplicar_ruta_tesseract()
+    ruta = os.getenv("TESSERACT_CMD", "").strip().strip('"')
+    if ruta and not os.path.isfile(ruta):
+        return False, (
+            "TESSERACT_CMD apunta a una ruta que no existe: %s" % ruta
+        )
     try:
         version = pytesseract.get_tesseract_version()
     except Exception:
