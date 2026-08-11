@@ -66,21 +66,27 @@ function Tarjeta({ metrica }) {
   );
 }
 
-/** Explica por qué el estado de validación es "pendiente". */
+/**
+ * Explica por qué el estado de validación es "pendiente".
+ *
+ * Va plegado: el texto es necesario la primera vez y estorba a partir de la
+ * segunda, y aparecía repetido en el panel y en cada brecha. Un titular basta
+ * para saber que hay algo que leer.
+ */
 export function AvisoValidacion() {
   return (
-    <div className="rounded-lg border border-aviso-borde bg-aviso-claro p-3 text-sm text-aviso">
-      <div className="font-medium mb-1">
-        La validación automática está desactivada a propósito
-      </div>
-      <p className="leading-relaxed">
+    <details className="rounded-lg border border-aviso-borde bg-aviso-claro text-aviso text-sm">
+      <summary className="cursor-pointer select-none px-3 py-2 font-medium marker:text-current">
+        Validación automática pendiente de calibrar
+      </summary>
+      <p className="px-3 pb-3 leading-relaxed opacity-90">
         Las reglas anteriores se apoyaban en umbrales que nunca llegaban a
         activarse, de modo que casi toda brecha acababa marcada como aceptada
         sin haber sido validada. Hasta calibrarlos contra criterio experto, el
-        sistema prefiere declararse indeciso antes que dar por buena una
-        brecha que no ha comprobado.
+        sistema prefiere declararse indeciso antes que dar por buena una brecha
+        que no ha comprobado.
       </p>
-    </div>
+    </details>
   );
 }
 

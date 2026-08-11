@@ -4,6 +4,21 @@ import {
   IndicadorConsumo,
   PanelMetricas,
 } from "./components/Metricas";
+import {
+  Estado,
+  Fila,
+  Panel,
+  Progreso,
+  ProveedorAvisos,
+  Recorte,
+  Seccion,
+  Tabla,
+  Td,
+  Th,
+  Vacio,
+  ZonaArchivos,
+  useAviso,
+} from "./components/UI";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "http://127.0.0.1:8000";
 
@@ -329,66 +344,80 @@ function Lista({ goCreate, goProyecto }) {
   }
 
   return (
-    <Page
-      title="Lista"
-      subtitle="Para generar el estado del arte, sube como mínimo 5 artículos en PDF con DOI."
-    >
-      <div className="overflow-x-auto bg-superficie border border-borde rounded-xl">
-        <table className="min-w-full">
-          <thead className="bg-hundido text-left text-tinta-media">
-            <tr>
-              <th className="px-4 py-3">Tema</th>
-              <th className="px-4 py-3 w-28">Artículos</th>
-              <th className="px-4 py-3 w-44">Estado del arte</th>
-              <th className="px-4 py-3 w-40">Detalles</th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading && (
+    <Page title="Proyectos" subtitle="Cada proyecto reúne un tema, sus artículos y el estado del arte generado a partir de ellos.">
+      <Seccion
+        acciones={
+          <Btn kind="yellow" onClick={goCreate}>
+            Nuevo proyecto
+          </Btn>
+        }
+      >
+        {loading ? (
+          <div className="rounded-xl border border-borde bg-superficie px-4 py-10 text-center text-sm text-tinta-suave">
+            Cargando…
+          </div>
+        ) : rows.length === 0 ? (
+          <Vacio
+            titulo="Todavía no hay proyectos"
+            accion={
+              <Btn kind="yellow" onClick={goCreate}>
+                Crear el primero
+              </Btn>
+            }
+          >
+            Un proyecto define el tema y el objetivo de tu revisión. A partir de
+            ahí subes los artículos y el sistema detecta las brechas.
+          </Vacio>
+        ) : (
+          <Tabla>
+            <thead>
               <tr>
-                <td className="px-4 py-5 text-tinta-suave" colSpan={4}>
-                  Cargando…
-                </td>
+                <Th>Tema</Th>
+                <Th ancho="7rem">Artículos</Th>
+                <Th ancho="11rem">Estado del arte</Th>
+                <Th ancho="9rem" className="text-right">
+                  <span className="sr-only">Acciones</span>
+                </Th>
               </tr>
-            )}
-            {!loading && rows.length === 0 && (
-              <tr>
-                <td className="px-4 py-6 text-tinta-suave" colSpan={4}>
-                  Sin proyectos. Crea uno nuevo.
-                </td>
-              </tr>
-            )}
-            {rows.map((p) => (
-              <tr key={p.id} className="border-t hover:bg-hundido/60">
-                <td className="px-4 py-4">
-                  {p.tema_principal || "(Sin tema)"}
-                </td>
-                <td className="px-4 py-4">{p.articulos_count ?? 0}</td>
-                <td className="px-4 py-4">
-                  {p.tiene_sota ? (
-                    <Btn kind="green" onClick={() => verSOTA(p.id)}>
-                      Ver
+            </thead>
+            <tbody>
+              {rows.map((p) => (
+                <Fila key={p.id}>
+                  <Td>
+                    <div className="text-tinta font-medium leading-snug">
+                      <Recorte>{p.tema_principal || "(Sin tema)"}</Recorte>
+                    </div>
+                  </Td>
+                  <Td className="text-tinta-media tabular-nums">
+                    {p.articulos_count ?? 0}
+                    <span className="text-tinta-suave">
+                      {" "}
+                      / {p.n_articulos_objetivo ?? "—"}
+                    </span>
+                  </Td>
+                  <Td>
+                    {p.tiene_sota ? (
+                      <button
+                        onClick={() => verSOTA(p.id)}
+                        className="text-left"
+                      >
+                        <Estado tono="bien">Generado · ver</Estado>
+                      </button>
+                    ) : (
+                      <Estado tono="neutro">Sin generar</Estado>
+                    )}
+                  </Td>
+                  <Td className="text-right">
+                    <Btn kind="blue" onClick={() => goProyecto(p)}>
+                      Abrir
                     </Btn>
-                  ) : (
-                    <span className="text-tinta-media">No generado</span>
-                  )}
-                </td>
-                <td className="px-4 py-4">
-                  <Btn kind="blue" onClick={() => goProyecto(p)}>
-                    Ingresar
-                  </Btn>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      <div className="mt-6 flex justify-end">
-        <Btn kind="yellow" onClick={goCreate}>
-          Crear tema
-        </Btn>
-      </div>
+                  </Td>
+                </Fila>
+              ))}
+            </tbody>
+          </Tabla>
+        )}
+      </Seccion>
 
       {/* Modal SOTA */}
       <Modal
@@ -434,11 +463,12 @@ function Lista({ goCreate, goProyecto }) {
 /* ============ 2) CREAR PROYECTO ============ */
 function CrearProyecto({ goBack }) {
   const [err, setErr] = useState(null);
+  const avisar = useAviso();
 
   return (
     <Page
-      title="Configuración de tema"
-      subtitle="Ingresa los datos del tema de investigación"
+      title="Nuevo proyecto"
+      subtitle="El objetivo es el campo que más influye en el resultado: orienta qué fragmentos de cada artículo se entregan al modelo."
     >
       <form
         onSubmit={async (e) => {
@@ -454,7 +484,7 @@ function CrearProyecto({ goBack }) {
           };
           try {
             await jpost(`${API_BASE}/proyectos`, payload);
-            alert("Proyecto creado");
+            avisar("Proyecto creado", "bien");
             goBack();
           } catch (e2) {
             setErr(e2);
@@ -526,8 +556,10 @@ function CrearProyecto({ goBack }) {
 function SubirArticulos({ proyecto, goBack }) {
   const [arts, setArts] = useState([]);
   const [busy, setBusy] = useState(false);
-  const [overlay, setOverlay] = useState({ show: false, text: "Procesando…" });
+  const [subiendo, setSubiendo] = useState(null); // { hecho, total, nombre }
+  const [fase, setFase] = useState(null); // { etapa, hecho, total, detalle }
   const [err, setErr] = useState(null);
+  const avisar = useAviso();
 
   async function load() {
     try {
@@ -543,141 +575,248 @@ function SubirArticulos({ proyecto, goBack }) {
   }, [proyecto.id]);
 
   const objetivo = proyecto.n_articulos_objetivo ?? 0;
-  const faltantes = Math.max(0, objetivo - arts.length);
-  const filas = [...arts, ...Array.from({ length: faltantes }).map(() => null)];
-  const puedeAnalizar = arts.length >= objetivo && arts.length > 0;
+  // Antes se exigía el número exacto declarado al crear el proyecto. Ahora
+  // basta con tener artículos: el objetivo orienta, no bloquea.
+  const puedeAnalizar = arts.length > 0 && !busy;
 
-  async function subirPDF(file) {
+  async function subirVarios(archivos) {
     setErr(null);
-    const fd = new FormData();
-    fd.append("pdf", file);
+    setBusy(true);
+    let ok = 0;
+    let repetidos = 0;
     try {
-      setBusy(true);
-      const r = await fetch(`${API_BASE}/proyectos/${proyecto.id}/archivos`, {
-        method: "POST",
-        body: fd,
-      });
-      if (!r.ok) {
-        let detail;
-        try {
-          detail = await r.json();
-        } catch {
-          detail = await r.text();
+      for (let i = 0; i < archivos.length; i++) {
+        const f = archivos[i];
+        setSubiendo({ hecho: i, total: archivos.length, nombre: f.name });
+        const fd = new FormData();
+        fd.append("pdf", f);
+        const r = await fetch(`${API_BASE}/proyectos/${proyecto.id}/archivos`, {
+          method: "POST",
+          body: fd,
+        });
+        if (!r.ok) {
+          let detail;
+          try {
+            detail = await r.json();
+          } catch {
+            detail = await r.text();
+          }
+          avisar(`No se pudo subir «${f.name}»`, "mal");
+          console.error(detail);
+          continue;
         }
-        const err = new Error(`POST /archivos → ${r.status}`);
-        err.detail = detail;
-        throw err;
+        const cuerpo = await r.json();
+        // El backend deduplica por hash: el mismo PDF dos veces no crea dos
+        // artículos, y conviene decirlo en lugar de fingir que se subió.
+        if (cuerpo?.archivo_id && arts.some((a) => a.id === cuerpo.articulo_id)) {
+          repetidos++;
+        } else {
+          ok++;
+        }
       }
-      await load(); // refresca título y DOI
-    } catch (e) {
-      setErr(e);
+      await load();
+      if (ok) avisar(`${ok} artículo${ok > 1 ? "s" : ""} añadido${ok > 1 ? "s" : ""}`, "bien");
+      if (repetidos)
+        avisar(`${repetidos} ya estaba${repetidos > 1 ? "n" : ""} en el proyecto`, "aviso");
     } finally {
+      setSubiendo(null);
       setBusy(false);
     }
   }
-  function seleccionarArchivo() {
-    const input = document.createElement("input");
-    input.type = "file";
-    input.accept = "application/pdf";
-    input.onchange = (e) => {
-      const file = e.target.files?.[0];
-      if (file) subirPDF(file);
-    };
-    input.click();
-  }
 
-  async function analizarTodo() {
+  /**
+   * Análisis por pasos, conducido desde el navegador.
+   *
+   * Antes se llamaba a `analizar_todo`, que indexa y analiza todo dentro de
+   * una sola petición: varios minutos sin respuesta, sin saber por dónde iba
+   * y perdiendo el lote entero si la conexión se cortaba.
+   *
+   * Aquí se encadenan las peticiones cortas que el backend ya ofrecía, de
+   * modo que cada paso responde enseguida y el progreso es real. No sustituye
+   * al procesamiento en segundo plano que hará falta más adelante, pero
+   * elimina el problema de fondo sin esperar a esa reforma.
+   */
+  async function analizar() {
     setErr(null);
+    setBusy(true);
     try {
-      setOverlay({ show: true, text: "Ejecutando análisis de artículos…" });
-      setBusy(true);
-      await jpost(`${API_BASE}/proyectos/${proyecto.id}/analizar_todo`, {});
-      setOverlay({ show: true, text: "Listo. Generando estado del arte…" });
-      alert("Análisis completado");
-      goBack(); // vuelve a Lista
+      // 1) Indexar. Es idempotente: lo ya indexado no se vuelve a pagar.
+      for (let i = 0; i < arts.length; i++) {
+        setFase({
+          etapa: "Indexando artículos",
+          hecho: i,
+          total: arts.length,
+          detalle: arts[i].titulo || "(sin título)",
+        });
+        try {
+          await jpost(`${API_BASE}/embeddings/index/${arts[i].id}`);
+        } catch (e) {
+          avisar(`No se pudo indexar «${arts[i].titulo || "artículo"}»`, "aviso");
+          console.error(e);
+        }
+      }
+
+      // 2) Crear la ejecución.
+      setFase({ etapa: "Preparando el análisis", hecho: 0, total: arts.length });
+      const run = await jpost(`${API_BASE}/proyectos/${proyecto.id}/runs`, {});
+
+      // 3) Procesar artículo a artículo, con progreso real.
+      let estado = run;
+      let vueltas = 0;
+      while (estado.estado !== "completado" && vueltas <= arts.length + 2) {
+        setFase({
+          etapa: "Analizando artículos",
+          hecho: estado.n_items_ok ?? 0,
+          total: estado.n_items_total ?? arts.length,
+        });
+        estado = await jpost(`${API_BASE}/runs/${run.id}/process_next`, {});
+        vueltas++;
+      }
+
+      // 4) Sintetizar el estado del arte.
+      setFase({
+        etapa: "Redactando el estado del arte",
+        hecho: estado.n_items_ok ?? arts.length,
+        total: estado.n_items_total ?? arts.length,
+      });
+      await jpost(`${API_BASE}/proyectos/${proyecto.id}/estado_arte`, {});
+
+      avisar("Análisis completado", "bien");
+      goBack();
     } catch (e) {
       setErr(e);
     } finally {
+      setFase(null);
       setBusy(false);
-      setOverlay({ show: false, text: "Procesando…" });
     }
   }
 
   return (
     <Page
-      title="Subir artículos"
-      subtitle={`Suba ${objetivo} artículos en PDF`}
+      title="Artículos del proyecto"
+      subtitle={proyecto.tema_principal}
     >
-      <div className="overflow-x-auto bg-superficie border border-borde rounded-xl">
-        <table className="min-w-full">
-          <thead className="bg-acento-fuerte text-white">
-            <tr>
-              <th className="px-4 py-3 text-left">Nombre del artículo</th>
-              <th className="px-4 py-3 w-60 text-left">DOI</th>
-              <th className="px-4 py-3 w-40 text-left">Acción</th>
-            </tr>
-          </thead>
-          <tbody>
-            {filas.map((row, idx) => (
-              <tr key={idx} className="border-t">
-                <td className="px-4 py-3">
-                  {row ? (
-                    row.titulo || "(sin título detectado)"
-                  ) : (
-                    <em className="text-tinta-suave">Pendiente</em>
-                  )}
-                </td>
-                <td className="px-4 py-3">{row ? row.doi || "—" : "—"}</td>
-                <td className="px-4 py-3">
-                  {row ? (
-                    <span className="text-bien font-medium">Cargado</span>
-                  ) : (
-                    <Btn
-                      kind="yellow"
-                      disabled={busy}
-                      onClick={seleccionarArchivo}
-                    >
-                      Subir PDF
-                    </Btn>
-                  )}
-                </td>
-              </tr>
-            ))}
-            {filas.length === 0 && (
+      <Seccion
+        titulo="Carga de documentos"
+        apoyo={`El proyecto se planteó con ${objetivo} artículos. Puedes subir más o analizar con los que tengas.`}
+      >
+        <ZonaArchivos
+          onArchivos={subirVarios}
+          disabled={busy}
+          texto="Arrastra aquí los PDF o haz clic para elegirlos"
+          apoyo="Puedes seleccionar varios a la vez. Se detectan título y DOI automáticamente."
+        />
+
+        {subiendo && (
+          <div className="mt-4">
+            <Progreso
+              hecho={subiendo.hecho}
+              total={subiendo.total}
+              etiqueta={`Subiendo · ${subiendo.nombre}`}
+            />
+          </div>
+        )}
+      </Seccion>
+
+      <Seccion
+        titulo={`Artículos cargados (${arts.length})`}
+        acciones={
+          <>
+            <Btn kind="gray" onClick={goBack} disabled={busy}>
+              Volver
+            </Btn>
+            <Btn
+              kind="yellow"
+              onClick={analizar}
+              disabled={!puedeAnalizar}
+              title={
+                arts.length === 0 ? "Sube al menos un artículo" : "Analizar el proyecto"
+              }
+            >
+              {busy ? "Procesando…" : "Analizar"}
+            </Btn>
+          </>
+        }
+      >
+        {arts.length === 0 ? (
+          <Vacio titulo="Todavía no hay artículos">
+            Sube los PDF de los artículos que quieras analizar. El sistema
+            extraerá su título y su DOI, y localizará las secciones de cada uno.
+          </Vacio>
+        ) : (
+          <Tabla>
+            <thead>
               <tr>
-                <td colSpan={3} className="px-4 py-5 text-tinta-suave text-center">
-                  Sin filas
-                </td>
+                <Th>Artículo</Th>
+                <Th ancho="15rem">DOI</Th>
+                <Th ancho="8rem">Estado</Th>
               </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
+            </thead>
+            <tbody>
+              {arts.map((a) => (
+                <Fila key={a.id}>
+                  <Td className="text-tinta">
+                    <Recorte>{a.titulo || "(sin título detectado)"}</Recorte>
+                  </Td>
+                  <Td className="text-tinta-suave text-xs font-mono">
+                    {a.doi || "—"}
+                  </Td>
+                  <Td>
+                    <Estado tono="bien">Cargado</Estado>
+                  </Td>
+                </Fila>
+              ))}
+            </tbody>
+          </Tabla>
+        )}
 
-      <div className="mt-3 text-sm text-tinta-media">
-        Cargados: <span className="font-semibold">{arts.length}</span> /{" "}
-        {objetivo}
-      </div>
+        {arts.length > 0 && arts.length < objetivo && (
+          <p className="mt-3 text-xs text-tinta-suave">
+            Faltan {objetivo - arts.length} para alcanzar los {objetivo}{" "}
+            planteados. Puedes analizar igualmente.
+          </p>
+        )}
+      </Seccion>
 
-      <div className="mt-6 flex justify-between items-center">
-        <Btn kind="gray" onClick={goBack} disabled={busy}>
-          Volver
-        </Btn>
-        <Btn
-          kind="yellow"
-          onClick={analizarTodo}
-          disabled={busy || !puedeAnalizar}
-          title={
-            !puedeAnalizar
-              ? "Sube todos los artículos indicados para habilitar el análisis"
-              : ""
-          }
-        >
-          {busy ? "Procesando…" : "Analizar todo"}
-        </Btn>
-      </div>
+      {/* Progreso real por etapa, en vez de un giro indefinido sin
+          información de por dónde va el proceso. */}
+      {fase && (
+        <div className="fixed inset-0 z-50">
+          <div className="absolute inset-0 bg-tinta/35 backdrop-blur-[2px]" />
+          <div className="absolute inset-0 flex items-center justify-center p-6">
+            <div
+              className="w-full max-w-md rounded-2xl bg-lienzo border border-borde p-6"
+              style={{ boxShadow: "var(--sombra-3)" }}
+            >
+              <div className="flex items-center gap-3 mb-5">
+                <div className="h-8 w-8 shrink-0 rounded-full border-[3px] border-borde border-t-acento animate-spin" />
+                <div className="min-w-0">
+                  <p className="text-tinta font-medium leading-tight">
+                    {fase.etapa}
+                  </p>
+                  {fase.detalle && (
+                    <p className="text-xs text-tinta-suave truncate mt-0.5">
+                      {fase.detalle}
+                    </p>
+                  )}
+                </div>
+              </div>
 
-      <LoadingOverlay show={overlay.show} text={overlay.text} />
+              <Progreso
+                hecho={fase.hecho}
+                total={fase.total}
+                etiqueta="Progreso"
+              />
+
+              <p className="text-xs text-tinta-suave mt-4 leading-relaxed">
+                Puede tardar unos minutos. El proceso avanza artículo por
+                artículo, así que no se pierde lo ya hecho si algo falla.
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
       <ErrorModal error={err} onClose={() => setErr(null)} />
     </Page>
   );
@@ -745,92 +884,98 @@ function BrechasProyecto({ proyecto, goBack }) {
   }
 
   return (
-    <Page title="Brechas detectadas">
-      {/* Panel de métricas del proyecto.
-          Antes mostraba entropía, similitud y score de validación: las tres
-          métricas retiradas, que llegaban siempre en cero y hacían parecer
-          que el sistema estaba averiado. */}
-      <div className="mb-6 flex items-start gap-4">
-        <div className="w-full">
+    <Page title="Resultados" subtitle={proyecto.tema_principal}>
+      <Seccion titulo="Indicadores del proyecto">
+        <div className="grid lg:grid-cols-[1fr_15rem] gap-5 items-start">
           <PanelMetricas proyectoId={proyecto.id} />
+          <div className="flex flex-col gap-3">
+            <IndicadorConsumo proyectoId={proyecto.id} />
+            <Panel className="p-3">
+              <div className="text-[11px] font-semibold uppercase tracking-wider text-tinta-suave mb-2">
+                Exportar
+              </div>
+              <div className="flex flex-col gap-2">
+                <Btn kind="ghost" onClick={abrirMatriz}>
+                  Ver matriz
+                </Btn>
+                <Btn
+                  kind="ghost"
+                  onClick={async () => {
+                    try {
+                      await downloadFile(
+                        `${API_BASE}/export/proyectos/${proyecto.id}/matriz.pdf`,
+                        `matriz_${proyecto.id}.pdf`
+                      );
+                    } catch (e) {
+                      setErr(e);
+                    }
+                  }}
+                >
+                  Matriz en PDF
+                </Btn>
+                <Btn
+                  kind="ghost"
+                  onClick={async () => {
+                    try {
+                      await downloadFile(
+                        `${API_BASE}/export/proyectos/${proyecto.id}/brechas.csv`,
+                        `brechas_${proyecto.id}.csv`
+                      );
+                    } catch (e) {
+                      setErr(e);
+                    }
+                  }}
+                >
+                  Brechas en CSV
+                </Btn>
+              </div>
+            </Panel>
+          </div>
         </div>
+      </Seccion>
 
-        <div className="shrink-0 flex flex-col gap-2 w-56">
-          <IndicadorConsumo proyectoId={proyecto.id} />
-          <Btn kind="gray" onClick={abrirMatriz}>
-            Ver matriz
+      <Seccion
+        titulo={`Artículos analizados (${arts.length})`}
+        apoyo="Abre cualquiera para ver su brecha, su oportunidad y los fragmentos del artículo en los que se apoyó el análisis."
+        acciones={
+          <Btn kind="gray" onClick={goBack}>
+            Volver
           </Btn>
-          <Btn
-            kind="yellow"
-            onClick={async () => {
-              try {
-                await downloadFile(
-                  `${API_BASE}/export/proyectos/${proyecto.id}/matriz.pdf`,
-                  `matriz_${proyecto.id}.pdf`
-                );
-              } catch (e) {
-                setErr(e);
-              }
-            }}
-          >
-            Matriz (PDF)
-          </Btn>
-          <Btn
-            kind="blue"
-            onClick={async () => {
-              try {
-                await downloadFile(
-                  `${API_BASE}/export/proyectos/${proyecto.id}/brechas.csv`,
-                  `brechas_${proyecto.id}.csv`
-                );
-              } catch (e) {
-                setErr(e);
-              }
-            }}
-          >
-            Brechas (CSV)
-          </Btn>
-        </div>
-      </div>
-
-      {/* Tabla de artículos */}
-      <div className="overflow-x-auto bg-superficie border border-borde rounded-xl">
-        <table className="min-w-full">
-          <thead className="bg-acento-fuerte text-white">
-            <tr>
-              <th className="px-4 py-3 text-left">Nombre del artículo</th>
-              <th className="px-4 py-3 w-60 text-left">DOI</th>
-              <th className="px-4 py-3 w-40 text-left">Brechas</th>
-            </tr>
-          </thead>
-          <tbody>
-            {arts.map((a) => (
-              <tr key={a.id} className="border-t">
-                <td className="px-4 py-3">{a.titulo || "(sin título)"}</td>
-                <td className="px-4 py-3">{a.doi || "—"}</td>
-                <td className="px-4 py-3">
-                  <Btn kind="gray" onClick={() => verBrechas(a)}>
-                    Ver
-                  </Btn>
-                </td>
-              </tr>
-            ))}
-            {arts.length === 0 && (
+        }
+      >
+        {arts.length === 0 ? (
+          <Vacio titulo="Sin artículos en este proyecto" />
+        ) : (
+          <Tabla>
+            <thead>
               <tr>
-                <td className="px-4 py-5 text-tinta-suave" colSpan={3}>
-                  Sin artículos
-                </td>
+                <Th>Artículo</Th>
+                <Th ancho="14rem">DOI</Th>
+                <Th ancho="7rem" className="text-right">
+                  <span className="sr-only">Acciones</span>
+                </Th>
               </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
-
-      <div className="mt-6">
-        <Btn kind="gray" onClick={goBack}>
-          Volver
-        </Btn>
-      </div>
+            </thead>
+            <tbody>
+              {arts.map((a) => (
+                <Fila key={a.id}>
+                  <Td className="text-tinta">
+                    <Recorte>{a.titulo || "(sin título)"}</Recorte>
+                  </Td>
+                  <Td className="text-tinta-suave text-xs font-mono">
+                    {a.doi || "—"}
+                  </Td>
+                  <Td className="text-right">
+                    <Btn kind="blue" onClick={() => verBrechas(a)}>
+                      Ver brecha
+                    </Btn>
+                  </Td>
+                </Fila>
+              ))}
+            </tbody>
+          </Tabla>
+        )}
+      </Seccion>
 
       {/* Modal detalle de una brecha */}
       <Modal
@@ -1013,6 +1158,7 @@ export default function App() {
   else content = <Lista goCreate={goCreate} goProyecto={goProyecto} />;
 
   return (
+    <ProveedorAvisos>
     <div style={{ fontSize: `${fontSize}px` }}>
       {/* Controles de lectura, fijos arriba a la derecha. */}
       <div
@@ -1069,5 +1215,6 @@ export default function App() {
 
       {content}
     </div>
+    </ProveedorAvisos>
   );
 }
