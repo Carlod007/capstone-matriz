@@ -1,7 +1,10 @@
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy import String, Text, Integer, Boolean, DateTime, func
 
-class Base(DeclarativeBase): pass
+# La base declarativa vive en app/database.py. Se reexporta aquí porque casi
+# todos los modelos la importan desde este módulo; lo importante es que sea
+# una sola en todo el proyecto (C-14).
+from app.database import Base
 
 class Proyecto(Base):
     __tablename__ = "proyecto"

@@ -16,17 +16,128 @@ from app.schemas.run import RunCreate, RunOut, RunItemOut
 
 from app.models.rag_log import RagLog
 
+from app.models.metrica import Metrica, AMBITO_BRECHA, AMBITO_ARTICULO
+
 from app.services.gemini_service import analyze
 from app.services.embedding_service import recuperar_contexto, construir_consulta
-from app.services.metrics import (
-    validate_breach_with_rag,
-    shannon_entropy_bits_and_norm,
-    find_duplicate_breach,
-    auto_validate,
-    lexical_density,  # usamos esto para la densidad léxica del resumen
-)
+from app.services.document_structure import extraer_abstract
+from app.services.metricas import niveles as N
 
 from app.utils.text_extractor import extraer_con_diagnostico
+
+# Retiradas de este pipeline: validate_breach_with_rag, auto_validate,
+# shannon_entropy_bits_and_norm, find_duplicate_breach y lexical_density.
+# La entropía de caracteres era cuasi-constante, val_score combinaba dos
+# señales en un número no interpretable, y los umbrales de rechazo estaban
+# por debajo del piso de ruido de los embeddings. Sus sustitutas están en
+# app/services/metricas/.
+
+
+def _metrica(db, proyecto_id: str, ambito: str, referencia_id: str, codigo: str,
+             valor: float | None, detalle: dict | None = None) -> None:
+    """Registra una medición en el almacén genérico de métricas."""
+    db.add(Metrica(
+        id=str(uuid.uuid4()),
+        proyecto_id=proyecto_id,
+        ambito=ambito,
+        referencia_id=referencia_id,
+        codigo=codigo,
+        valor=None if valor is None else float(valor),
+        detalle=detalle,
+    ))
+
+
+def _metricas_de_lote(db, run) -> None:
+    """Métricas que solo tienen sentido comparando artículos entre sí.
+
+    N3.1 (discriminabilidad) es la más diagnóstica de toda la capa: si el
+    modelo emitió la misma brecha genérica para todos los artículos del lote,
+    aquí se ve. El Jaccard anterior no podía detectarlo porque solo comparaba
+    brechas del mismo artículo, donde el problema no se manifiesta.
+    """
+    # Idempotente: el cierre del lote puede alcanzarse por dos caminos, y las
+    # métricas no deben duplicarse si se pasa por ambos.
+    ya = (db.query(Metrica)
+          .filter(Metrica.ambito == "run", Metrica.referencia_id == run.id,
+                  Metrica.codigo == "N3.1")
+          .first())
+    if ya:
+        return
+
+    filas = (
+        db.query(ResultadoBrecha, RunItem)
+        .join(RunItem, RunItem.id == ResultadoBrecha.run_item_id)
+        .filter(RunItem.run_id == run.id)
+        .all()
+    )
+    brechas = {ri.articulo_id: (rb.brecha or "") for rb, ri in filas}
+    if len(brechas) < 2:
+        return
+
+    valor, detalle = N.n3_1_discriminabilidad(brechas)
+    _metrica(db, run.proyecto_id, "run", run.id, "N3.1", valor, detalle)
+
+    valor, detalle = N.n3_4_redundancia(brechas)
+    _metrica(db, run.proyecto_id, "run", run.id, "N3.4", valor, detalle)
+
+
+def _registrar_metricas(db, art, rb, res, texto, recuperados, ruta_pdf) -> None:
+    """Calcula y persiste las métricas locales de un artículo analizado.
+
+    Son "locales" porque no requieren llamadas adicionales al modelo: se
+    apoyan en los embeddings ya generados durante la indexación. Las que
+    necesitan un juez (fidelidad evidencial, precisión del contexto) quedan
+    para el nivel N2.
+    """
+    brecha_txt = res.get("brecha", "") or ""
+    resumen_txt = (res.get("resumen") or "").strip()
+
+    # --- N1: calidad de la recuperación ---
+    _metrica(db, art.proyecto_id, AMBITO_BRECHA, rb.id, "N1.2",
+             N.n1_2_cobertura_seccional(recuperados),
+             {"secciones": sorted({r["seccion"] for r in recuperados})})
+
+    vectores = N.vectores_de(db, [r["embedding_id"] for r in recuperados])
+    _metrica(db, art.proyecto_id, AMBITO_BRECHA, rb.id, "N1.3",
+             N.n1_3_diversidad_contexto(vectores),
+             {"n_fragmentos": len(vectores)})
+
+    # --- N3: especificidad ---
+    _metrica(db, art.proyecto_id, AMBITO_BRECHA, rb.id, "N3.2", N.n3_2_densidad_anclajes(brecha_txt))
+    corpus = [r["texto"] for r in recuperados]
+    _metrica(db, art.proyecto_id, AMBITO_BRECHA, rb.id, "N3.3",
+             N.n3_3_contenido_informativo(brecha_txt, corpus),
+             {"tamano_corpus": len(corpus)})
+
+    # --- N4: calidad del resumen, contra el abstract REAL ---
+    abstract = extraer_abstract(texto)
+    m4 = N.n4_calidad_resumen(resumen_txt, abstract)
+    for codigo, valor in (("N4.1a", m4.rouge1_prec), ("N4.1b", m4.rouge1_rec),
+                          ("N4.1c", m4.rouge1_f1), ("N4.1d", m4.rouge2_f1),
+                          ("N4.1e", m4.rougeL_f1), ("N4.2", m4.similitud_semantica),
+                          ("N4.4", m4.densidad_lexica)):
+        _metrica(db, art.proyecto_id, AMBITO_BRECHA, rb.id, codigo, valor,
+                 {"referencia_valida": m4.referencia_valida} if codigo == "N4.1a" else None)
+
+    _metrica(db, art.proyecto_id, AMBITO_ARTICULO, art.id, "N4.ref",
+             1.0 if m4.referencia_valida else 0.0,
+             {"motivo": m4.motivo, "chars_abstract": len(abstract or "")})
+
+    if resumen_txt:
+        db.add(ResultadoResumen(
+            id=str(uuid.uuid4()),
+            articulo_id=art.id,
+            resumen_generado=resumen_txt,
+            # Ahora la referencia es el abstract del artículo. Antes eran las
+            # primeras 180 palabras del PDF: portada, autores y encabezado de
+            # revista, con lo que ROUGE medía el solape con la carátula (M-02).
+            resumen_referencia=(abstract or ""),
+            lexical_density=m4.densidad_lexica,
+            rouge1_prec=str(m4.rouge1_prec) if m4.referencia_valida else None,
+            rouge1_rec=str(m4.rouge1_rec) if m4.referencia_valida else None,
+            rouge1_f1=str(m4.rouge1_f1) if m4.referencia_valida else None,
+        ))
+
 
 router = APIRouter(prefix="/proyectos", tags=["runs"])
 
@@ -144,6 +255,7 @@ def process_next_item(run_id: str, db: Session = Depends(get_db)):
     if not pendiente or run.n_items_ok >= run.n_items_total:
         run.estado = EstadoRun.completado
         run.finalizado_en = datetime.utcnow()
+        _metricas_de_lote(db, run)
         db.commit()
         return RunOut.model_construct(
             id=run.id,
@@ -218,6 +330,7 @@ def process_next_item(run_id: str, db: Session = Depends(get_db)):
         if recuperados:
             db.add(RagLog(
                 id=str(uuid.uuid4()),
+                proyecto_id=run.proyecto_id,
                 run_id=run_id,
                 articulo_id=art.id,
                 consulta=construir_consulta(contexto)[:2000],
@@ -235,66 +348,42 @@ def process_next_item(run_id: str, db: Session = Depends(get_db)):
         # --- Paso 2: análisis de brecha con Gemini usando RAG ---
         res = analyze(texto, contexto, context_docs=(support if support else None))
 
-        # --- Paso 3: métricas y validación automática ---
-        sim_avg, hits, val_score = validate_breach_with_rag(
-            db, art.id, res.get("brecha", "")
-        )
-        ent_bits, ent_norm = shannon_entropy_bits_and_norm(res.get("brecha", ""))
-        dup_row, es_dup = find_duplicate_breach(
-            db, art.id, res.get("brecha", ""), thr=0.80
-        )
-        estado_val, razon_val = auto_validate(
-            sim_avg, ent_norm, val_score, es_dup
-        )
+        brecha_txt = res.get("brecha", "")
 
-        # --- Paso 4: guardar resultado de brecha ---
+        # --- Paso 3: guardar el resultado de brecha ---
+        # La validación automática queda en "pendiente" a propósito. Las
+        # reglas anteriores se apoyaban en la entropía de caracteres y en un
+        # val_score compuesto cuyos umbrales nunca llegaban a activarse, de
+        # modo que casi todo terminaba en "aceptada" sin haber sido validado.
+        # Un estado honesto es preferible a un sello de goma: la validación
+        # volverá cuando los umbrales estén calibrados contra juicio experto.
         rb = ResultadoBrecha(
             id=str(uuid.uuid4()),
             run_item_id=item.id,
             tipo_brecha=res.get("tipo_brecha", "otra"),
-            brecha=res.get("brecha", ""),
+            brecha=brecha_txt,
             oportunidad=res.get("oportunidad", ""),
             evidencia=None,
-            rag_hits=hits,
-            sim_promedio=round(sim_avg, 4),
-            entropia=round(ent_bits, 3),
-            val_score=round(val_score, 4),
-            val_reason=razon_val,
-            es_duplicada=es_dup,
-            dup_de=(dup_row.id if es_dup else None),
-            estado_validacion=estado_val,
+            rag_hits=[
+                {"embedding_id": r["embedding_id"], "seccion": r["seccion"],
+                 "score": r["score"]}
+                for r in recuperados
+            ],
+            val_reason="Pendiente de calibración de la validación automática.",
+            estado_validacion="pendiente",
         )
         db.add(rb)
+        db.flush()
 
-        # --- Guardar resúmenes para ROUGE-1 y densidad léxica ---
-        try:
-            resumen_generado = (res.get("resumen") or "").strip()
-        except Exception:
-            resumen_generado = ""
-
-        # referencia: primeras 180 palabras del texto completo
-        resumen_referencia = " ".join((texto or "").split()[:180])
-
-        if len(resumen_generado) > 50 and len(resumen_referencia) > 50:
-            # calcular densidad léxica del resumen generado
-            ld = lexical_density(resumen_generado)
-
-            rr = ResultadoResumen(
-                id=str(uuid.uuid4()),
-                articulo_id=art.id,
-                resumen_generado=resumen_generado,
-                resumen_referencia=resumen_referencia,
-                lexical_density=round(ld, 4),
-                # los ROUGE-1 se recalculan en metrics.project_indicators;
-                # estos campos pueden quedar en None o usarse luego si quieres persistirlos.
-                rouge1_prec=None,
-                rouge1_rec=None,
-                rouge1_f1=None,
-            )
-            db.add(rr)
+        # --- Paso 4: métricas locales N1, N3 y N4 ---
+        _registrar_metricas(db, art, rb, res, texto, recuperados, arc.ruta)
 
         item.estado = EstadoRunItem.analizado
         run.n_items_ok += 1
+        # La sesión se crea con autoflush=False, así que sin este volcado la
+        # consulta siguiente leería el estado antiguo del ítem en la base y
+        # el lote nunca se daría por terminado por esta vía.
+        db.flush()
 
         # --- Paso 5: cierre automático si no hay pendientes ---
         pendiente_restante = (
@@ -308,6 +397,9 @@ def process_next_item(run_id: str, db: Session = Depends(get_db)):
         if not pendiente_restante:
             run.estado = EstadoRun.completado
             run.finalizado_en = datetime.utcnow()
+            # N3.1 y N3.4 comparan las brechas entre sí, de modo que solo
+            # tienen sentido cuando el lote está completo.
+            _metricas_de_lote(db, run)
 
     except Exception as e:
         item.estado = EstadoRunItem.fallido

@@ -25,6 +25,8 @@ from app.database import Base, engine
 # -------------------------------
 # IMPORTAR TODOS LOS MODELOS PARA create_all
 # -------------------------------
+from app.models.proyecto import Proyecto
+from app.models.archivo import Archivo
 from app.models.articulo import Articulo
 from app.models.run import Run
 from app.models.run_item import RunItem
@@ -33,6 +35,7 @@ from app.models.resultado_brecha import ResultadoBrecha
 from app.models.estado_arte import EstadoDelArte
 from app.models.resultado_resumen import ResultadoResumen
 from app.models.rag_log import RagLog
+from app.models.metrica import Metrica
 
 # -------------------------------
 # CREAR TABLAS SI NO EXISTEN

@@ -224,15 +224,48 @@ CREATE TABLE embedding_doc (
   INDEX idx_embedding_seccion (articulo_id, seccion)
 ) ENGINE=InnoDB;
 
+-- ===========================================
+-- TABLA METRICA (capa de medicion v2)
+-- ===========================================
+-- Formato largo: una fila por medicion. La capa de metricas esta en
+-- evolucion, y con una columna por indicador cada metrica nueva exigiria
+-- una migracion y cada metrica retirada dejaria una columna muerta.
+DROP TABLE IF EXISTS metrica;
+CREATE TABLE metrica (
+  id            CHAR(36) PRIMARY KEY,
+  -- referencia_id es polimorfico y no admite clave foranea; se guarda ademas
+  -- el proyecto para que al borrarlo desaparezcan sus metricas y la tabla no
+  -- acumule filas huerfanas.
+  proyecto_id   CHAR(36) NOT NULL,
+  ambito        VARCHAR(16) NOT NULL,   -- brecha | articulo | run | proyecto
+  referencia_id CHAR(36) NOT NULL,
+  codigo        VARCHAR(32) NOT NULL,   -- N1.2, N3.1, N4.1c...
+  valor         FLOAT NULL,
+  detalle       JSON NULL,
+  creado_en     DATETIME DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_metrica_proyecto
+    FOREIGN KEY (proyecto_id) REFERENCES proyecto(id)
+    ON DELETE CASCADE ON UPDATE RESTRICT,
+  INDEX idx_metrica_ref (ambito, referencia_id),
+  INDEX idx_metrica_codigo (codigo),
+  INDEX idx_metrica_proyecto (proyecto_id, codigo)
+) ENGINE=InnoDB;
+
 DROP TABLE IF EXISTS rag_log;
 CREATE TABLE rag_log (
   id          CHAR(36) PRIMARY KEY,
+  -- run_id y articulo_id son opcionales por diseno y no llevan clave
+  -- foranea; el proyecto si la lleva, para que el registro se borre con el.
+  proyecto_id CHAR(36) NOT NULL,
   run_id      CHAR(36) NULL,
   articulo_id CHAR(36) NULL,
   consulta    TEXT NULL,
   top_k       INT DEFAULT 5,
   scores      JSON NULL,
   creado_en   DATETIME DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_rag_log_proyecto
+    FOREIGN KEY (proyecto_id) REFERENCES proyecto(id)
+    ON DELETE CASCADE ON UPDATE RESTRICT,
   INDEX idx_rag_articulo (articulo_id),
   INDEX idx_rag_run (run_id)
 ) ENGINE=InnoDB;
