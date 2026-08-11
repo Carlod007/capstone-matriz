@@ -84,9 +84,16 @@ export function AvisoValidacion() {
   );
 }
 
-/** Consumo de API frente al límite diario del nivel gratuito. */
+/**
+ * Consumo de API frente al límite diario del nivel gratuito.
+ *
+ * Incluye el desglose porque decir "cuesta 6" sin explicar de dónde sale ese
+ * 6 obliga a adivinar si depende del número de artículos, de su tamaño o de
+ * los PDF indexados.
+ */
 export function IndicadorConsumo({ proyectoId }) {
   const [d, setD] = useState(null);
+  const [abierto, setAbierto] = useState(false);
 
   useEffect(() => {
     let vivo = true;
@@ -101,6 +108,10 @@ export function IndicadorConsumo({ proyectoId }) {
 
   if (!d) return null;
   const alcanza = d.alcanza_para_otra_ejecucion;
+  const usadas = d.generaciones_estimadas;
+  const tope = d.limite_diario_nivel_gratuito;
+  const pct = Math.min(100, Math.round((usadas / Math.max(1, tope)) * 100));
+
   return (
     <div
       className={`rounded-lg border p-3 text-sm ${
@@ -111,17 +122,71 @@ export function IndicadorConsumo({ proyectoId }) {
     >
       <div className="flex items-center justify-between gap-3">
         <span className="font-medium">Consumo de API (24 h)</span>
-        <span>
-          {d.generaciones_estimadas} / {d.limite_diario_nivel_gratuito}{" "}
-          generaciones
+        <span className="tabular-nums">
+          {usadas} / {tope}
         </span>
       </div>
-      <div className="text-[11px] mt-1 leading-relaxed">
-        Un análisis completo de este proyecto cuesta {d.coste_de_una_ejecucion}.{" "}
+
+      <div className="mt-2 h-1.5 w-full rounded-full bg-gray-200 overflow-hidden">
+        <div
+          className={`h-full ${alcanza ? "bg-blue-500" : "bg-red-500"}`}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+
+      <div className="text-[11px] mt-2 leading-relaxed">
+        Analizar este proyecto cuesta{" "}
+        <b>{d.coste_de_una_ejecucion} generaciones</b>.{" "}
         {alcanza
           ? `Quedan ${d.restantes_estimadas}: alcanza para otra ejecución.`
-          : `Quedan ${d.restantes_estimadas}: no alcanza para otra ejecución hasta mañana.`}
+          : `Quedan ${d.restantes_estimadas}: no alcanza hasta mañana.`}
       </div>
+
+      <button
+        onClick={() => setAbierto((v) => !v)}
+        className="mt-2 text-[11px] text-blue-700 hover:underline"
+      >
+        {abierto ? "Ocultar" : "¿Qué cuenta como generación?"}
+      </button>
+
+      {abierto && (
+        <div className="mt-2 space-y-2 text-[11px] leading-relaxed">
+          <div>
+            Una <b>generación</b> es una llamada al modelo de lenguaje. El nivel
+            gratuito permite {tope} al día. Los cálculos que no llaman al modelo
+            no cuentan.
+          </div>
+
+          <div className="border-t pt-2">
+            <div className="font-medium mb-1">Sí cuentan</div>
+            {(d.desglose || []).map((x, i) => (
+              <div key={i} className="mb-1.5">
+                <div className="flex justify-between gap-2">
+                  <span>{x.concepto}</span>
+                  <span className="tabular-nums font-medium">×{x.cantidad}</span>
+                </div>
+                <div className="text-gray-500">{x.detalle}</div>
+              </div>
+            ))}
+            <div className="flex justify-between gap-2 border-t pt-1 mt-1 font-medium">
+              <span>Total por ejecución</span>
+              <span className="tabular-nums">{d.coste_de_una_ejecucion}</span>
+            </div>
+          </div>
+
+          <div className="border-t pt-2">
+            <div className="font-medium mb-1">No cuentan</div>
+            {(d.no_cuentan || []).map((x, i) => (
+              <div key={i} className="mb-1.5">
+                <div>{x.concepto}</div>
+                <div className="text-gray-500">{x.detalle}</div>
+              </div>
+            ))}
+          </div>
+
+          <div className="border-t pt-2 text-gray-500">{d.nota}</div>
+        </div>
+      )}
     </div>
   );
 }

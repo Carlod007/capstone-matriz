@@ -208,6 +208,35 @@ def consumo(proyecto_id: str, db: Session = Depends(get_db)):
         "coste_de_una_ejecucion": coste_ejecucion,
         "alcanza_para_otra_ejecucion": restantes >= coste_ejecucion,
         "tokens_acumulados": {"entrada": tokens_in, "salida": tokens_out},
+        # Desglose explicito: sin el, "cuesta 6" no dice de donde sale ese 6.
+        "desglose": [
+            {
+                "concepto": "Analisis de cada articulo",
+                "cantidad": n_articulos,
+                "detalle": ("Una llamada por articulo. Es la que lee los fragmentos "
+                            "recuperados y produce la brecha, la oportunidad, el tipo "
+                            "y el resumen."),
+            },
+            {
+                "concepto": "Sintesis del estado del arte",
+                "cantidad": 1,
+                "detalle": ("Una sola llamada al final, que redacta el estado del arte "
+                            "a partir de todas las brechas del lote."),
+            },
+        ],
+        "no_cuentan": [
+            {
+                "concepto": "Indexacion de los PDF (embeddings)",
+                "detalle": ("Tiene su propia cuota, limitada por minuto y no por dia. "
+                            "Ademas la indexacion es idempotente: un articulo ya "
+                            "indexado no se vuelve a procesar ni se vuelve a pagar."),
+            },
+            {
+                "concepto": "Metricas locales",
+                "detalle": ("Los niveles N1, N3 y N4 se calculan con los embeddings ya "
+                            "generados, sin ninguna llamada adicional."),
+            },
+        ],
         "nota": ("Estimacion a partir de los resultados guardados. No incluye "
                  "llamadas fallidas ni consumo de otras aplicaciones que usen "
                  "la misma clave. Consulta oficial en ai.dev/rate-limit"),

@@ -823,27 +823,38 @@ function BrechasProyecto({ proyecto, goBack }) {
           </Btn>
         }
       >
-        {Array.isArray(modal.payload) && (
-          <div className="space-y-6">
+        {/* Se destaca la brecha vigente y las anteriores quedan plegadas.
+            Cada análisis del proyecto genera una brecha nueva y se conserva
+            el histórico, pero mostrarlas todas al mismo nivel hacía parecer
+            que el artículo tenía varias brechas simultáneas. */}
+        {Array.isArray(modal.payload) && modal.payload.length > 0 && (
+          <div className="space-y-4">
+            <DetalleBrecha brecha={modal.payload[0]} />
+
             {modal.payload.length > 1 && (
-              <div className="text-xs text-gray-600">
-                {modal.payload.length} brechas registradas para este artículo,
-                de la más reciente a la más antigua.
-              </div>
+              <details className="border rounded-lg">
+                <summary className="cursor-pointer select-none px-3 py-2 bg-gray-50 rounded-t-lg text-sm">
+                  Análisis anteriores de este artículo (
+                  {modal.payload.length - 1})
+                </summary>
+                <div className="p-3 space-y-6">
+                  <p className="text-xs text-gray-600">
+                    Cada vez que se analiza el proyecto se genera una brecha
+                    nueva y se conserva la anterior, de modo que puedas
+                    comparar cómo cambia el resultado al ajustar el sistema.
+                    Arriba se muestra siempre la más reciente.
+                  </p>
+                  {modal.payload.slice(1).map((b) => (
+                    <div key={b.id} className="border-t pt-4">
+                      <div className="text-xs text-gray-500 mb-2">
+                        {new Date(b.creado_en).toLocaleString()}
+                      </div>
+                      <DetalleBrecha brecha={b} />
+                    </div>
+                  ))}
+                </div>
+              </details>
             )}
-            {modal.payload.map((b, i) => (
-              <div
-                key={b.id}
-                className={i > 0 ? "border-t pt-6" : ""}
-              >
-                {modal.payload.length > 1 && (
-                  <div className="text-xs text-gray-500 mb-2">
-                    {new Date(b.creado_en).toLocaleString()}
-                  </div>
-                )}
-                <DetalleBrecha brecha={b} />
-              </div>
-            ))}
           </div>
         )}
       </Modal>
