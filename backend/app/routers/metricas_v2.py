@@ -14,7 +14,7 @@ presentarlas igual fue lo que oculto el problema original.
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
@@ -27,7 +27,7 @@ from app.models.proyecto import Proyecto
 from app.models.resultado_brecha import ResultadoBrecha
 from app.models.run import Run, EstadoRun
 from app.models.run_item import RunItem
-from app.services import registro_api
+from app.services import limitador, registro_api
 from app.services.metricas import distribucion as D
 from app.services.metricas.catalogo import CATALOGO, ficha
 
@@ -249,8 +249,14 @@ def _consumo(db: Session, proyecto_id: str | None):
         embeddings = 0
         fuente = "resultados guardados"
 
-    LIMITE_DIARIO = 20
+    LIMITE_DIARIO = limitador.LIMITE_GENERACION_DIA
     restantes = max(0, LIMITE_DIARIO - generaciones)
+
+    # Reinicio del proveedor: sus cuotas diarias vuelven a cero de golpe a
+    # medianoche del huso que rotula su panel, no llamada a llamada. Es una
+    # referencia distinta de nuestra ventana movil y conviene dar las dos.
+    ahora_utc = datetime.now(timezone.utc)
+    reinicio = limitador.proximo_reinicio_diario(ahora_utc)
 
     # Momento exacto en que cada llamada sale de la ventana y devuelve margen.
     reno = registro_api.renovaciones(horas=24)
@@ -267,6 +273,16 @@ def _consumo(db: Session, proyecto_id: str | None):
         # atras se descuente contra el, y no contra el del navegador.
         "ahora_servidor": reno.get("ahora"),
         "renovaciones": reno.get("eventos", []),
+        # Referencia del proveedor, que es la que manda.
+        "reinicio_proveedor": {
+            "momento_utc": reinicio.isoformat(),
+            "segundos": limitador.segundos_hasta_reinicio(ahora_utc),
+            "huso": "UTC%+d" % limitador.HUSO_REINICIO,
+            "detalle": ("El panel de AI Studio rotula sus graficas en UTC%+d, de "
+                        "modo que la cuota diaria vuelve a cero a la medianoche "
+                        "de ese huso, toda de golpe."
+                        % limitador.HUSO_REINICIO),
+        },
     }
 
     # Lo unico que depende del proyecto es cuanto costaria analizarlo, porque
@@ -319,9 +335,12 @@ def _consumo(db: Session, proyecto_id: str | None):
     salida["no_cuentan"] = [
         {
             "concepto": "Indexacion de los PDF (embeddings)",
-            "detalle": ("Tiene su propia cuota, limitada por minuto y no por dia. "
-                        "Ademas la indexacion es idempotente: un articulo ya "
-                        "indexado no se vuelve a procesar ni se vuelve a pagar."),
+            "detalle": ("Usa otro modelo y por tanto otra cuota: %d peticiones por "
+                        "minuto y %d al dia, contadas aparte de las generaciones. "
+                        "Ademas la indexacion es idempotente, asi que un articulo "
+                        "ya indexado no se vuelve a procesar ni se vuelve a pagar."
+                        % (limitador.LIMITE_EMBEDDINGS_MIN,
+                           limitador.LIMITE_EMBEDDINGS_DIA)),
         },
         {
             "concepto": "Metricas locales",

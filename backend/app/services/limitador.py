@@ -23,19 +23,35 @@ import re
 import threading
 import time
 from collections import deque
+from datetime import datetime, timedelta, timezone
 from typing import Callable, TypeVar
 
 T = TypeVar("T")
 
-# Límites del nivel gratuito. Se dejan configurables porque un plan de pago
-# los amplía y no tendría sentido frenar de más.
+# Límites del nivel gratuito, comprobados en el panel de AI Studio:
 #
-# El límite real de embeddings es 100 por minuto. Se deja margen por dos
-# motivos: el contador vive en el proceso y se pierde al reiniciar el
-# servidor, de modo que puede quedar consumo reciente sin registrar; y la
-# ventana del servicio no tiene por qué alinearse con la nuestra.
+#   gemini-2.5-flash      5 peticiones/min     20 al día
+#   gemini-embedding-001  100 peticiones/min   1000 al día
+#
+# Se deja margen por dos motivos: el contador vive en el proceso y se pierde
+# al reiniciar el servidor, de modo que puede quedar consumo reciente sin
+# registrar; y la ventana del servicio no tiene por qué alinearse con la
+# nuestra. Configurables porque un plan de pago los amplía.
+#
+# La generación estaba fijada en 8 por minuto cuando el tope real son 5, y el
+# panel lo reflejaba en rojo: 6 de 5. Un limitador por encima del límite no
+# limita nada.
 LIMITE_EMBEDDINGS_MIN = int(os.getenv("LIMITE_EMBEDDINGS_MIN", "70"))
-LIMITE_GENERACION_MIN = int(os.getenv("LIMITE_GENERACION_MIN", "8"))
+LIMITE_GENERACION_MIN = int(os.getenv("LIMITE_GENERACION_MIN", "4"))
+
+# Cuotas diarias, para poder avisar antes de agotarlas.
+LIMITE_GENERACION_DIA = int(os.getenv("LIMITE_GENERACION_DIA", "20"))
+LIMITE_EMBEDDINGS_DIA = int(os.getenv("LIMITE_EMBEDDINGS_DIA", "1000"))
+
+# Huso en el que el proveedor reinicia sus cuotas diarias. El panel de AI
+# Studio rotula sus gráficas en UTC-8, de modo que el corte es la medianoche
+# de ese huso y no la del servidor donde corre esto.
+HUSO_REINICIO = int(os.getenv("HUSO_REINICIO_UTC", "-8"))
 MAX_REINTENTOS = int(os.getenv("MAX_REINTENTOS", "5"))
 ESPERA_MAXIMA = float(os.getenv("ESPERA_MAXIMA_SEG", "70"))
 
@@ -108,6 +124,30 @@ class Limitador:
 
 limitador_embeddings = Limitador(LIMITE_EMBEDDINGS_MIN, "embeddings")
 limitador_generacion = Limitador(LIMITE_GENERACION_MIN, "generacion")
+
+
+def proximo_reinicio_diario(ahora_utc: datetime | None = None) -> datetime:
+    """Medianoche siguiente en el huso del proveedor, devuelta en UTC.
+
+    A diferencia de la ventana móvil que lleva esta aplicación, esto sí es el
+    criterio del proveedor: sus cuotas diarias se reinician de golpe a esa
+    hora, no llamada a llamada.
+    """
+    ahora_utc = ahora_utc or datetime.now(timezone.utc)
+    if ahora_utc.tzinfo is None:
+        ahora_utc = ahora_utc.replace(tzinfo=timezone.utc)
+    huso = timezone(timedelta(hours=HUSO_REINICIO))
+    local = ahora_utc.astimezone(huso)
+    manana = (local + timedelta(days=1)).replace(
+        hour=0, minute=0, second=0, microsecond=0)
+    return manana.astimezone(timezone.utc)
+
+
+def segundos_hasta_reinicio(ahora_utc: datetime | None = None) -> int:
+    ahora_utc = ahora_utc or datetime.now(timezone.utc)
+    if ahora_utc.tzinfo is None:
+        ahora_utc = ahora_utc.replace(tzinfo=timezone.utc)
+    return max(0, int((proximo_reinicio_diario(ahora_utc) - ahora_utc).total_seconds()))
 
 
 # ---------------------------------------------------------------- reintentos

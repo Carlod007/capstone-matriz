@@ -47,17 +47,22 @@ function duracion(seg) {
  * ambos relojes y se descuenta sobre ella. De lo contrario un ordenador con la
  * hora mal puesta mostraría una cuenta atrás falsa sin que nada lo delatara.
  */
-function useCuentaAtras(momentoISO, ahoraServidorISO) {
+function useCuentaAtras(momentoISO, ahoraServidorISO = null) {
   const [segundos, setSegundos] = useState(null);
 
   useEffect(() => {
-    if (!momentoISO || !ahoraServidorISO) {
+    if (!momentoISO) {
       setSegundos(null);
       return;
     }
     const destino = new Date(momentoISO).getTime();
-    const servidor = new Date(ahoraServidorISO).getTime();
-    const desfase = Date.now() - servidor; // navegador menos servidor
+
+    // Con instante de referencia del servidor se corrige el desfase entre
+    // relojes: hace falta cuando la marca viene sin huso, como las de MySQL.
+    // Sin él, la marca ya lleva huso propio y basta el reloj del navegador.
+    const desfase = ahoraServidorISO
+      ? Date.now() - new Date(ahoraServidorISO).getTime()
+      : 0;
 
     const recalcular = () =>
       setSegundos(Math.max(0, Math.round((destino - (Date.now() - desfase)) / 1000)));
@@ -167,6 +172,9 @@ export function IndicadorConsumo({ proyectoId, compacto = false }) {
     d?.disponible_para_ejecucion_en?.momento,
     ahoraServidor
   );
+  // El reinicio del proveedor llega como instante absoluto en UTC, así que
+  // no necesita corrección de desfase.
+  const segReinicio = useCuentaAtras(d?.reinicio_proveedor?.momento_utc);
 
   if (!d) return null;
   const usadas = d.generaciones_estimadas;
@@ -202,9 +210,9 @@ export function IndicadorConsumo({ proyectoId, compacto = false }) {
             style={{ width: `${pct}%` }}
           />
         </span>
-        {!alcanza && segEjecucion != null && (
+        {!alcanza && segReinicio != null && (
           <span className="text-xs text-mal tabular-nums">
-            {duracion(segEjecucion)}
+            {duracion(segReinicio)}
           </span>
         )}
       </div>
@@ -247,31 +255,55 @@ export function IndicadorConsumo({ proyectoId, compacto = false }) {
         )}
       </div>
 
-      {/* Cuenta atras en vivo. Se descuenta contra el reloj del servidor, no
-          contra el del navegador, que puede ir desfasado. */}
-      {(segProxima != null || segEjecucion != null) && (
-        <div className="mt-2.5 rounded-lg border border-borde bg-hundido/60 px-2.5 py-2 text-[11px] leading-relaxed">
-          {!alcanza && segEjecucion != null ? (
+      {/* Dos referencias distintas, y conviene no confundirlas: el proveedor
+          reinicia su cuota de golpe a medianoche de su huso; nuestra ventana
+          móvil libera una generación cada vez que una llamada cumple 24 h. */}
+      {(segReinicio != null || segProxima != null || segEjecucion != null) && (
+        <div className="mt-2.5 rounded-lg border border-borde bg-hundido/60 px-2.5 py-2 text-[11px] leading-relaxed space-y-1.5">
+          {segReinicio != null && (
             <div>
-              <span className="text-tinta-suave">Alcanzará para analizar en </span>
-              <span className="font-medium tabular-nums">
-                {duracion(segEjecucion)}
+              <span className="text-tinta-suave">
+                La cuota vuelve a {d.limite_diario_nivel_gratuito} en{" "}
               </span>
-            </div>
-          ) : (
-            segProxima != null && (
-              <div>
-                <span className="text-tinta-suave">Se recupera 1 generación en </span>
-                <span className="font-medium tabular-nums">
-                  {duracion(segProxima)}
-                </span>
+              <span className="font-medium tabular-nums">
+                {duracion(segReinicio)}
+              </span>
+              <div className="text-tinta-suave">
+                Medianoche {d.reinicio_proveedor?.huso}, el huso del panel de
+                AI Studio.
               </div>
-            )
+            </div>
           )}
-          <div className="text-tinta-suave mt-1">
-            Según la ventana móvil de 24 h, medida con el reloj del servidor.
-            El proveedor puede renovar antes.
-          </div>
+
+          {(segProxima != null || segEjecucion != null) && (
+            <div className="border-t border-borde pt-1.5">
+              {!alcanza && segEjecucion != null ? (
+                <>
+                  <span className="text-tinta-suave">
+                    Nuestra estimación alcanzaría para analizar en{" "}
+                  </span>
+                  <span className="font-medium tabular-nums">
+                    {duracion(segEjecucion)}
+                  </span>
+                </>
+              ) : (
+                segProxima != null && (
+                  <>
+                    <span className="text-tinta-suave">
+                      Nuestra estimación recupera 1 en{" "}
+                    </span>
+                    <span className="font-medium tabular-nums">
+                      {duracion(segProxima)}
+                    </span>
+                  </>
+                )
+              )}
+              <div className="text-tinta-suave">
+                Ventana móvil de 24 h de esta aplicación. Manda el reinicio del
+                proveedor.
+              </div>
+            </div>
+          )}
         </div>
       )}
 
