@@ -74,6 +74,65 @@ def corte(horas: int = 24):
     return F.date_sub(F.now(), text("INTERVAL %d HOUR" % int(horas)))
 
 
+def _ahora_bd(s) -> datetime | None:
+    """Hora del servidor de base de datos.
+
+    Se devuelve al cliente para que descuente el tiempo contra este reloj y
+    no contra el del navegador, que puede ir desfasado.
+    """
+    from sqlalchemy import func as F, select
+
+    try:
+        return s.execute(select(F.now())).scalar()
+    except Exception:
+        return None
+
+
+def renovaciones(horas: int = 24, limite: int = 40) -> dict:
+    """Cuándo vuelve a haber margen, según la ventana móvil.
+
+    Cada llamada deja de contar exactamente `horas` después de haberse hecho,
+    así que el momento en que se recupera margen es calculable con precisión a
+    partir de las marcas guardadas.
+
+    Es un dato exacto sobre *nuestra* ventana. No equivale necesariamente al
+    reinicio del proveedor, que aplica su propio criterio y no lo publica en
+    la respuesta de error: eso se advierte aparte en lugar de presentarlo como
+    si fuera lo mismo.
+    """
+    from app.database import SessionLocal
+
+    s = SessionLocal()
+    try:
+        ahora = _ahora_bd(s)
+        filas = (s.query(LlamadaAPI.creado_en)
+                 .filter(LlamadaAPI.creado_en >= corte(horas),
+                         LlamadaAPI.operacion.in_(OPERACIONES_DE_GENERACION))
+                 .order_by(LlamadaAPI.creado_en.asc())
+                 .limit(limite).all())
+        marcas = [f[0] for f in filas if f[0] is not None]
+    except Exception:
+        return {"disponible": False, "ahora": None, "eventos": []}
+    finally:
+        s.close()
+
+    if ahora is None:
+        return {"disponible": False, "ahora": None, "eventos": []}
+
+    eventos = []
+    acumulado = 0
+    for m in marcas:
+        vence = m + timedelta(hours=horas)
+        acumulado += 1
+        eventos.append({
+            "momento": vence.isoformat(),
+            "segundos": max(0, int((vence - ahora).total_seconds())),
+            "recupera": 1,
+            "acumulado": acumulado,
+        })
+    return {"disponible": True, "ahora": ahora.isoformat(), "eventos": eventos}
+
+
 def consumo(horas: int = 24) -> dict:
     """Consumo real registrado en la ventana indicada."""
     from app.database import SessionLocal

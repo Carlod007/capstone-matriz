@@ -28,6 +28,48 @@ function fmt(v, decimales = 3) {
 /** Métricas destacadas en las tarjetas superiores, por orden de interés. */
 const DESTACADAS = ["N3.1", "N1.2", "N3.2", "N4.2"];
 
+/** Segundos a "3h 21m 47s", omitiendo las unidades que no aportan. */
+function duracion(seg) {
+  const s = Math.max(0, Math.floor(seg));
+  const h = Math.floor(s / 3600);
+  const m = Math.floor((s % 3600) / 60);
+  const r = s % 60;
+  if (h) return `${h} h ${String(m).padStart(2, "0")} min ${String(r).padStart(2, "0")} s`;
+  if (m) return `${m} min ${String(r).padStart(2, "0")} s`;
+  return `${r} s`;
+}
+
+/**
+ * Cuenta atrás anclada al reloj del servidor.
+ *
+ * El navegador puede ir desfasado respecto a la base de datos, así que en vez
+ * de comparar contra la hora local se calcula una sola vez la diferencia entre
+ * ambos relojes y se descuenta sobre ella. De lo contrario un ordenador con la
+ * hora mal puesta mostraría una cuenta atrás falsa sin que nada lo delatara.
+ */
+function useCuentaAtras(momentoISO, ahoraServidorISO) {
+  const [segundos, setSegundos] = useState(null);
+
+  useEffect(() => {
+    if (!momentoISO || !ahoraServidorISO) {
+      setSegundos(null);
+      return;
+    }
+    const destino = new Date(momentoISO).getTime();
+    const servidor = new Date(ahoraServidorISO).getTime();
+    const desfase = Date.now() - servidor; // navegador menos servidor
+
+    const recalcular = () =>
+      setSegundos(Math.max(0, Math.round((destino - (Date.now() - desfase)) / 1000)));
+
+    recalcular();
+    const t = setInterval(recalcular, 1000);
+    return () => clearInterval(t);
+  }, [momentoISO, ahoraServidorISO]);
+
+  return segundos;
+}
+
 /* ---------------------------------------------------------------- piezas */
 function Etiqueta({ children, tono = "gris" }) {
   const tonos = {
@@ -117,6 +159,15 @@ export function IndicadorConsumo({ proyectoId, compacto = false }) {
     };
   }, [proyectoId]);
 
+  // Los hooks van antes de cualquier retorno: su orden debe ser estable
+  // entre renderizados.
+  const ahoraServidor = d?.ahora_servidor ?? null;
+  const segProxima = useCuentaAtras(d?.renovaciones?.[0]?.momento, ahoraServidor);
+  const segEjecucion = useCuentaAtras(
+    d?.disponible_para_ejecucion_en?.momento,
+    ahoraServidor
+  );
+
   if (!d) return null;
   const usadas = d.generaciones_estimadas;
   const tope = d.limite_diario_nivel_gratuito;
@@ -128,7 +179,14 @@ export function IndicadorConsumo({ proyectoId, compacto = false }) {
 
   if (compacto) {
     return (
-      <div className="inline-flex items-center gap-2.5 rounded-full border border-borde bg-superficie pl-3 pr-3.5 py-1.5">
+      <div
+        className="inline-flex items-center gap-2.5 rounded-full border border-borde bg-superficie pl-3 pr-3.5 py-1.5"
+        title={
+          segProxima != null
+            ? `Se recupera 1 generación en ${duracion(segProxima)}`
+            : undefined
+        }
+      >
         <span
           className={`h-1.5 w-1.5 rounded-full ${
             alcanza ? "bg-acento" : "bg-mal"
@@ -144,6 +202,11 @@ export function IndicadorConsumo({ proyectoId, compacto = false }) {
             style={{ width: `${pct}%` }}
           />
         </span>
+        {!alcanza && segEjecucion != null && (
+          <span className="text-xs text-mal tabular-nums">
+            {duracion(segEjecucion)}
+          </span>
+        )}
       </div>
     );
   }
@@ -177,12 +240,40 @@ export function IndicadorConsumo({ proyectoId, compacto = false }) {
             <b>{d.coste_de_una_ejecucion} generaciones</b>.{" "}
             {alcanza
               ? `Quedan ${restantes}: alcanza para otra ejecución.`
-              : `Quedan ${restantes}: no alcanza hasta mañana.`}
+              : `Quedan ${restantes}, faltan ${d.generaciones_que_faltan}.`}
           </>
         ) : (
           <>Quedan {restantes} generaciones disponibles hoy.</>
         )}
       </div>
+
+      {/* Cuenta atras en vivo. Se descuenta contra el reloj del servidor, no
+          contra el del navegador, que puede ir desfasado. */}
+      {(segProxima != null || segEjecucion != null) && (
+        <div className="mt-2.5 rounded-lg border border-borde bg-hundido/60 px-2.5 py-2 text-[11px] leading-relaxed">
+          {!alcanza && segEjecucion != null ? (
+            <div>
+              <span className="text-tinta-suave">Alcanzará para analizar en </span>
+              <span className="font-medium tabular-nums">
+                {duracion(segEjecucion)}
+              </span>
+            </div>
+          ) : (
+            segProxima != null && (
+              <div>
+                <span className="text-tinta-suave">Se recupera 1 generación en </span>
+                <span className="font-medium tabular-nums">
+                  {duracion(segProxima)}
+                </span>
+              </div>
+            )
+          )}
+          <div className="text-tinta-suave mt-1">
+            Según la ventana móvil de 24 h, medida con el reloj del servidor.
+            El proveedor puede renovar antes.
+          </div>
+        </div>
+      )}
 
       <button
         onClick={() => setAbierto((v) => !v)}

@@ -175,6 +175,43 @@ def metricas_por_articulo(proyecto_id: str, db: Session = Depends(get_db)):
     }
 
 
+def _renovaciones_por_resultados(db: Session, horas: int = 24) -> dict:
+    """Renovaciones deducidas de los resultados guardados.
+
+    Respaldo para cuando el registro de llamadas aun no tiene datos. Es menos
+    fiel —no ve los intentos fallidos— pero permite dar una cuenta atras en
+    lugar de no dar ninguna.
+    """
+    from sqlalchemy import func as F, select
+
+    try:
+        ahora = db.execute(select(F.now())).scalar()
+    except Exception:
+        return {"disponible": False, "ahora": None, "eventos": []}
+    if ahora is None:
+        return {"disponible": False, "ahora": None, "eventos": []}
+
+    desde = registro_api.corte(horas)
+    marcas = [r[0] for r in
+              db.query(ResultadoBrecha.created_at)
+              .filter(ResultadoBrecha.created_at >= desde).all() if r[0]]
+    marcas += [r[0] for r in
+               db.query(EstadoDelArte.created_at)
+               .filter(EstadoDelArte.created_at >= desde).all() if r[0]]
+    marcas.sort()
+
+    eventos = []
+    for i, m in enumerate(marcas[:40], start=1):
+        vence = m + timedelta(hours=horas)
+        eventos.append({
+            "momento": vence.isoformat(),
+            "segundos": max(0, int((vence - ahora).total_seconds())),
+            "recupera": 1,
+            "acumulado": i,
+        })
+    return {"disponible": True, "ahora": ahora.isoformat(), "eventos": eventos}
+
+
 def _consumo(db: Session, proyecto_id: str | None):
     """Consumo de API, para no chocar con la cuota sin avisar.
 
@@ -215,12 +252,21 @@ def _consumo(db: Session, proyecto_id: str | None):
     LIMITE_DIARIO = 20
     restantes = max(0, LIMITE_DIARIO - generaciones)
 
+    # Momento exacto en que cada llamada sale de la ventana y devuelve margen.
+    reno = registro_api.renovaciones(horas=24)
+    if not reno.get("disponible") or not reno.get("eventos"):
+        reno = _renovaciones_por_resultados(db)
+
     salida = {
         "ambito": "clave de API",
         "ventana": "ultimas 24 horas",
         "generaciones_estimadas": generaciones,
         "limite_diario_nivel_gratuito": LIMITE_DIARIO,
         "restantes_estimadas": restantes,
+        # El reloj del servidor viaja con la respuesta para que la cuenta
+        # atras se descuente contra el, y no contra el del navegador.
+        "ahora_servidor": reno.get("ahora"),
+        "renovaciones": reno.get("eventos", []),
     }
 
     # Lo unico que depende del proyecto es cuanto costaria analizarlo, porque
@@ -231,10 +277,23 @@ def _consumo(db: Session, proyecto_id: str | None):
                        .filter(Articulo.proyecto_id == proyecto_id).count())
         coste_ejecucion = n_articulos + 1
         runs = db.query(Run).filter(Run.proyecto_id == proyecto_id).all()
+
+        # Cuando habra margen para una ejecucion entera: hace falta que
+        # caduquen tantas llamadas como falten para cubrir su coste.
+        faltan = max(0, coste_ejecucion - restantes)
+        espera = None
+        if faltan:
+            for ev in salida.get("renovaciones", []):
+                if ev["acumulado"] >= faltan:
+                    espera = {"momento": ev["momento"], "segundos": ev["segundos"]}
+                    break
+
         salida.update({
             "proyecto_id": proyecto_id,
             "coste_de_una_ejecucion": coste_ejecucion,
             "alcanza_para_otra_ejecucion": restantes >= coste_ejecucion,
+            "generaciones_que_faltan": faltan,
+            "disponible_para_ejecucion_en": espera,
             "tokens_acumulados": {
                 "entrada": sum(r.tokens_in or 0 for r in runs),
                 "salida": sum(r.tokens_out or 0 for r in runs),
@@ -296,6 +355,12 @@ def _consumo(db: Session, proyecto_id: str | None):
         "ambito": (
             "La cuota pertenece a la clave de API y se comparte entre todos "
             "los proyectos: lo que consume uno resta a los demas."
+        ),
+        "cuenta_atras": (
+            "La cuenta atras es exacta respecto a la ventana movil de 24 horas "
+            "que lleva esta aplicacion, calculada con el reloj de la base de "
+            "datos. El proveedor aplica su propio criterio de reinicio y no lo "
+            "indica en la respuesta de error, asi que puede renovar antes."
         ),
         "fuente_oficial": "ai.dev/rate-limit",
     }
