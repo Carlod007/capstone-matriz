@@ -59,17 +59,31 @@ def anotar(operacion: str, *, modelo: str | None = None, exito: bool = True,
         pass
 
 
+def corte(horas: int = 24):
+    """Inicio de la ventana, calculado con el reloj de la base de datos.
+
+    Las marcas de tiempo se escriben con CURRENT_TIMESTAMP, es decir en la
+    hora local del servidor. Compararlas contra `datetime.utcnow()` introduce
+    el desfase del huso: con cinco horas de diferencia, los registros salian
+    de la ventana cinco horas antes de tiempo y el contador de consumo caia a
+    cero teniendo cuota gastada. Usar el mismo reloj en ambos lados elimina el
+    problema sin depender de como este configurado el servidor.
+    """
+    from sqlalchemy import func as F, text
+
+    return F.date_sub(F.now(), text("INTERVAL %d HOUR" % int(horas)))
+
+
 def consumo(horas: int = 24) -> dict:
     """Consumo real registrado en la ventana indicada."""
     from app.database import SessionLocal
     from sqlalchemy import func as F
 
-    desde = datetime.utcnow() - timedelta(hours=horas)
     s = SessionLocal()
     try:
         filas = (s.query(LlamadaAPI.operacion, LlamadaAPI.exito,
                          F.count(LlamadaAPI.id), F.sum(LlamadaAPI.unidades))
-                 .filter(LlamadaAPI.creado_en >= desde)
+                 .filter(LlamadaAPI.creado_en >= corte(horas))
                  .group_by(LlamadaAPI.operacion, LlamadaAPI.exito).all())
     except Exception:
         return {"disponible": False, "generaciones": 0, "fallidas": 0,

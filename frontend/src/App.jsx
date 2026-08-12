@@ -347,9 +347,15 @@ function Lista({ goCreate, goProyecto }) {
     <Page title="Proyectos" subtitle="Cada proyecto reúne un tema, sus artículos y el estado del arte generado a partir de ellos.">
       <Seccion
         acciones={
-          <Btn kind="yellow" onClick={goCreate}>
-            Nuevo proyecto
-          </Btn>
+          <>
+            {/* La cuota es de la clave y se comparte entre proyectos, asi que
+                se muestra aqui: no hace falta entrar en uno para saber cuanto
+                margen queda. */}
+            <IndicadorConsumo compacto />
+            <Btn kind="yellow" onClick={goCreate}>
+              Nuevo proyecto
+            </Btn>
+          </>
         }
       >
         {loading ? (

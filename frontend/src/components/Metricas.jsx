@@ -97,13 +97,18 @@ export function AvisoValidacion() {
  * 6 obliga a adivinar si depende del número de artículos, de su tamaño o de
  * los PDF indexados.
  */
-export function IndicadorConsumo({ proyectoId }) {
+export function IndicadorConsumo({ proyectoId, compacto = false }) {
   const [d, setD] = useState(null);
   const [abierto, setAbierto] = useState(false);
 
   useEffect(() => {
     let vivo = true;
-    fetch(`${API_BASE}/proyectos/${proyectoId}/consumo`)
+    // Sin proyecto se consulta la cuota de la clave a secas, que es lo que
+    // interesa desde la lista: el margen es el mismo para todos los proyectos.
+    const url = proyectoId
+      ? `${API_BASE}/proyectos/${proyectoId}/consumo`
+      : `${API_BASE}/consumo`;
+    fetch(url)
       .then((r) => (r.ok ? r.json() : null))
       .then((x) => vivo && setD(x))
       .catch(() => {});
@@ -113,10 +118,35 @@ export function IndicadorConsumo({ proyectoId }) {
   }, [proyectoId]);
 
   if (!d) return null;
-  const alcanza = d.alcanza_para_otra_ejecucion;
   const usadas = d.generaciones_estimadas;
   const tope = d.limite_diario_nivel_gratuito;
+  const restantes = d.restantes_estimadas;
   const pct = Math.min(100, Math.round((usadas / Math.max(1, tope)) * 100));
+  // Sin proyecto no hay coste de ejecucion con el que comparar, asi que el
+  // aviso se basa en el margen restante.
+  const alcanza = proyectoId ? d.alcanza_para_otra_ejecucion : restantes > 0;
+
+  if (compacto) {
+    return (
+      <div className="inline-flex items-center gap-2.5 rounded-full border border-borde bg-superficie pl-3 pr-3.5 py-1.5">
+        <span
+          className={`h-1.5 w-1.5 rounded-full ${
+            alcanza ? "bg-acento" : "bg-mal"
+          }`}
+        />
+        <span className="text-xs text-tinta-media">
+          API · <span className="tabular-nums">{usadas}</span> de{" "}
+          <span className="tabular-nums">{tope}</span> hoy
+        </span>
+        <span className="w-16 h-1 rounded-full bg-hundido overflow-hidden">
+          <span
+            className={`block h-full ${alcanza ? "bg-acento" : "bg-mal"}`}
+            style={{ width: `${pct}%` }}
+          />
+        </span>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -141,11 +171,17 @@ export function IndicadorConsumo({ proyectoId }) {
       </div>
 
       <div className="text-[11px] mt-2 leading-relaxed">
-        Analizar este proyecto cuesta{" "}
-        <b>{d.coste_de_una_ejecucion} generaciones</b>.{" "}
-        {alcanza
-          ? `Quedan ${d.restantes_estimadas}: alcanza para otra ejecución.`
-          : `Quedan ${d.restantes_estimadas}: no alcanza hasta mañana.`}
+        {proyectoId ? (
+          <>
+            Analizar este proyecto cuesta{" "}
+            <b>{d.coste_de_una_ejecucion} generaciones</b>.{" "}
+            {alcanza
+              ? `Quedan ${restantes}: alcanza para otra ejecución.`
+              : `Quedan ${restantes}: no alcanza hasta mañana.`}
+          </>
+        ) : (
+          <>Quedan {restantes} generaciones disponibles hoy.</>
+        )}
       </div>
 
       <button
@@ -163,22 +199,31 @@ export function IndicadorConsumo({ proyectoId }) {
             no cuentan.
           </div>
 
-          <div className="border-t pt-2">
-            <div className="font-medium mb-1">Sí cuentan</div>
-            {(d.desglose || []).map((x, i) => (
-              <div key={i} className="mb-1.5">
-                <div className="flex justify-between gap-2">
-                  <span>{x.concepto}</span>
-                  <span className="tabular-nums font-medium">×{x.cantidad}</span>
+          {/* La cuota es de la clave, no del proyecto: conviene decirlo donde
+              se muestra el número, para que nadie suponga que cada proyecto
+              tiene su propio margen. */}
+          {d.exactitud?.ambito && (
+            <div className="text-tinta-suave">{d.exactitud.ambito}</div>
+          )}
+
+          {d.desglose && (
+            <div className="border-t pt-2">
+              <div className="font-medium mb-1">Sí cuentan</div>
+              {d.desglose.map((x, i) => (
+                <div key={i} className="mb-1.5">
+                  <div className="flex justify-between gap-2">
+                    <span>{x.concepto}</span>
+                    <span className="tabular-nums font-medium">×{x.cantidad}</span>
+                  </div>
+                  <div className="text-tinta-suave">{x.detalle}</div>
                 </div>
-                <div className="text-tinta-suave">{x.detalle}</div>
+              ))}
+              <div className="flex justify-between gap-2 border-t pt-1 mt-1 font-medium">
+                <span>Total por ejecución</span>
+                <span className="tabular-nums">{d.coste_de_una_ejecucion}</span>
               </div>
-            ))}
-            <div className="flex justify-between gap-2 border-t pt-1 mt-1 font-medium">
-              <span>Total por ejecución</span>
-              <span className="tabular-nums">{d.coste_de_una_ejecucion}</span>
             </div>
-          </div>
+          )}
 
           <div className="border-t pt-2">
             <div className="font-medium mb-1">No cuentan</div>

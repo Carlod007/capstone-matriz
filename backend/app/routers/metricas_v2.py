@@ -33,6 +33,11 @@ from app.services.metricas.catalogo import CATALOGO, ficha
 
 router = APIRouter(prefix="/proyectos", tags=["metricas-v2"])
 
+# La cuota pertenece a la clave de API, no al proyecto. Servirla solo bajo
+# /proyectos/{id}/consumo daba a entender lo contrario y obligaba a entrar en
+# un proyecto para saber cuanto margen quedaba.
+router_global = APIRouter(tags=["metricas-v2"])
+
 
 def _ultimo_run(db: Session, proyecto_id: str) -> Run | None:
     # MySQL no admite NULLS LAST y tampoco hace falta: en orden descendente
@@ -170,20 +175,22 @@ def metricas_por_articulo(proyecto_id: str, db: Session = Depends(get_db)):
     }
 
 
-@router.get("/{proyecto_id}/consumo")
-def consumo(proyecto_id: str, db: Session = Depends(get_db)):
-    """Consumo de API estimado, para no chocar con la cuota sin avisar.
+def _consumo(db: Session, proyecto_id: str | None):
+    """Consumo de API, para no chocar con la cuota sin avisar.
+
+    La cuota es de la clave, no del proyecto: se comparte entre todos. Por eso
+    el recuento es global y solo el coste de una ejecución depende del
+    proyecto, que es lo que varía con su número de artículos.
 
     El nivel gratuito permite 20 generaciones al día. Cada análisis gasta una
     por artículo más una para la síntesis, de modo que un proyecto de cinco
     artículos consume seis. Sin este recuento, el límite se descubre a mitad
     de una ejecución y el trabajo se pierde.
-
-    Es una estimación a partir de lo registrado en la base: no consulta al
-    proveedor, así que no cuenta lo consumido por otras aplicaciones que usen
-    la misma clave.
     """
-    desde = datetime.utcnow() - timedelta(hours=24)
+    # El corte se calcula con el reloj de la base, no con el de Python: las
+    # marcas se escriben en hora local del servidor y compararlas contra UTC
+    # expulsaba registros de la ventana antes de tiempo.
+    desde = registro_api.corte(24)
 
     # Fuente preferente: el registro de llamadas, que anota tambien las
     # fallidas. Contar solo los resultados guardados dejaba fuera los
@@ -206,75 +213,102 @@ def consumo(proyecto_id: str, db: Session = Depends(get_db)):
         fuente = "resultados guardados"
 
     LIMITE_DIARIO = 20
-    n_articulos = db.query(Articulo).filter(Articulo.proyecto_id == proyecto_id).count()
-    coste_ejecucion = n_articulos + 1
-
-    tokens_in = sum(r.tokens_in or 0 for r in
-                    db.query(Run).filter(Run.proyecto_id == proyecto_id).all())
-    tokens_out = sum(r.tokens_out or 0 for r in
-                     db.query(Run).filter(Run.proyecto_id == proyecto_id).all())
-
     restantes = max(0, LIMITE_DIARIO - generaciones)
-    return {
+
+    salida = {
+        "ambito": "clave de API",
         "ventana": "ultimas 24 horas",
         "generaciones_estimadas": generaciones,
         "limite_diario_nivel_gratuito": LIMITE_DIARIO,
         "restantes_estimadas": restantes,
-        "coste_de_una_ejecucion": coste_ejecucion,
-        "alcanza_para_otra_ejecucion": restantes >= coste_ejecucion,
-        "tokens_acumulados": {"entrada": tokens_in, "salida": tokens_out},
-        # Desglose explicito: sin el, "cuesta 6" no dice de donde sale ese 6.
-        "desglose": [
-            {
-                "concepto": "Analisis de cada articulo",
-                "cantidad": n_articulos,
-                "detalle": ("Una llamada por articulo. Es la que lee los fragmentos "
-                            "recuperados y produce la brecha, la oportunidad, el tipo "
-                            "y el resumen."),
-            },
-            {
-                "concepto": "Sintesis del estado del arte",
-                "cantidad": 1,
-                "detalle": ("Una sola llamada al final, que redacta el estado del arte "
-                            "a partir de todas las brechas del lote."),
-            },
-        ],
-        "no_cuentan": [
-            {
-                "concepto": "Indexacion de los PDF (embeddings)",
-                "detalle": ("Tiene su propia cuota, limitada por minuto y no por dia. "
-                            "Ademas la indexacion es idempotente: un articulo ya "
-                            "indexado no se vuelve a procesar ni se vuelve a pagar."),
-            },
-            {
-                "concepto": "Metricas locales",
-                "detalle": ("Los niveles N1, N3 y N4 se calculan con los embeddings ya "
-                            "generados, sin ninguna llamada adicional."),
-            },
-        ],
-        "fuente": fuente,
-        "generaciones_fallidas": fallidas,
-        "embeddings_ventana": embeddings,
-        # Se declara explicitamente el alcance del recuento. Un contador que
-        # se presenta como exacto sin serlo lleva a decisiones equivocadas,
-        # que es justo el problema que este proyecto vino a corregir.
-        "exactitud": {
-            "cuenta": (
-                "Todas las llamadas hechas por esta aplicacion, incluidas las "
-                "que fallaron: un intento con error consume cuota igual."
-                if fuente == "registro de llamadas" else
-                "Solo los resultados guardados. Las llamadas fallidas no se "
-                "contabilizan, asi que el consumo real puede ser mayor."
-            ),
-            "no_cuenta": [
-                "Llamadas de otras aplicaciones que usen la misma clave.",
-                "Llamadas anteriores a la puesta en marcha de este registro.",
-            ],
-            "ventana": (
-                "Se miden las ultimas 24 horas moviles. El proveedor reinicia "
-                "su cuota a una hora fija, de modo que el momento de "
-                "renovacion puede no coincidir."
-            ),
-            "fuente_oficial": "ai.dev/rate-limit",
-        },
     }
+
+    # Lo unico que depende del proyecto es cuanto costaria analizarlo, porque
+    # varia con su numero de articulos. El consumo y la cuota son de la clave
+    # y se comparten entre todos los proyectos.
+    if proyecto_id:
+        n_articulos = (db.query(Articulo)
+                       .filter(Articulo.proyecto_id == proyecto_id).count())
+        coste_ejecucion = n_articulos + 1
+        runs = db.query(Run).filter(Run.proyecto_id == proyecto_id).all()
+        salida.update({
+            "proyecto_id": proyecto_id,
+            "coste_de_una_ejecucion": coste_ejecucion,
+            "alcanza_para_otra_ejecucion": restantes >= coste_ejecucion,
+            "tokens_acumulados": {
+                "entrada": sum(r.tokens_in or 0 for r in runs),
+                "salida": sum(r.tokens_out or 0 for r in runs),
+            },
+            # Desglose explicito: sin el, "cuesta 6" no dice de donde sale ese 6.
+            "desglose": [
+                {
+                    "concepto": "Analisis de cada articulo",
+                    "cantidad": n_articulos,
+                    "detalle": ("Una llamada por articulo. Es la que lee los "
+                                "fragmentos recuperados y produce la brecha, la "
+                                "oportunidad, el tipo y el resumen."),
+                },
+                {
+                    "concepto": "Sintesis del estado del arte",
+                    "cantidad": 1,
+                    "detalle": ("Una sola llamada al final, que redacta el estado "
+                                "del arte a partir de todas las brechas del lote."),
+                },
+            ],
+        })
+
+    salida["no_cuentan"] = [
+        {
+            "concepto": "Indexacion de los PDF (embeddings)",
+            "detalle": ("Tiene su propia cuota, limitada por minuto y no por dia. "
+                        "Ademas la indexacion es idempotente: un articulo ya "
+                        "indexado no se vuelve a procesar ni se vuelve a pagar."),
+        },
+        {
+            "concepto": "Metricas locales",
+            "detalle": ("Los niveles N1, N3 y N4 se calculan con los embeddings ya "
+                        "generados, sin ninguna llamada adicional."),
+        },
+    ]
+    salida["fuente"] = fuente
+    salida["generaciones_fallidas"] = fallidas
+    salida["embeddings_ventana"] = embeddings
+    # Se declara explicitamente el alcance del recuento. Un contador que se
+    # presenta como exacto sin serlo lleva a decisiones equivocadas, que es
+    # justo el problema que este proyecto vino a corregir.
+    salida["exactitud"] = {
+        "cuenta": (
+            "Todas las llamadas hechas por esta aplicacion, incluidas las "
+            "que fallaron: un intento con error consume cuota igual."
+            if fuente == "registro de llamadas" else
+            "Solo los resultados guardados. Las llamadas fallidas no se "
+            "contabilizan, asi que el consumo real puede ser mayor."
+        ),
+        "no_cuenta": [
+            "Llamadas de otras aplicaciones que usen la misma clave.",
+            "Llamadas anteriores a la puesta en marcha de este registro.",
+        ],
+        "ventana": (
+            "Se miden las ultimas 24 horas moviles. El proveedor reinicia "
+            "su cuota a una hora fija, de modo que el momento de "
+            "renovacion puede no coincidir."
+        ),
+        "ambito": (
+            "La cuota pertenece a la clave de API y se comparte entre todos "
+            "los proyectos: lo que consume uno resta a los demas."
+        ),
+        "fuente_oficial": "ai.dev/rate-limit",
+    }
+    return salida
+
+
+@router.get("/{proyecto_id}/consumo")
+def consumo_de_proyecto(proyecto_id: str, db: Session = Depends(get_db)):
+    """Consumo global mas el coste de analizar este proyecto."""
+    return _consumo(db, proyecto_id)
+
+
+@router_global.get("/consumo")
+def consumo_global(db: Session = Depends(get_db)):
+    """Consumo de la clave de API, sin atarlo a ningun proyecto."""
+    return _consumo(db, None)

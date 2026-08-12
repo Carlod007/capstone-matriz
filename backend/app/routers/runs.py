@@ -262,7 +262,7 @@ def process_next_item(run_id: str, db: Session = Depends(get_db)):
     )
     if not pendiente or run.n_items_ok >= run.n_items_total:
         run.estado = EstadoRun.completado
-        run.finalizado_en = datetime.utcnow()
+        run.finalizado_en = datetime.now()
         _metricas_de_lote(db, run)
         db.commit()
         return RunOut.model_construct(
@@ -324,7 +324,7 @@ def process_next_item(run_id: str, db: Session = Depends(get_db)):
 
     if run.estado == EstadoRun.creado:
         run.estado = EstadoRun.en_progreso
-        run.iniciado_en = datetime.utcnow()
+        run.iniciado_en = datetime.now()
 
     try:
         # --- Paso 1: recuperar fragmentos por relevancia ---
@@ -411,7 +411,7 @@ def process_next_item(run_id: str, db: Session = Depends(get_db)):
         )
         if not pendiente_restante:
             run.estado = EstadoRun.completado
-            run.finalizado_en = datetime.utcnow()
+            run.finalizado_en = datetime.now()
             # N3.1 y N3.4 comparan las brechas entre sí, de modo que solo
             # tienen sentido cuando el lote está completo.
             _metricas_de_lote(db, run)

@@ -110,7 +110,9 @@ export function Seccion({ titulo, apoyo, acciones, children }) {
               </p>
             )}
           </div>
-          {acciones && <div className="flex gap-2 shrink-0">{acciones}</div>}
+          {acciones && (
+            <div className="flex items-center gap-2 shrink-0">{acciones}</div>
+          )}
         </div>
       )}
       {children}
