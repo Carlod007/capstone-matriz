@@ -23,6 +23,7 @@ from app.services.gemini_service import analyze
 from app.services.embedding_service import recuperar_contexto, construir_consulta
 from app.services.document_structure import extraer_abstract
 from app.services.metricas import niveles as N
+from app.services.metricas import sintesis as S
 from app.services.verificacion import verificar
 
 from app.utils.text_extractor import extraer_con_diagnostico
@@ -118,6 +119,12 @@ def _registrar_metricas(db, art, rb, res, texto, recuperados, ruta_pdf) -> None:
                  ver.equilibrio_evidencial)
     _metrica(db, art.proyecto_id, AMBITO_BRECHA, rb.id, "N2.verificada",
              1.0 if ver.disponible else 0.0, ver.resumen())
+
+    # --- N5.2: cuantas veces el reclasificador sobrescribe al modelo ---
+    tipo_modelo = res.get("tipo_modelo")
+    _metrica(db, art.proyecto_id, AMBITO_BRECHA, rb.id, "N5.2",
+             S.n5_2_efecto_reclasificador(tipo_modelo, res.get("tipo_brecha")),
+             {"tipo_modelo": tipo_modelo, "tipo_final": res.get("tipo_brecha")})
 
     # --- N3: especificidad ---
     _metrica(db, art.proyecto_id, AMBITO_BRECHA, rb.id, "N3.2", N.n3_2_densidad_anclajes(brecha_txt))

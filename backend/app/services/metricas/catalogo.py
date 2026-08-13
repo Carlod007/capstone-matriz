@@ -72,6 +72,29 @@ CATALOGO: dict[str, Ficha] = {f.codigo: f for f in [
           "el motivo: una medición que no se hizo no equivale a una medición con "
           "resultado cero."),
 
+    Ficha("N5.2", "Reetiquetado automático", "N5 Tipificación", "brecha", BAJO,
+          "0 a 1",
+          "Con qué frecuencia un contador de palabras clave sobrescribe el tipo que "
+          "asignó el modelo.",
+          "Un valor alto significa que la etiqueta final la decide una heurística y "
+          "no el modelo. Conviene saberlo antes de dar por buena la tipificación: "
+          "nunca se comprobó si esa heurística ayuda o perjudica."),
+
+    Ficha("N5.3", "Cobertura de la síntesis", "N5 Síntesis", "proyecto", ALTO,
+          "0 a 1",
+          "Qué proporción de las brechas del lote está representada en el estado "
+          "del arte.",
+          "Detecta que la síntesis ignore artículos. Con diez brechas de entrada y "
+          "una redacción que recoge seis, el texto parece completo y no lo está."),
+
+    Ficha("N5.5", "Citas sin correspondencia", "N5 Síntesis", "proyecto", BAJO,
+          "0 a 1",
+          "Proporción de referencias del estado del arte que no corresponde a "
+          "ningún artículo del proyecto.",
+          "El prompt prohíbe inventar citas y hasta ahora nada verificaba que se "
+          "cumpliera. Referencias inventadas son el fallo más grave posible en una "
+          "herramienta de revisión de literatura."),
+
     Ficha("N3.1", "Discriminabilidad", "N3 Especificidad", "run", ALTO, "0 a 1",
           "Cuánto se diferencian las brechas de artículos distintos del mismo proyecto.",
           "Es la métrica más diagnóstica: si el modelo emite la misma brecha genérica "

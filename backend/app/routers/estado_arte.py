@@ -8,7 +8,10 @@ from app.models.run import Run, EstadoRun
 from app.models.run_item import RunItem
 from app.models.resultado_brecha import ResultadoBrecha
 from app.models.estado_arte import EstadoDelArte
+from app.models.articulo import Articulo
+from app.models.metrica import Metrica
 from app.services.gemini_service import synthesize_estado_arte
+from app.services.metricas import sintesis as S
 
 router = APIRouter(prefix="/proyectos", tags=["estado_arte"])
 
@@ -76,9 +79,47 @@ def generar_estado_arte(proyecto_id: str, db: Session = Depends(get_db)):
         tokens_out=0,
     )
     db.add(rec)
+    db.flush()
+
+    # 7) Métricas de la síntesis (N5). Se calculan aquí porque necesitan el
+    #    texto ya generado y todas las brechas del lote a la vez.
+    medidas = _medir_sintesis(db, proyecto_id, rec, brechas_rows)
     db.commit()
 
-    return {"estado_arte_id": rec.id, "version": rec.version, "run_id": run.id}
+    return {"estado_arte_id": rec.id, "version": rec.version, "run_id": run.id,
+            "metricas": medidas}
+
+
+def _medir_sintesis(db: Session, proyecto_id: str, rec: EstadoDelArte,
+                    brechas_rows) -> dict:
+    """Comprueba que la síntesis represente el lote y no invente referencias.
+
+    Ambas cosas se calculan sin llamar al modelo: la cobertura con los
+    embeddings, y las citas con los artículos del propio proyecto.
+    """
+    textos = [r.brecha or "" for r in brechas_rows]
+    articulos = [
+        {"titulo": a.titulo, "doi": a.doi}
+        for a in db.query(Articulo).filter(Articulo.proyecto_id == proyecto_id).all()
+    ]
+
+    salida: dict = {}
+    for codigo, calcular in (
+        ("N5.3", lambda: S.n5_3_cobertura_sintesis(rec.texto, textos)),
+        ("N5.5", lambda: S.n5_5_citas_fabricadas(rec.texto, articulos)),
+    ):
+        try:
+            valor, detalle = calcular()
+        except Exception as exc:  # noqa: BLE001
+            # Que falle una métrica no debe impedir guardar el estado del arte:
+            # mide sobre el resultado, no forma parte de él.
+            valor, detalle = None, {"error": str(exc)[:200]}
+        db.add(Metrica(
+            id=str(uuid.uuid4()), proyecto_id=proyecto_id, ambito="proyecto",
+            referencia_id=rec.id, codigo=codigo, valor=valor, detalle=detalle,
+        ))
+        salida[codigo] = {"valor": valor, "detalle": detalle}
+    return salida
 
 @router.get("/{proyecto_id}/estado_arte/latest")
 def obtener_estado_arte(proyecto_id: str, db: Session = Depends(get_db)):

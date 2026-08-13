@@ -180,6 +180,7 @@ def analyze(texto: str, contexto: dict, context_docs: list[str] | None = None) -
             "brecha": demo["brecha"],
             "oportunidad": demo["oportunidad"],
             "tipo_brecha": demo["tipo_brecha"],
+            "tipo_modelo": demo["tipo_brecha"],
             "resumen": resumen_mock,
             "_usage": {"tokens_in": 0, "tokens_out": 0, "tokens_total": 0},
         }
@@ -253,11 +254,17 @@ def analyze(texto: str, contexto: dict, context_docs: list[str] | None = None) -
         if tipo not in {"metodológica", "temática", "teórica", "tecnológica", "otra"}:
             tipo = "otra"
 
+        # Se conserva lo que dijo el modelo antes de que el reclasificador por
+        # palabras clave intervenga. Sin ese dato no hay forma de saber cuantas
+        # veces lo sobrescribe, y conservarlo sin medirlo es una suposicion
+        # (N5.2).
+        tipo_modelo = tipo
         tipo = _rebalance_tipo(br, tipo)
         return {
             "brecha": br,
             "oportunidad": op,
             "tipo_brecha": tipo,
+            "tipo_modelo": tipo_modelo,
             "resumen": resumen,
             "_usage": _usage(resp),
         }
