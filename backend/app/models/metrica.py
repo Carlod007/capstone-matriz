@@ -11,7 +11,7 @@ El formato largo además facilita lo que la especificación exige: describir la
 distribución de cada métrica, no solo su promedio.
 """
 
-from sqlalchemy import Column, String, Float, ForeignKey, Index, text
+from sqlalchemy import CHAR, Column, Float, ForeignKey, Index, String, text
 from sqlalchemy.dialects.mysql import DATETIME as MySQLDATETIME
 from sqlalchemy.dialects.mysql import JSON as MySQLJSON
 
@@ -27,21 +27,21 @@ AMBITO_PROYECTO = "proyecto"
 class Metrica(Base):
     __tablename__ = "metrica"
 
-    id = Column(String(36), primary_key=True)
+    id = Column(CHAR(36), primary_key=True)
     # `referencia_id` es polimórfico y por eso no admite clave foránea. Se
     # añade el proyecto, que sí la admite, para que al borrar un proyecto
     # desaparezcan sus métricas. Sin esto la tabla acumularía filas huérfanas,
     # que es como quedaron las 120 de resultado_resumen.
     proyecto_id = Column(
-        String(36),
+        CHAR(36),
         ForeignKey("proyecto.id", ondelete="CASCADE", onupdate="RESTRICT"),
         nullable=False,
     )
-    ambito = Column(String(16), nullable=False)      # brecha | articulo | run | proyecto
-    referencia_id = Column(String(36), nullable=False)
-    codigo = Column(String(32), nullable=False)      # N1.2, N3.1, N4.1...
+    ambito = Column(String(16), nullable=False)  # brecha | articulo | run | proyecto
+    referencia_id = Column(CHAR(36), nullable=False)
+    codigo = Column(String(32), nullable=False)  # N1.2, N3.1, N4.1c...
     valor = Column(Float, nullable=True)
-    detalle = Column(MySQLJSON, nullable=True)       # contexto del cálculo
+    detalle = Column(MySQLJSON, nullable=True)  # contexto del cálculo
     # Con resolución de segundos, dos mediciones escritas en el mismo segundo
     # empatan y ordenar por fecha no decide cuál es la vigente. Al verificar
     # una brecha por segunda vez eso hacía que se mostrara indistintamente la

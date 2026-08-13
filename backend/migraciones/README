@@ -1,0 +1,55 @@
+Migraciones del esquema (Alembic)
+=================================
+
+Este directorio es la unica fuente de verdad del esquema de la base. Antes
+convivian tres —los modelos de SQLAlchemy, database/schema.sql y ALTER TABLE
+ejecutados a mano— y ninguna coincidia con las otras: los modelos no
+declaraban ni una sola clave foranea de las catorce que la base ya tenia.
+
+database/schema.sql se conserva solo como referencia de lectura.
+
+
+Crear la base desde cero
+------------------------
+    CREATE DATABASE capstone CHARACTER SET utf8mb4;   (en MySQL)
+    cd backend
+    alembic upgrade head
+
+La cadena de conexion sale de MYSQL_URI en backend/.env; alembic.ini deja
+sqlalchemy.url vacio a proposito, para no versionar la contrasena.
+
+
+Poner al dia una base existente
+-------------------------------
+    alembic upgrade head
+
+Al arrancar, main.py compara la revision de la base con la ultima y avisa
+por el log si esta atrasada, sin impedir el arranque.
+
+
+Cambiar el esquema
+------------------
+1. Edita el modelo en app/models/.
+2. alembic revision --autogenerate -m "descripcion breve"
+3. Lee la revision generada. Autogenerate no detecta renombrados: propone
+   borrar la columna vieja y crear la nueva, y con ello se pierden los datos.
+4. alembic upgrade head
+5. alembic check  ->  debe decir "No new upgrade operations detected".
+
+tests/test_esquema.py ejecuta ese ultimo paso, ademas de comprobar que toda
+tabla real tenga modelo y que las claves foraneas sigan declaradas.
+
+
+Deshacer
+--------
+    alembic downgrade -1
+
+Las revisiones traen downgrade escrito, pero deshacer no devuelve los datos
+que la subida elimino. En una base con contenido, respalda antes.
+
+
+Revisiones
+----------
+0001  esquema inicial: las 13 tablas reales con sus claves e indices.
+0002  llamada_api.id y proyecto_id pasan de VARCHAR(36) a CHAR(36); esa tabla
+      la habia creado create_all() y quedo distinta del resto.

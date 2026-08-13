@@ -1,21 +1,32 @@
 # app/models/embedding_doc.py
-from sqlalchemy import Column, String, Text, DateTime, Integer
+from sqlalchemy import CHAR, Column, DateTime, ForeignKey, Index, Integer, String, func
 from sqlalchemy.dialects.mysql import JSON as MySQLJSON
-from sqlalchemy.sql import func
-from app.database import Base
+from sqlalchemy.dialects.mysql import LONGTEXT
+
+from app.models.proyecto import Base
+
 
 class EmbeddingDoc(Base):
     __tablename__ = "embedding_doc"
 
-    id = Column(String(36), primary_key=True)
-    articulo_id = Column(String(36), nullable=False, index=True)
-    chunk_orden = Column(Integer, nullable=False)             # <- requerido por el servicio
-    texto = Column(Text, nullable=False)
-    embedding = Column(MySQLJSON, nullable=False)             # guarda lista de floats (no string)
+    id = Column(CHAR(36), primary_key=True)
+    articulo_id = Column(
+        CHAR(36),
+        ForeignKey("articulo.id", ondelete="CASCADE", onupdate="RESTRICT"),
+        nullable=False,
+    )
+    chunk_orden = Column(Integer, nullable=False)
+    texto = Column(LONGTEXT, nullable=False)
+    embedding = Column(MySQLJSON, nullable=False)  # lista de floats, no cadena
     # Sección del artículo a la que pertenece el fragmento. Permite exigir
     # cobertura de método, resultados y discusión al recuperar contexto, en
     # lugar de quedarse siempre con la introducción (M-10).
-    seccion = Column(String(24), nullable=True, index=True)
-    char_inicio = Column(Integer, nullable=True)              # trazabilidad hacia el PDF
+    seccion = Column(String(24), nullable=True)
+    char_inicio = Column(Integer, nullable=True)  # trazabilidad hacia el PDF
     char_fin = Column(Integer, nullable=True)
-    creado_en = Column(DateTime, server_default=func.now())
+    creado_en = Column(DateTime, server_default=func.current_timestamp())
+
+    __table_args__ = (
+        Index("idx_embedding_articulo", "articulo_id"),
+        Index("idx_embedding_seccion", "articulo_id", "seccion"),
+    )

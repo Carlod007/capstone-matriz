@@ -1,4 +1,19 @@
 -- ===========================================
+-- AVISO: este archivo ya no gobierna el esquema
+-- ===========================================
+-- El esquema lo gestiona Alembic, en backend/migraciones/. Para crear la
+-- base o ponerla al dia:
+--
+--     cd backend
+--     alembic upgrade head
+--
+-- Este archivo se conserva como referencia de lectura, porque un DDL
+-- completo se entiende de un vistazo mejor que una cadena de migraciones.
+-- No lo ejecutes sobre una base gestionada por Alembic: convivian tres
+-- fuentes de verdad para un solo esquema (los modelos, este archivo y
+-- ALTER TABLE sueltos) y ninguna coincidia con las otras.
+--
+-- ===========================================
 -- Creación de base de datos
 -- ===========================================
 CREATE DATABASE IF NOT EXISTS capstone
