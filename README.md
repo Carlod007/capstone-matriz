@@ -225,6 +225,13 @@ contrastarlas con el artículo antes de citarlas en un trabajo.
 
 ## Pruebas
 
+Las pruebas necesitan un paquete más, que no hace falta para servir la
+aplicación y por eso va aparte:
+
+```bash
+pip install -r requirements-dev.txt
+```
+
 Desde `backend/`, con el entorno activado:
 
 ```bash

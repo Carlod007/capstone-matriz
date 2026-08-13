@@ -1,0 +1,16 @@
+# Dependencias para desarrollar y ejecutar las pruebas.
+#
+# Van aparte de requirements.txt porque no hacen falta para servir la
+# aplicacion: quien solo despliegue no tiene por que instalar el marco de
+# pruebas. Estaban unicamente en el entorno local de quien las escribio, y
+# por eso el primer CI fallo con "No module named pytest": aqui pasaban
+# porque la maquina ya lo tenia.
+#
+#     pip install -r requirements.txt -r requirements-dev.txt
+
+pytest==9.1.1
+
+# Dependencias de pytest, fijadas para que la instalacion sea reproducible.
+iniconfig==2.3.0
+pluggy==1.6.0
+Pygments==2.20.0
