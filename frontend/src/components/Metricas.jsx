@@ -268,9 +268,17 @@ export function IndicadorConsumo({ proyectoId, compacto = false }) {
               <span className="font-medium tabular-nums">
                 {duracion(segReinicio)}
               </span>
+              {/* Se muestra la hora local equivalente: "medianoche UTC-8" se
+                  lee como "medianoche" a secas, y con tres horas de diferencia
+                  eso lleva a esperar el reinicio cuando no toca. */}
               <div className="text-tinta-suave">
-                Medianoche {d.reinicio_proveedor?.huso}, el huso del panel de
-                AI Studio.
+                Es medianoche en {d.reinicio_proveedor?.huso}, el huso del panel
+                de AI Studio; aquí serán las{" "}
+                {new Date(d.reinicio_proveedor?.momento_utc).toLocaleTimeString(
+                  undefined,
+                  { hour: "2-digit", minute: "2-digit" }
+                )}
+                .
               </div>
             </div>
           )}
