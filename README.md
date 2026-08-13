@@ -1,6 +1,6 @@
 # Matriz de brechas de investigación
 
-[![CI](https://github.com/Carlod007/capstone-matriz/actions/workflows/ci.yml/badge.svg)](https://github.com/Carlod007/capstone-matriz/actions/workflows/ci.yml)
+[![CI](https://github.com/Carlod007/capstone-matriz/actions/workflows/ci.yml/badge.svg?branch=CarlosDev)](https://github.com/Carlod007/capstone-matriz/actions/workflows/ci.yml)
 
 Herramienta que lee artículos científicos en PDF y ayuda a un investigador a
 responder dos preguntas: **qué se ha hecho ya** en su tema y **qué falta por
