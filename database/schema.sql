@@ -242,7 +242,10 @@ CREATE TABLE metrica (
   codigo        VARCHAR(32) NOT NULL,   -- N1.2, N3.1, N4.1c...
   valor         FLOAT NULL,
   detalle       JSON NULL,
-  creado_en     DATETIME DEFAULT CURRENT_TIMESTAMP,
+  -- Microsegundos: con resolucion de segundos, dos mediciones del mismo
+  -- codigo escritas en el mismo segundo empatan y ordenar por fecha no
+  -- decide cual es la vigente.
+  creado_en     DATETIME(6) DEFAULT CURRENT_TIMESTAMP(6),
   CONSTRAINT fk_metrica_proyecto
     FOREIGN KEY (proyecto_id) REFERENCES proyecto(id)
     ON DELETE CASCADE ON UPDATE RESTRICT,

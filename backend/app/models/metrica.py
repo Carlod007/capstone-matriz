@@ -11,9 +11,9 @@ El formato largo además facilita lo que la especificación exige: describir la
 distribución de cada métrica, no solo su promedio.
 """
 
-from sqlalchemy import Column, String, Float, DateTime, ForeignKey, Index
+from sqlalchemy import Column, String, Float, ForeignKey, Index, text
+from sqlalchemy.dialects.mysql import DATETIME as MySQLDATETIME
 from sqlalchemy.dialects.mysql import JSON as MySQLJSON
-from sqlalchemy.sql import func
 
 from app.models.proyecto import Base
 
@@ -42,7 +42,12 @@ class Metrica(Base):
     codigo = Column(String(32), nullable=False)      # N1.2, N3.1, N4.1...
     valor = Column(Float, nullable=True)
     detalle = Column(MySQLJSON, nullable=True)       # contexto del cálculo
-    creado_en = Column(DateTime, server_default=func.now())
+    # Con resolución de segundos, dos mediciones escritas en el mismo segundo
+    # empatan y ordenar por fecha no decide cuál es la vigente. Al verificar
+    # una brecha por segunda vez eso hacía que se mostrara indistintamente la
+    # medición nueva o la anterior. Microsegundos rompen el empate.
+    creado_en = Column(MySQLDATETIME(fsp=6),
+                       server_default=text("CURRENT_TIMESTAMP(6)"))
 
     __table_args__ = (
         Index("idx_metrica_ref", "ambito", "referencia_id"),

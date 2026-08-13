@@ -36,7 +36,18 @@ def listar_brechas(articulo_id: str, db: Session = Depends(get_db)):
     # que permite mostrar afirmacion por afirmacion cual se sostiene y en que
     # fragmento, en lugar de un unico numero sin explicacion.
     verificaciones: dict[str, dict] = {}
-    for m in db.query(Metrica).filter(Metrica.referencia_id.in_(ids)).all():
+    # Ordenado por fecha y quedandose con la ultima: una misma brecha puede
+    # tener varias mediciones del mismo codigo si se verifico mas de una vez.
+    # Sin este orden se elegia una arbitrariamente, de modo que una brecha
+    # verificada de verdad podia mostrarse con el resultado de un intento
+    # anterior y aparecer como "sin verificar".
+    por_codigo: dict[tuple[str, str], Metrica] = {}
+    for m in (db.query(Metrica)
+              .filter(Metrica.referencia_id.in_(ids))
+              .order_by(Metrica.creado_en.asc()).all()):
+        por_codigo[(m.referencia_id, m.codigo)] = m
+
+    for m in por_codigo.values():
         if m.codigo == "N2.verificada":
             verificaciones[m.referencia_id] = m.detalle or {}
             continue

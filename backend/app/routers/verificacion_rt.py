@@ -102,11 +102,13 @@ def verificar_proyecto(proyecto_id: str, rehacer: bool = False,
 
         v = verificar(rb.brecha or "", fragmentos)
 
-        if rehacer:
-            (db.query(Metrica)
-             .filter(Metrica.referencia_id == rb.id,
-                     Metrica.codigo.in_(["N2.1", "N2.2", "N2.4", "N2.verificada"]))
-             .delete(synchronize_session=False))
+        # Se descartan siempre las mediciones previas de esta brecha, no solo
+        # al rehacer. Acumularlas dejaba varias filas del mismo codigo y quien
+        # las leyera tenia que adivinar cual vale.
+        (db.query(Metrica)
+         .filter(Metrica.referencia_id == rb.id,
+                 Metrica.codigo.in_(["N2.1", "N2.2", "N2.4", "N2.verificada"]))
+         .delete(synchronize_session=False))
 
         def _add(codigo, valor, detalle=None):
             db.add(Metrica(id=str(uuid.uuid4()), proyecto_id=proyecto_id,

@@ -175,6 +175,67 @@ class TestGuardas:
         assert {a.tipo for a in v.afirmaciones} == {V.EVIDENCIAL, V.INFERENCIAL}
 
 
+class TestMedicionVigente:
+    """Regresion: con varias mediciones del mismo codigo hay que quedarse con
+    la ultima.
+
+    Al verificar dos veces la misma brecha convivian dos filas de
+    N2.verificada. El endpoint de brechas no ordenaba por fecha, asi que
+    elegia una arbitrariamente y una brecha verificada de verdad podia
+    mostrarse con el resultado de un intento anterior y aparecer como "sin
+    verificar".
+    """
+
+    pytestmark = pytest.mark.bd
+
+    def test_el_endpoint_devuelve_la_verificacion_mas_reciente(self, db,
+                                                               proyecto_indexado):
+        import uuid
+
+        from app.models.metrica import Metrica, AMBITO_BRECHA
+        from app.models.resultado_brecha import ResultadoBrecha
+        from app.models.run_item import RunItem, EstadoRunItem
+        from app.models.run import Run, EstadoRun
+        from fastapi.testclient import TestClient
+        import main
+
+        pid = proyecto_indexado["proyecto_id"]
+        aid = proyecto_indexado["pertinente"]
+
+        run = Run(id=str(uuid.uuid4()), proyecto_id=pid, estado=EstadoRun.completado,
+                  n_items_total=1, n_items_ok=1)
+        db.add(run)
+        db.flush()
+        item = RunItem(id=str(uuid.uuid4()), run_id=run.id, articulo_id=aid,
+                       estado=EstadoRunItem.analizado)
+        db.add(item)
+        db.flush()
+        rb = ResultadoBrecha(id=str(uuid.uuid4()), run_item_id=item.id,
+                             tipo_brecha="otra", brecha="una brecha",
+                             oportunidad="una oportunidad", rag_hits=[])
+        db.add(rb)
+        db.flush()
+
+        def _m(valor, detalle):
+            db.add(Metrica(id=str(uuid.uuid4()), proyecto_id=pid,
+                           ambito=AMBITO_BRECHA, referencia_id=rb.id,
+                           codigo="N2.verificada", valor=valor, detalle=detalle))
+            db.flush()
+
+        _m(0.0, {"disponible": False, "motivo": "intento anterior"})
+        _m(1.0, {"disponible": True, "n_afirmaciones": 3})
+        db.commit()
+
+        try:
+            c = TestClient(main.app)
+            b = c.get("/articulos/%s/brechas" % aid).json()[0]
+            assert b["verificacion"]["disponible"] is True
+            assert b["verificacion"]["n_afirmaciones"] == 3
+        finally:
+            db.query(Run).filter(Run.id == run.id).delete()
+            db.commit()
+
+
 class TestCatalogo:
     def test_las_metricas_n2_estan_catalogadas(self):
         from app.services.metricas.catalogo import CATALOGO
