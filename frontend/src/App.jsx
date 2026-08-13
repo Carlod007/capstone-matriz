@@ -833,6 +833,64 @@ function BrechasProyecto({ proyecto, goBack }) {
   const [arts, setArts] = useState([]);
   const [modal, setModal] = useState({ open: false, title: "", payload: null });
   const [err, setErr] = useState(null);
+  const [ocupado, setOcupado] = useState(null); // "verificar" | "analizar"
+  const [recarga, setRecarga] = useState(0);
+  const avisar = useAviso();
+
+  /**
+   * Verifica la fidelidad de las brechas ya analizadas.
+   *
+   * Un proyecto analizado antes de que existiera N2 tiene sus brechas pero
+   * sin verificar. Reanalizarlo entero costaría el doble de generaciones y
+   * ademas sustituiría unos resultados que estaban bien, así que se verifica
+   * sobre lo existente: una llamada por brecha en vez de dos.
+   */
+  async function verificarFidelidad() {
+    setErr(null);
+    setOcupado("verificar");
+    try {
+      const r = await jpost(`${API_BASE}/proyectos/${proyecto.id}/verificar`);
+      const sinRespaldo = (r.detalle || []).reduce(
+        (n, d) => n + (d.sin_respaldo || 0),
+        0
+      );
+      avisar(
+        `${r.verificadas} de ${r.brechas} brechas verificadas` +
+          (sinRespaldo
+            ? ` · ${sinRespaldo} afirmaciones sin respaldo`
+            : ""),
+        sinRespaldo ? "aviso" : "bien",
+        8000
+      );
+      setRecarga((v) => v + 1);
+    } catch (e) {
+      setErr(e);
+    } finally {
+      setOcupado(null);
+    }
+  }
+
+  /** Vuelve a ejecutar el análisis completo, con verificación incluida. */
+  async function reanalizar() {
+    setErr(null);
+    setOcupado("analizar");
+    try {
+      const run = await jpost(`${API_BASE}/proyectos/${proyecto.id}/runs`, {});
+      let estado = run;
+      let vueltas = 0;
+      while (estado.estado !== "completado" && vueltas <= arts.length + 2) {
+        estado = await jpost(`${API_BASE}/runs/${run.id}/process_next`, {});
+        vueltas++;
+      }
+      await jpost(`${API_BASE}/proyectos/${proyecto.id}/estado_arte`, {});
+      avisar("Análisis completado", "bien");
+      setRecarga((v) => v + 1);
+    } catch (e) {
+      setErr(e);
+    } finally {
+      setOcupado(null);
+    }
+  }
 
   // Matriz
   const [mx, setMx] = useState({
@@ -891,11 +949,25 @@ function BrechasProyecto({ proyecto, goBack }) {
 
   return (
     <Page title="Resultados" subtitle={proyecto.tema_principal}>
-      <Seccion titulo="Indicadores del proyecto">
+      <Seccion
+        titulo="Indicadores del proyecto"
+        acciones={
+          <>
+            {/* Verificar cuesta la mitad que reanalizar y no sustituye unos
+                resultados que ya estaban bien, asi que va primero. */}
+            <Btn kind="blue" onClick={verificarFidelidad} disabled={ocupado}>
+              {ocupado === "verificar" ? "Verificando…" : "Verificar fidelidad"}
+            </Btn>
+            <Btn kind="ghost" onClick={reanalizar} disabled={ocupado}>
+              {ocupado === "analizar" ? "Analizando…" : "Volver a analizar"}
+            </Btn>
+          </>
+        }
+      >
         <div className="grid lg:grid-cols-[1fr_15rem] gap-5 items-start">
-          <PanelMetricas proyectoId={proyecto.id} />
+          <PanelMetricas key={recarga} proyectoId={proyecto.id} />
           <div className="flex flex-col gap-3">
-            <IndicadorConsumo proyectoId={proyecto.id} />
+            <IndicadorConsumo key={recarga} proyectoId={proyecto.id} />
             <Panel className="p-3">
               <div className="text-[11px] font-semibold uppercase tracking-wider text-tinta-suave mb-2">
                 Exportar
