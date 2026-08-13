@@ -43,12 +43,8 @@ class TestCatalogo:
 
 @pytest.mark.bd
 class TestEndpoints:
-    @pytest.fixture(scope="class")
-    def cliente(self):
-        from fastapi.testclient import TestClient
-        import main
-
-        return TestClient(main.app)
+    # `cliente` viene de conftest y llega con la sesion iniciada: desde que
+    # los proyectos tienen dueno, una llamada sin token no pasa de 401.
 
     def test_proyecto_inexistente_da_404(self, cliente):
         r = cliente.get("/proyectos/no-existe-0000/metricas")

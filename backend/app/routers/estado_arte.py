@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from app.database import get_db
+from app.dependencias import proyecto_propio
 from app.models.proyecto import Proyecto
 from app.models.run import Run, EstadoRun
 from app.models.run_item import RunItem
@@ -16,7 +17,11 @@ from app.services.metricas import sintesis as S
 router = APIRouter(prefix="/proyectos", tags=["estado_arte"])
 
 @router.post("/{proyecto_id}/estado_arte")
-def generar_estado_arte(proyecto_id: str, db: Session = Depends(get_db)):
+def generar_estado_arte(
+    proyecto: Proyecto = Depends(proyecto_propio),
+    db: Session = Depends(get_db),
+):
+    proyecto_id = proyecto.id
     # 1) Proyecto
     pr = db.query(Proyecto).filter(Proyecto.id == proyecto_id).first()
     if not pr:
@@ -122,7 +127,11 @@ def _medir_sintesis(db: Session, proyecto_id: str, rec: EstadoDelArte,
     return salida
 
 @router.get("/{proyecto_id}/estado_arte/latest")
-def obtener_estado_arte(proyecto_id: str, db: Session = Depends(get_db)):
+def obtener_estado_arte(
+    proyecto: Proyecto = Depends(proyecto_propio),
+    db: Session = Depends(get_db),
+):
+    proyecto_id = proyecto.id
     rec = (
         db.query(EstadoDelArte)
         .filter(EstadoDelArte.proyecto_id == proyecto_id)

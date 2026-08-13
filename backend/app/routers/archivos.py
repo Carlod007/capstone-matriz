@@ -3,8 +3,10 @@ from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Depends
 from sqlalchemy.orm import Session
 from dotenv import load_dotenv
 from app.database import get_db
+from app.dependencias import proyecto_propio
 from app.models.archivo import Archivo, EstadoArchivo
 from app.models.articulo import Articulo
+from app.models.proyecto import Proyecto
 import fitz  # PyMuPDF
 from pdfminer.high_level import extract_text as pdfminer_extract
 
@@ -80,12 +82,13 @@ def extract_title_and_doi(path: str) -> tuple[str | None, str | None]:
 
 @router.post("/{proyecto_id}/archivos")
 async def subir_pdf(
-    proyecto_id: str,
+    proyecto: Proyecto = Depends(proyecto_propio),
     pdf: UploadFile = File(...),
     titulo: str | None = Form(None),
     doi: str | None = Form(None),
     db: Session = Depends(get_db),
 ):
+    proyecto_id = proyecto.id
     if not pdf.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Solo PDF")
     os.makedirs(STORAGE_DIR, exist_ok=True)
@@ -93,8 +96,17 @@ async def subir_pdf(
     data = await pdf.read()
     file_hash = _sha256_bytes(data)
 
-    # Deduplicación por hash
-    duplicado = db.query(Archivo).filter(Archivo.hash_sha256 == file_hash).first()
+    # Deduplicación por hash, acotada al proyecto.
+    #
+    # Era global: bastaba con que cualquiera hubiera subido antes ese PDF para
+    # que la respuesta devolviera *su* articulo_id. Con una sola persona era
+    # una molestia —el mismo PDF en dos proyectos se quedaba en el primero—;
+    # con varias cuentas es una fuga: subir un articulo que otro ya subió te
+    # daría acceso al suyo.
+    duplicado = (db.query(Archivo)
+                   .filter(Archivo.hash_sha256 == file_hash,
+                           Archivo.proyecto_id == proyecto_id)
+                   .first())
     if duplicado:
         return {
             "articulo_id": duplicado.articulo_id,

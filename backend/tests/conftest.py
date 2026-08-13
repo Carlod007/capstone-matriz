@@ -173,7 +173,50 @@ def db():
 
 
 @pytest.fixture(scope="session")
-def proyecto_indexado(db, pdf_articulo, pdf_ajeno):
+def usuario_prueba(db):
+    """Cuenta a la que pertenecen los datos de las pruebas.
+
+    Desde que los proyectos tienen dueño, uno sin él no lo ve nadie, así que
+    las pruebas de endpoint necesitan una cuenta real y su sesión.
+    """
+    from app.models.usuario import Usuario
+    from app.services import seguridad
+
+    correo = "pruebas-%s@ejemplo.com" % uuid.uuid4().hex[:8]
+    clave = "contrasena-de-las-pruebas"
+    u = Usuario(id=str(uuid.uuid4()), correo=correo,
+                contrasena_hash=seguridad.cifrar(clave),
+                nombre="Cuenta de pruebas", activo=True)
+    db.add(u)
+    db.commit()
+    try:
+        yield {"id": u.id, "correo": correo, "contrasena": clave}
+    finally:
+        db.rollback()
+        db.query(Usuario).filter(Usuario.id == u.id).delete()
+        db.commit()
+
+
+@pytest.fixture(scope="session")
+def cliente(usuario_prueba):
+    """Cliente HTTP con la sesión ya iniciada.
+
+    Lleva la cabecera puesta por defecto, para que las pruebas no tengan que
+    repetirla en cada llamada.
+    """
+    from fastapi.testclient import TestClient
+    import main
+
+    c = TestClient(main.app)
+    r = c.post("/auth/login", json={"correo": usuario_prueba["correo"],
+                                    "contrasena": usuario_prueba["contrasena"]})
+    assert r.status_code == 200, r.text
+    c.headers.update({"Authorization": "Bearer %s" % r.json()["token"]})
+    return c
+
+
+@pytest.fixture(scope="session")
+def proyecto_indexado(db, usuario_prueba, pdf_articulo, pdf_ajeno):
     """Crea un proyecto con tres artículos y los indexa.
 
     - `pertinente`: el artículo del tema del proyecto.
@@ -192,7 +235,8 @@ def proyecto_indexado(db, pdf_articulo, pdf_ajeno):
            "duplicado": str(uuid.uuid4()),
            "ajeno": str(uuid.uuid4())}
 
-    db.add(Proyecto(id=pid, tema_principal=CONTEXTO_PROPIO["tema_principal"],
+    db.add(Proyecto(id=pid, usuario_id=usuario_prueba["id"],
+                    tema_principal=CONTEXTO_PROPIO["tema_principal"],
                     objetivo=CONTEXTO_PROPIO["objetivo"], metodologia_txt="DSRM",
                     sector_txt="Educacion superior", n_articulos_objetivo=3,
                     estado_arte_generado=False))

@@ -3,6 +3,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from app.database import get_db
+from app.dependencias import proyecto_propio
+from app.models.proyecto import Proyecto
 from app.models.resultado_brecha import ResultadoBrecha
 from app.models.run_item import RunItem
 from app.models.articulo import Articulo
@@ -20,7 +22,11 @@ def _q_base(db: Session, proyecto_id: str):
     return q
 
 @router.get("/{proyecto_id}/metrics/resumen")
-def resumen_metricas(proyecto_id: str, db: Session = Depends(get_db)):
+def resumen_metricas(
+    proyecto: Proyecto = Depends(proyecto_propio),
+    db: Session = Depends(get_db),
+):
+    proyecto_id = proyecto.id
     total = (
         _q_base(db, proyecto_id)
         .with_entities(func.count(ResultadoBrecha.id))
@@ -86,7 +92,11 @@ def resumen_metricas(proyecto_id: str, db: Session = Depends(get_db)):
     }
 
 @router.get("/{proyecto_id}/metrics/series")
-def series_temporales(proyecto_id: str, db: Session = Depends(get_db)):
+def series_temporales(
+    proyecto: Proyecto = Depends(proyecto_propio),
+    db: Session = Depends(get_db),
+):
+    proyecto_id = proyecto.id
     rows = (
         _q_base(db, proyecto_id)
         .with_entities(func.date(ResultadoBrecha.created_at), func.count())
@@ -98,5 +108,9 @@ def series_temporales(proyecto_id: str, db: Session = Depends(get_db)):
     return {"serie_brechas_por_dia": serie}
 
 @router.get("/{proyecto_id}/metrics/resumen_ext")
-def metrics_resumen_ext(proyecto_id: str, db: Session = Depends(get_db)):
+def metrics_resumen_ext(
+    proyecto: Proyecto = Depends(proyecto_propio),
+    db: Session = Depends(get_db),
+):
+    proyecto_id = proyecto.id
     return project_indicators(db, proyecto_id)

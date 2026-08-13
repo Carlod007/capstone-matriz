@@ -22,6 +22,7 @@ except Exception:
     _HAS_GRAPHICS = False
 
 from app.database import get_db
+from app.dependencias import proyecto_propio
 from app.models.proyecto import Proyecto
     # noqa
 from app.models.run_item import RunItem
@@ -46,7 +47,11 @@ def _proj_or_404(db: Session, proyecto_id: str) -> Proyecto:
 # Exportar brechas a CSV
 # ----------------------------------------
 @router.get("/proyectos/{proyecto_id}/brechas.csv")
-def export_brechas_csv(proyecto_id: str, db: Session = Depends(get_db)):
+def export_brechas_csv(
+    proyecto: Proyecto = Depends(proyecto_propio),
+    db: Session = Depends(get_db),
+):
+    proyecto_id = proyecto.id
     _proj_or_404(db, proyecto_id)
 
     q = (
@@ -122,7 +127,11 @@ def export_brechas_csv(proyecto_id: str, db: Session = Depends(get_db)):
 # Exportar estado del arte a Markdown
 # ----------------------------------------
 @router.get("/proyectos/{proyecto_id}/estado_arte.md")
-def export_estado_arte_md(proyecto_id: str, db: Session = Depends(get_db)):
+def export_estado_arte_md(
+    proyecto: Proyecto = Depends(proyecto_propio),
+    db: Session = Depends(get_db),
+):
+    proyecto_id = proyecto.id
     _proj_or_404(db, proyecto_id)
     ea = (
         db.query(EstadoDelArte)
@@ -234,7 +243,11 @@ def _chart_indicadores_0_1(promedios: dict, width=500, height=240):
 # Exportar dashboard unificado a PDF (robusto ante faltantes)
 # ----------------------------------------
 @router.get("/proyectos/{proyecto_id}/dashboard.pdf")
-def export_dashboard_pdf(proyecto_id: str, db: Session = Depends(get_db)):
+def export_dashboard_pdf(
+    proyecto: Proyecto = Depends(proyecto_propio),
+    db: Session = Depends(get_db),
+):
+    proyecto_id = proyecto.id
     pr = _proj_or_404(db, proyecto_id)
 
     # Intentar calcular indicadores; si falla, devolver detalle explícito
@@ -477,7 +490,11 @@ def _matrix_rows(db: Session, proyecto_id: str):
     return result
 
 @router.get("/proyectos/{proyecto_id}/matriz.json")
-def export_matriz_json(proyecto_id: str, db: Session = Depends(get_db)):
+def export_matriz_json(
+    proyecto: Proyecto = Depends(proyecto_propio),
+    db: Session = Depends(get_db),
+):
+    proyecto_id = proyecto.id
     _proj_or_404(db, proyecto_id)
     data = _matrix_rows(db, proyecto_id)
     if not data:
@@ -487,7 +504,11 @@ def export_matriz_json(proyecto_id: str, db: Session = Depends(get_db)):
     return JSONResponse(content=data)
 
 @router.get("/proyectos/{proyecto_id}/matriz.pdf")
-def export_matriz_pdf(proyecto_id: str, db: Session = Depends(get_db)):
+def export_matriz_pdf(
+    proyecto: Proyecto = Depends(proyecto_propio),
+    db: Session = Depends(get_db),
+):
+    proyecto_id = proyecto.id
     pr = _proj_or_404(db, proyecto_id)
     rows = _matrix_rows(db, proyecto_id)
     if not rows:

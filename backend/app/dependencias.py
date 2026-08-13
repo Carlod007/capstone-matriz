@@ -49,3 +49,78 @@ def usuario_actual(
         raise _NO_AUTORIZADO
 
     return usuario
+
+
+# --------------------------------------------------------------- propiedad
+#
+# Casi todo cuelga de un proyecto: los articulos son de un proyecto, las
+# ejecuciones tambien, las brechas de una ejecucion y las metricas de un
+# proyecto. Basta entonces con resolver el proyecto y comprobar su dueno.
+#
+# Dos reglas que se siguen en todas las funciones de aqui:
+#
+# 1. El filtro por dueno va DENTRO de la consulta, no en un `if` posterior.
+#    Un `if` se puede olvidar en una rama; un JOIN no devuelve la fila.
+# 2. Lo ajeno responde 404, no 403. Un 403 confirma que ese identificador
+#    existe, y eso ya es informacion: permite averiguar cuantos proyectos hay
+#    y cuales, probando identificadores.
+
+_NO_ENCONTRADO = HTTPException(status_code=404, detail="No encontrado.")
+
+
+def _proyecto_de(db: Session, usuario: Usuario, proyecto_id: str):
+    from app.models.proyecto import Proyecto
+
+    pr = (db.query(Proyecto)
+            .filter(Proyecto.id == proyecto_id,
+                    Proyecto.usuario_id == usuario.id)
+            .first())
+    if pr is None:
+        raise _NO_ENCONTRADO
+    return pr
+
+
+def proyecto_propio(
+    proyecto_id: str,
+    usuario: Usuario = Depends(usuario_actual),
+    db: Session = Depends(get_db),
+):
+    """El proyecto de la ruta, si es de quien lo pide. Si no, 404."""
+    return _proyecto_de(db, usuario, proyecto_id)
+
+
+def articulo_propio(
+    articulo_id: str,
+    usuario: Usuario = Depends(usuario_actual),
+    db: Session = Depends(get_db),
+):
+    """El articulo de la ruta, comprobando el dueno de su proyecto."""
+    from app.models.articulo import Articulo
+    from app.models.proyecto import Proyecto
+
+    art = (db.query(Articulo)
+             .join(Proyecto, Proyecto.id == Articulo.proyecto_id)
+             .filter(Articulo.id == articulo_id,
+                     Proyecto.usuario_id == usuario.id)
+             .first())
+    if art is None:
+        raise _NO_ENCONTRADO
+    return art
+
+
+def run_propio(
+    run_id: str,
+    usuario: Usuario = Depends(usuario_actual),
+    db: Session = Depends(get_db),
+):
+    """La ejecucion de la ruta, comprobando el dueno de su proyecto."""
+    from app.models.proyecto import Proyecto
+    from app.models.run import Run
+
+    run = (db.query(Run)
+             .join(Proyecto, Proyecto.id == Run.proyecto_id)
+             .filter(Run.id == run_id, Proyecto.usuario_id == usuario.id)
+             .first())
+    if run is None:
+        raise _NO_ENCONTRADO
+    return run

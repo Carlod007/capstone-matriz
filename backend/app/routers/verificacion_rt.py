@@ -20,6 +20,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.dependencias import proyecto_propio
 from app.models.articulo import Articulo
 from app.models.embedding_doc import EmbeddingDoc
 from app.models.metrica import Metrica, AMBITO_BRECHA
@@ -55,7 +56,8 @@ def _fragmentos_de(db: Session, rb: ResultadoBrecha) -> list[dict]:
 
 
 @router.post("/{proyecto_id}/verificar")
-def verificar_proyecto(proyecto_id: str, rehacer: bool = False,
+def verificar_proyecto(rehacer: bool = False,
+                       proyecto: Proyecto = Depends(proyecto_propio),
                        db: Session = Depends(get_db)):
     """Verifica la fidelidad de las brechas del último análisis.
 
@@ -63,9 +65,7 @@ def verificar_proyecto(proyecto_id: str, rehacer: bool = False,
     estan, de modo que reintentar tras un fallo a mitad no vuelve a pagar por
     las ya hechas.
     """
-    pr = db.query(Proyecto).filter(Proyecto.id == proyecto_id).first()
-    if not pr:
-        raise HTTPException(status_code=404, detail="Proyecto no encontrado")
+    proyecto_id = proyecto.id
 
     run = (db.query(Run).filter(Run.proyecto_id == proyecto_id)
            .order_by(Run.iniciado_en.desc(), Run.id).first())

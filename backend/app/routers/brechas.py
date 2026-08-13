@@ -2,6 +2,8 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.dependencias import articulo_propio
+from app.models.articulo import Articulo
 from app.models.metrica import Metrica
 from app.models.resultado_brecha import ResultadoBrecha
 from app.models.run_item import RunItem
@@ -11,7 +13,10 @@ router = APIRouter(prefix="/articulos", tags=["brechas"])
 
 
 @router.get("/{articulo_id}/brechas")
-def listar_brechas(articulo_id: str, db: Session = Depends(get_db)):
+def listar_brechas(
+    articulo: Articulo = Depends(articulo_propio),
+    db: Session = Depends(get_db),
+):
     """Brechas de un artículo con sus métricas y su respaldo documental.
 
     Ya no se devuelven `sim_promedio`, `entropia` ni `val_score`: eran las
@@ -20,7 +25,7 @@ def listar_brechas(articulo_id: str, db: Session = Depends(get_db)):
     nombre y su interpretación, y los fragmentos del artículo en los que se
     apoyó el análisis.
     """
-    run_items = db.query(RunItem.id).filter(RunItem.articulo_id == articulo_id).subquery()
+    run_items = db.query(RunItem.id).filter(RunItem.articulo_id == articulo.id).subquery()
     rows = (
         db.query(ResultadoBrecha)
         .filter(ResultadoBrecha.run_item_id.in_(run_items.select()))

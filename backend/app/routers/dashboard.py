@@ -3,6 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import func
 from app.database import get_db
+from app.dependencias import proyecto_propio
 from app.models.proyecto import Proyecto
 from app.models.articulo import Articulo
 from app.models.archivo import Archivo
@@ -21,7 +22,11 @@ def _q_base(db: Session, proyecto_id: str):
     )
 
 @router.get("/{proyecto_id}/dashboard")
-def dashboard(proyecto_id: str, db: Session = Depends(get_db)):
+def dashboard(
+    proyecto: Proyecto = Depends(proyecto_propio),
+    db: Session = Depends(get_db),
+):
+    proyecto_id = proyecto.id
     pr = db.query(Proyecto).filter(Proyecto.id == proyecto_id).first()
     if not pr:
         raise HTTPException(status_code=404, detail="Proyecto no encontrado")

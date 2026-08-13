@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.dependencias import proyecto_propio, run_propio
 from app.models.run import Run, EstadoRun
 from app.models.run_item import RunItem, EstadoRunItem
 from app.models.articulo import Articulo
@@ -178,8 +179,11 @@ router = APIRouter(prefix="/proyectos", tags=["runs"])
 # ----------------------------
 @router.post("/{proyecto_id}/runs", response_model=RunOut)
 def crear_run(
-    proyecto_id: str, _body: RunCreate | None = None, db: Session = Depends(get_db)
+    _body: RunCreate | None = None,
+    proyecto: Proyecto = Depends(proyecto_propio),
+    db: Session = Depends(get_db),
 ):
+    proyecto_id = proyecto.id
     arts = db.query(Articulo).filter(Articulo.proyecto_id == proyecto_id).all()
     if not arts:
         raise HTTPException(status_code=400, detail="El proyecto no tiene artículos.")
@@ -219,7 +223,11 @@ def crear_run(
 # LISTAR RUNS
 # ----------------------------
 @router.get("/{proyecto_id}/runs", response_model=list[RunOut])
-def listar_runs(proyecto_id: str, db: Session = Depends(get_db)):
+def listar_runs(
+    proyecto: Proyecto = Depends(proyecto_propio),
+    db: Session = Depends(get_db),
+):
+    proyecto_id = proyecto.id
     rows = (
         db.query(Run)
         .filter(Run.proyecto_id == proyecto_id)
@@ -242,8 +250,11 @@ def listar_runs(proyecto_id: str, db: Session = Depends(get_db)):
 # LISTAR ITEMS
 # ----------------------------
 @router.get("/runs/{run_id}/items", response_model=list[RunItemOut])
-def listar_items(run_id: str, db: Session = Depends(get_db)):
-    items = db.query(RunItem).filter(RunItem.run_id == run_id).all()
+def listar_items(
+    run: Run = Depends(run_propio),
+    db: Session = Depends(get_db),
+):
+    items = db.query(RunItem).filter(RunItem.run_id == run.id).all()
     return [
         RunItemOut.model_construct(
             id=i.id, articulo_id=i.articulo_id, estado=i.estado.value
@@ -256,8 +267,11 @@ def listar_items(run_id: str, db: Session = Depends(get_db)):
 # DEBUG ITEMS (ver errores)
 # ----------------------------
 @router.get("/runs/{run_id}/items_debug")
-def listar_items_debug(run_id: str, db: Session = Depends(get_db)):
-    items = db.query(RunItem).filter(RunItem.run_id == run_id).all()
+def listar_items_debug(
+    run: Run = Depends(run_propio),
+    db: Session = Depends(get_db),
+):
+    items = db.query(RunItem).filter(RunItem.run_id == run.id).all()
     return [
         {
             "id": i.id,
@@ -273,10 +287,15 @@ def listar_items_debug(run_id: str, db: Session = Depends(get_db)):
 # PROCESAR SIGUIENTE ITEM (Gemini + RAG + Validación Automática)
 # ----------------------------
 @router.post("/runs/{run_id}/process_next", response_model=RunOut)
-def process_next_item(run_id: str, db: Session = Depends(get_db)):
-    run = db.query(Run).filter(Run.id == run_id).first()
-    if not run:
-        raise HTTPException(status_code=404, detail="Run no encontrado")
+def process_next_item(
+    run: Run = Depends(run_propio),
+    db: Session = Depends(get_db),
+):
+    # La dependencia ya resolvió la ejecución y comprobó que el proyecto es de
+    # quien la pide. `pipeline.analizar_todo` llama a esta función pasándole la
+    # ejecución que acaba de crear, así que la comprobación tampoco se repite
+    # de más.
+    run_id = run.id
 
     pendiente = (
         db.query(RunItem)

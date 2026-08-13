@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.dependencias import proyecto_propio
 from app.models.proyecto import Proyecto
 from app.models.articulo import Articulo
 from app.models.embedding_doc import EmbeddingDoc
@@ -17,14 +18,11 @@ from app.routers.estado_arte import generar_estado_arte  # ya existente
 
 router = APIRouter(prefix="/proyectos", tags=["pipeline"])
 
-def _proj_or_404(db: Session, proyecto_id: str) -> Proyecto:
-    pr = db.query(Proyecto).filter(Proyecto.id == proyecto_id).first()
-    if not pr:
-        raise HTTPException(status_code=404, detail="Proyecto no encontrado")
-    return pr
-
 @router.post("/{proyecto_id}/analizar_todo")
-def analizar_todo(proyecto_id: str, db: Session = Depends(get_db)):
+def analizar_todo(
+    proyecto: Proyecto = Depends(proyecto_propio),
+    db: Session = Depends(get_db),
+):
     """
     Pipeline 1-clic:
       - Indexa artículos (RAG) si falta
@@ -32,8 +30,11 @@ def analizar_todo(proyecto_id: str, db: Session = Depends(get_db)):
       - Ejecuta process_next hasta completar
       - Genera Estado del Arte
     Devuelve resumen.
+
+    `_proj_or_404` desapareció de aquí: buscaba el proyecto sin mirar de quién
+    era, y ahora eso lo resuelve la dependencia `proyecto_propio`.
     """
-    _proj_or_404(db, proyecto_id)
+    proyecto_id = proyecto.id
 
     arts = db.query(Articulo).filter(Articulo.proyecto_id == proyecto_id).all()
     if not arts:
@@ -70,13 +71,17 @@ def analizar_todo(proyecto_id: str, db: Session = Depends(get_db)):
     db.commit()
 
     # 3) Ejecutar hasta completar
+    #
+    # Se les pasan los objetos ya resueltos, no los identificadores: las dos
+    # funciones esperan ahora una ejecución y un proyecto cuya propiedad ya se
+    # comprobó, y así no se repite la consulta en cada vuelta del bucle.
     while True:
-        out = process_next_item(run_id, db)  # reutiliza la función del router
+        out = process_next_item(run, db)  # reutiliza la función del router
         if out.estado == EstadoRun.completado.value:
             break
 
     # 4) Generar Estado del Arte
-    ea = generar_estado_arte(proyecto_id, db)
+    ea = generar_estado_arte(proyecto, db)
 
     return {
         "proyecto_id": proyecto_id,

@@ -251,7 +251,7 @@ Desde `backend/`, con el entorno activado:
 python -m pytest
 ```
 
-Son 228 pruebas y corren en modo simulado, sin gastar cuota. Las que
+Son 238 pruebas y corren en modo simulado, sin gastar cuota. Las que
 necesitan MySQL están marcadas con `bd` y **se saltan solas** si no hay
 conexión, de modo que la suite pasa igual en una máquina sin base de datos.
 
@@ -272,7 +272,7 @@ GitHub lo mismo que harías a mano:
 
 - levanta un MySQL vacío y construye el esquema con `alembic upgrade head`,
   de modo que una migración mal escrita se rompe ahí;
-- ejecuta `alembic check` y las 228 pruebas contra esa base recién creada,
+- ejecuta `alembic check` y las 238 pruebas contra esa base recién creada,
   sin los datos acumulados de una máquina de desarrollo;
 - instala el frontend con `npm ci`, pasa el lint y compila.
 
@@ -372,7 +372,7 @@ backend/
     routers/          endpoints HTTP
     services/         ingesta, RAG, verificación, métricas, límites de cuota
     utils/            extracción de texto y OCR
-  tests/              228 pruebas
+  tests/              238 pruebas
   storage/pdfs/       PDF subidos (no se versionan)
 frontend/
   src/components/     interfaz
@@ -419,20 +419,34 @@ No hay conexión a MySQL. Revisa que el servicio esté arriba y que
 
 ## Cuentas
 
-Hay tabla de usuarios, contraseñas cifradas con bcrypt y sesiones por token
-(`/auth/registro`, `/auth/login`, `/auth/yo`).
+Cada proyecto tiene dueño, y **todo lo demás cuelga del proyecto**: artículos,
+ejecuciones, brechas y métricas. Una cuenta solo ve lo suyo.
 
-El alta de cuentas está **cerrada** por defecto: `REGISTRO_ABIERTO=false`. La
+Crea la primera desde la terminal, en `backend/`:
+
+```bash
+python crear_cuenta.py
+```
+
+Pide correo, nombre y contraseña —esta última sin mostrarla al escribir— y,
+si es la primera cuenta, adopta los proyectos que existieran antes de que
+hubiera usuarios.
+
+El alta por HTTP está **cerrada** por defecto (`REGISTRO_ABIERTO=false`). La
 cuota de la API es de la clave y se reparte entre todos los usuarios de la
-instancia, así que una cuenta de más es cuota de menos para las demás. Para
-abrirla, cambia esa variable.
+instancia, así que una cuenta de más es cuota de menos para las demás.
 
-Para crear la primera cuenta, abre el registro un momento, date de alta desde
-`/docs`, y vuelve a cerrarlo.
+Dos decisiones que conviene conocer:
 
-**Falta todavía** que cada proyecto tenga dueño: hoy la sesión identifica
-quién eres, pero los proyectos aún no están separados por usuario. Es el paso
-siguiente.
+- **Lo ajeno responde 404, no 403.** Un 403 confirmaría que ese identificador
+  existe, y con eso se puede averiguar qué hay en la base probando
+  identificadores.
+- **Un proyecto sin dueño no lo ve nadie.** Los anteriores a las cuentas
+  quedaron así; no son "de todos", son de nadie. El fallo es cerrado.
+
+**El frontend todavía no tiene pantalla de inicio de sesión**, así que por
+ahora se prueba desde `/docs`: usa el botón *Authorize* con el token que
+devuelve `/auth/login`.
 
 ---
 
@@ -441,7 +455,8 @@ siguiente.
 Funciona de principio a fin en una máquina local y está medido. Lo que
 todavía no tiene:
 
-- Propiedad de los datos: hay sesión, pero los proyectos no tienen dueño.
+- Inicio de sesión en el frontend: el backend ya lo exige, la interfaz aún no
+  lo ofrece.
 - Ejecución en segundo plano: el análisis bloquea la petición HTTP.
 - Despliegue: los PDF se guardan en el disco local y el origen del frontend
   está fijado en el código.

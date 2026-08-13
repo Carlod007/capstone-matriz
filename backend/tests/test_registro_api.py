@@ -129,12 +129,8 @@ class TestVentanaTemporal:
 
 
 class TestEndpointConsumo:
-    def test_declara_su_alcance(self, db, proyecto_indexado):
-        from fastapi.testclient import TestClient
-        import main
-
-        c = TestClient(main.app)
-        r = c.get("/proyectos/%s/consumo" % proyecto_indexado["proyecto_id"])
+    def test_declara_su_alcance(self, db, cliente, proyecto_indexado):
+        r = cliente.get("/proyectos/%s/consumo" % proyecto_indexado["proyecto_id"])
         assert r.status_code == 200
         d = r.json()
         # El indicador debe decir de donde sale el numero y que no ve.

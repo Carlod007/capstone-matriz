@@ -8,6 +8,8 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 
 from app.database import get_db
+from app.dependencias import proyecto_propio
+from app.models.proyecto import Proyecto
 from app.models.resultado_brecha import ResultadoBrecha
 from app.models.run_item import RunItem
 from app.models.articulo import Articulo
@@ -30,7 +32,11 @@ def _q_base(db: Session, proyecto_id: str):
 
 
 @router.get("/{proyecto_id}/metrics/plots")
-def generar_graficos(proyecto_id: str, db: Session = Depends(get_db)):
+def generar_graficos(
+    proyecto: Proyecto = Depends(proyecto_propio),
+    db: Session = Depends(get_db),
+):
+    proyecto_id = proyecto.id
     q = _q_base(db, proyecto_id)
     total_rows = q.count()
     if total_rows == 0:

@@ -188,7 +188,7 @@ class TestMedicionVigente:
 
     pytestmark = pytest.mark.bd
 
-    def test_el_endpoint_devuelve_la_verificacion_mas_reciente(self, db,
+    def test_el_endpoint_devuelve_la_verificacion_mas_reciente(self, db, cliente,
                                                                proyecto_indexado):
         import uuid
 
@@ -196,8 +196,6 @@ class TestMedicionVigente:
         from app.models.resultado_brecha import ResultadoBrecha
         from app.models.run_item import RunItem, EstadoRunItem
         from app.models.run import Run, EstadoRun
-        from fastapi.testclient import TestClient
-        import main
 
         pid = proyecto_indexado["proyecto_id"]
         aid = proyecto_indexado["pertinente"]
@@ -227,8 +225,7 @@ class TestMedicionVigente:
         db.commit()
 
         try:
-            c = TestClient(main.app)
-            b = c.get("/articulos/%s/brechas" % aid).json()[0]
+            b = cliente.get("/articulos/%s/brechas" % aid).json()[0]
             assert b["verificacion"]["disponible"] is True
             assert b["verificacion"]["n_afirmaciones"] == 3
         finally:

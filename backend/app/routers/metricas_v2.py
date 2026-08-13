@@ -20,6 +20,8 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.dependencias import proyecto_propio, usuario_actual
+from app.models.usuario import Usuario
 from app.models.articulo import Articulo
 from app.models.estado_arte import EstadoDelArte
 from app.models.metrica import Metrica
@@ -49,7 +51,11 @@ def _ultimo_run(db: Session, proyecto_id: str) -> Run | None:
 
 
 @router.get("/{proyecto_id}/metricas")
-def metricas_proyecto(proyecto_id: str, db: Session = Depends(get_db)):
+def metricas_proyecto(
+    proyecto: Proyecto = Depends(proyecto_propio),
+    db: Session = Depends(get_db),
+):
+    proyecto_id = proyecto.id
     """Distribuciones de cada métrica del último análisis del proyecto."""
     pr = db.query(Proyecto).filter(Proyecto.id == proyecto_id).first()
     if not pr:
@@ -136,7 +142,11 @@ def metricas_proyecto(proyecto_id: str, db: Session = Depends(get_db)):
 
 
 @router.get("/{proyecto_id}/metricas/por_articulo")
-def metricas_por_articulo(proyecto_id: str, db: Session = Depends(get_db)):
+def metricas_por_articulo(
+    proyecto: Proyecto = Depends(proyecto_propio),
+    db: Session = Depends(get_db),
+):
+    proyecto_id = proyecto.id
     """Valor de cada métrica para cada artículo del último análisis."""
     run = _ultimo_run(db, proyecto_id)
     if not run:
@@ -398,12 +408,25 @@ def _consumo(db: Session, proyecto_id: str | None):
 
 
 @router.get("/{proyecto_id}/consumo")
-def consumo_de_proyecto(proyecto_id: str, db: Session = Depends(get_db)):
+def consumo_de_proyecto(
+    proyecto: Proyecto = Depends(proyecto_propio),
+    db: Session = Depends(get_db),
+):
     """Consumo global mas el coste de analizar este proyecto."""
-    return _consumo(db, proyecto_id)
+    return _consumo(db, proyecto.id)
 
 
 @router_global.get("/consumo")
-def consumo_global(db: Session = Depends(get_db)):
-    """Consumo de la clave de API, sin atarlo a ningun proyecto."""
+def consumo_global(
+    usuario: Usuario = Depends(usuario_actual),
+    db: Session = Depends(get_db),
+):
+    """Consumo de la clave de API, sin atarlo a ningun proyecto.
+
+    El numero es deliberadamente global y no por usuario: la cuota es de la
+    clave de Gemini y se reparte entre todos los de la instancia, asi que lo
+    util es saber cuanto queda en total. Pide sesion igual —no tiene por que
+    verlo cualquiera que llegue al backend—, pero no revela nada de otras
+    cuentas: solo un total de llamadas.
+    """
     return _consumo(db, None)
