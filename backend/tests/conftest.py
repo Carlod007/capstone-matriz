@@ -10,9 +10,12 @@ import os
 import sys
 import uuid
 
-# Debe fijarse antes de importar la aplicación: varios módulos leen el modo al
-# configurarse.
+# Deben fijarse antes de importar la aplicación: varios módulos leen estas
+# variables al configurarse, y `app.config` exige el secreto para arrancar.
+# Con `setdefault`, un .env presente manda; donde no lo hay —integración
+# continua, una máquina recién clonada— las pruebas siguen corriendo.
 os.environ.setdefault("GEMINI_MODE", "mock")
+os.environ.setdefault("JWT_SECRETO", "secreto-de-pruebas-" + "x" * 40)
 
 RAIZ = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if RAIZ not in sys.path:

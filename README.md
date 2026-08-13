@@ -21,6 +21,7 @@ base de datos MySQL y modelos de Gemini para la generación.
 - [Arrancar el sistema](#arrancar-el-sistema)
 - [Modo simulado y modo real](#modo-simulado-y-modo-real)
 - [Flujo de uso](#flujo-de-uso)
+- [Cuentas](#cuentas)
 - [Pruebas](#pruebas)
 - [Qué miden las métricas y qué no](#qué-miden-las-métricas-y-qué-no)
 - [Límites de la API](#límites-de-la-api)
@@ -114,15 +115,27 @@ Copia el archivo de ejemplo y edítalo:
 copy .env.example .env
 ```
 
-Lo mínimo es apuntar `MYSQL_URI` a tu base:
+Lo mínimo es apuntar `MYSQL_URI` a tu base y poner un secreto de sesión:
 
 ```ini
 MYSQL_URI=mysql+pymysql://root:TU_CONTRASENA@localhost:3306/capstone
 GEMINI_MODE=mock
+JWT_SECRETO=
 ```
 
+`JWT_SECRETO` firma las sesiones y **no tiene valor por defecto a propósito**:
+uno de relleno parece configurado y permitiría a cualquiera que lea el código
+firmar tokens válidos. Genera el tuyo:
+
+```bash
+python -c "import secrets; print(secrets.token_urlsafe(48))"
+```
+
+Si falta, el backend se niega a arrancar y dice qué falta. Es deliberado:
+mejor no arrancar que arrancar mal.
+
 `.env` está en `.gitignore` y no debe versionarse nunca: contiene la
-contraseña de la base y, si lo usas, la clave de la API.
+contraseña de la base, el secreto de sesión y, si lo usas, la clave de la API.
 
 ### 5. Crear las tablas
 
@@ -238,7 +251,7 @@ Desde `backend/`, con el entorno activado:
 python -m pytest
 ```
 
-Son 201 pruebas y corren en modo simulado, sin gastar cuota. Las que
+Son 228 pruebas y corren en modo simulado, sin gastar cuota. Las que
 necesitan MySQL están marcadas con `bd` y **se saltan solas** si no hay
 conexión, de modo que la suite pasa igual en una máquina sin base de datos.
 
@@ -259,7 +272,7 @@ GitHub lo mismo que harías a mano:
 
 - levanta un MySQL vacío y construye el esquema con `alembic upgrade head`,
   de modo que una migración mal escrita se rompe ahí;
-- ejecuta `alembic check` y las 201 pruebas contra esa base recién creada,
+- ejecuta `alembic check` y las 228 pruebas contra esa base recién creada,
   sin los datos acumulados de una máquina de desarrollo;
 - instala el frontend con `npm ci`, pasa el lint y compila.
 
@@ -359,7 +372,7 @@ backend/
     routers/          endpoints HTTP
     services/         ingesta, RAG, verificación, métricas, límites de cuota
     utils/            extracción de texto y OCR
-  tests/              201 pruebas
+  tests/              228 pruebas
   storage/pdfs/       PDF subidos (no se versionan)
 frontend/
   src/components/     interfaz
@@ -404,12 +417,31 @@ No hay conexión a MySQL. Revisa que el servicio esté arriba y que
 
 ---
 
+## Cuentas
+
+Hay tabla de usuarios, contraseñas cifradas con bcrypt y sesiones por token
+(`/auth/registro`, `/auth/login`, `/auth/yo`).
+
+El alta de cuentas está **cerrada** por defecto: `REGISTRO_ABIERTO=false`. La
+cuota de la API es de la clave y se reparte entre todos los usuarios de la
+instancia, así que una cuenta de más es cuota de menos para las demás. Para
+abrirla, cambia esa variable.
+
+Para crear la primera cuenta, abre el registro un momento, date de alta desde
+`/docs`, y vuelve a cerrarlo.
+
+**Falta todavía** que cada proyecto tenga dueño: hoy la sesión identifica
+quién eres, pero los proyectos aún no están separados por usuario. Es el paso
+siguiente.
+
+---
+
 ## Estado del proyecto
 
 Funciona de principio a fin en una máquina local y está medido. Lo que
 todavía no tiene:
 
-- Autenticación: cualquiera que alcance el backend ve todos los proyectos.
+- Propiedad de los datos: hay sesión, pero los proyectos no tienen dueño.
 - Ejecución en segundo plano: el análisis bloquea la petición HTTP.
 - Despliegue: los PDF se guardan en el disco local y el origen del frontend
   está fijado en el código.

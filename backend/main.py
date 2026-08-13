@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 # -------------------------------
 # Routers
 # -------------------------------
+from app.routers import auth
 from app.routers import proyectos
 from app.routers import archivos
 from app.routers import articulos
@@ -40,6 +41,16 @@ from app.models.resultado_resumen import ResultadoResumen
 from app.models.rag_log import RagLog
 from app.models.metrica import Metrica
 from app.models.llamada_api import LlamadaAPI
+from app.models.usuario import Usuario
+
+# -------------------------------
+# CONFIGURACION
+# -------------------------------
+# Se revisa antes que nada: una variable ausente debe impedir arrancar, no
+# aparecer como un error confuso en la primera peticion que la necesite.
+from app import config
+
+config.revisar()
 
 # -------------------------------
 # ESTADO DEL ESQUEMA
@@ -118,6 +129,7 @@ def health():
 # -------------------------------
 # Include Routers
 # -------------------------------
+app.include_router(auth.router)
 app.include_router(proyectos.router)
 app.include_router(archivos.router)
 app.include_router(articulos.router)

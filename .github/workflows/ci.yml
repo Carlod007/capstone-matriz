@@ -54,6 +54,10 @@ jobs:
       # de la red para dar un resultado.
       GEMINI_MODE: mock
       STORAGE_DIR: storage/pdfs
+      # Aqui no hay .env y la aplicacion se niega a arrancar sin secreto, que
+      # es justo lo que se quiere. Este valor es de usar y tirar: vive lo que
+      # dura el trabajo y no firma nada fuera de el.
+      JWT_SECRETO: secreto-de-integracion-continua-sin-ningun-valor-real
 
     defaults:
       run:
