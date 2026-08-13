@@ -46,6 +46,32 @@ CATALOGO: dict[str, Ficha] = {f.codigo: f for f in [
           "Si es baja, el contexto repite la misma idea y desaprovecha la ventana "
           "disponible."),
 
+    Ficha("N2.1", "Fidelidad evidencial", "N2 Fidelidad", "brecha", ALTO, "0 a 1",
+          "Qué proporción de las afirmaciones comprobables de la brecha está "
+          "respaldada por algún fragmento del artículo.",
+          "Es la métrica central del sistema. Una afirmación que describe lo que el "
+          "artículo hace y no aparece en ningún fragmento es, por definición, una "
+          "alucinación."),
+
+    Ficha("N2.2", "Trazabilidad", "N2 Fidelidad", "brecha", ALTO, "0 a 1",
+          "Proporción de afirmaciones que pueden vincularse a un fragmento citable.",
+          "Sin esto la herramienta no es auditable: el investigador no puede "
+          "comprobar de dónde sale cada frase."),
+
+    Ficha("N2.4", "Equilibrio evidencial", "N2 Fidelidad", "brecha", ALTO, "0 a 1",
+          "Qué parte de la brecha describe hechos del artículo, frente a la que "
+          "solo concluye.",
+          "Una brecha compuesta unicamente por conclusiones no tiene nada que "
+          "verificar: es especulación bien redactada. Avisa de ello aunque la "
+          "fidelidad salga alta por apoyarse en una sola afirmación."),
+
+    Ficha("N2.verificada", "Verificación realizada", "N2 Fidelidad", "brecha", ALTO,
+          "0 o 1",
+          "Si la comprobación de fidelidad llegó a ejecutarse.",
+          "Requiere una llamada adicional al modelo. Cuando no se ejecuta se guarda "
+          "el motivo: una medición que no se hizo no equivale a una medición con "
+          "resultado cero."),
+
     Ficha("N3.1", "Discriminabilidad", "N3 Especificidad", "run", ALTO, "0 a 1",
           "Cuánto se diferencian las brechas de artículos distintos del mismo proyecto.",
           "Es la métrica más diagnóstica: si el modelo emite la misma brecha genérica "

@@ -27,7 +27,7 @@ from app.models.proyecto import Proyecto
 from app.models.resultado_brecha import ResultadoBrecha
 from app.models.run import Run, EstadoRun
 from app.models.run_item import RunItem
-from app.services import limitador, registro_api
+from app.services import limitador, registro_api, verificacion
 from app.services.metricas import distribucion as D
 from app.services.metricas.catalogo import CATALOGO, ficha
 
@@ -291,7 +291,10 @@ def _consumo(db: Session, proyecto_id: str | None):
     if proyecto_id:
         n_articulos = (db.query(Articulo)
                        .filter(Articulo.proyecto_id == proyecto_id).count())
-        coste_ejecucion = n_articulos + 1
+        # Una llamada por articulo para analizarlo, otra para verificar su
+        # fidelidad si esta activada, y una final para la sintesis.
+        verifica = verificacion.VERIFICAR
+        coste_ejecucion = n_articulos * (2 if verifica else 1) + 1
         runs = db.query(Run).filter(Run.proyecto_id == proyecto_id).all()
 
         # Cuando habra margen para una ejecucion entera: hace falta que
@@ -323,6 +326,14 @@ def _consumo(db: Session, proyecto_id: str | None):
                                 "fragmentos recuperados y produce la brecha, la "
                                 "oportunidad, el tipo y el resumen."),
                 },
+                *([{
+                    "concepto": "Verificacion de fidelidad",
+                    "cantidad": n_articulos,
+                    "detalle": ("Una llamada por articulo. Descompone la brecha en "
+                                "afirmaciones y comprueba cuales se sostienen en "
+                                "los fragmentos. Puede desactivarse con "
+                                "VERIFICAR_FIDELIDAD=0."),
+                }] if verifica else []),
                 {
                     "concepto": "Sintesis del estado del arte",
                     "cantidad": 1,

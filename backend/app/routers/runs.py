@@ -23,6 +23,7 @@ from app.services.gemini_service import analyze
 from app.services.embedding_service import recuperar_contexto, construir_consulta
 from app.services.document_structure import extraer_abstract
 from app.services.metricas import niveles as N
+from app.services.verificacion import verificar
 
 from app.utils.text_extractor import extraer_con_diagnostico
 
@@ -102,6 +103,21 @@ def _registrar_metricas(db, art, rb, res, texto, recuperados, ruta_pdf) -> None:
     _metrica(db, art.proyecto_id, AMBITO_BRECHA, rb.id, "N1.3",
              N.n1_3_diversidad_contexto(vectores),
              {"n_fragmentos": len(vectores)})
+
+    # --- N2: fidelidad a la fuente ---
+    # Es el unico nivel que necesita una llamada adicional al modelo. Si falla
+    # o esta desactivado se registra el motivo en lugar de un valor: una
+    # medicion que no se hizo no es una medicion con resultado cero.
+    ver = verificar(brecha_txt, recuperados)
+    if ver.disponible:
+        _metrica(db, art.proyecto_id, AMBITO_BRECHA, rb.id, "N2.1", ver.fidelidad,
+                 {"sin_respaldo": [a.texto for a in ver.evidenciales
+                                   if not a.respaldada][:10]})
+        _metrica(db, art.proyecto_id, AMBITO_BRECHA, rb.id, "N2.2", ver.trazabilidad)
+        _metrica(db, art.proyecto_id, AMBITO_BRECHA, rb.id, "N2.4",
+                 ver.equilibrio_evidencial)
+    _metrica(db, art.proyecto_id, AMBITO_BRECHA, rb.id, "N2.verificada",
+             1.0 if ver.disponible else 0.0, ver.resumen())
 
     # --- N3: especificidad ---
     _metrica(db, art.proyecto_id, AMBITO_BRECHA, rb.id, "N3.2", N.n3_2_densidad_anclajes(brecha_txt))

@@ -530,6 +530,148 @@ export function TablaDistribuciones({ metricas }) {
   );
 }
 
+/* ------------------------------------------------------------ fidelidad */
+
+/**
+ * Desglose de la verificación de fidelidad (nivel N2).
+ *
+ * Muestra la brecha descompuesta en afirmaciones y, de cada una, si se
+ * sostiene en el artículo. Es la diferencia entre decir «esta brecha es
+ * fiable» y poder señalar qué frase sale de qué párrafo.
+ *
+ * Las afirmaciones se separan en dos grupos porque no se comprueban igual:
+ * las evidenciales describen lo que el artículo hace y deben rastrearse hasta
+ * un fragmento; las inferenciales concluyen lo que falta, y no pueden
+ * verificarse contra el propio artículo porque afirman justo lo que no
+ * contiene.
+ */
+export function Fidelidad({ verificacion }) {
+  if (!verificacion) return null;
+
+  const {
+    disponible,
+    motivo,
+    afirmaciones = [],
+    fidelidad,
+    trazabilidad,
+    equilibrio_evidencial: equilibrio,
+    n_sin_respaldo: sinRespaldo,
+  } = verificacion;
+
+  const evidenciales = afirmaciones.filter((a) => a.tipo === "evidencial");
+  const inferenciales = afirmaciones.filter((a) => a.tipo === "inferencial");
+
+  return (
+    <details className="border border-borde rounded-lg" open={sinRespaldo > 0}>
+      <summary className="cursor-pointer select-none px-3 py-2 bg-hundido rounded-t-lg">
+        <span className="font-medium">Fidelidad a las fuentes</span>
+        {disponible ? (
+          <span className="text-tinta-suave">
+            {" "}· {Math.round((fidelidad ?? 0) * 100)}% de las afirmaciones
+            comprobables está respaldada
+            {sinRespaldo > 0 && (
+              <span className="text-mal"> · {sinRespaldo} sin respaldo</span>
+            )}
+          </span>
+        ) : (
+          <span className="text-tinta-suave"> · sin verificar</span>
+        )}
+      </summary>
+
+      <div className="p-3 space-y-3">
+        {!disponible && (
+          <p className="text-tinta-suave leading-relaxed">
+            {motivo ||
+              "La verificación no llegó a ejecutarse, así que no hay medición."}
+          </p>
+        )}
+
+        {disponible && (
+          <div className="grid grid-cols-3 gap-2">
+            {[
+              ["Fidelidad", fidelidad],
+              ["Trazabilidad", trazabilidad],
+              ["Base factual", equilibrio],
+            ].map(([k, v]) => (
+              <div
+                key={k}
+                className="border border-borde rounded-lg px-2 py-1.5 text-center"
+              >
+                <div className="text-[11px] text-tinta-suave">{k}</div>
+                <div className="font-medium tabular-nums">{fmt(v, 2)}</div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {evidenciales.length > 0 && (
+          <div>
+            <div className="text-[11px] font-semibold uppercase tracking-wider text-tinta-suave mb-1.5">
+              Comprobables contra el artículo
+            </div>
+            <div className="space-y-1.5">
+              {evidenciales.map((a, i) => (
+                <div
+                  key={i}
+                  className={`rounded-lg border px-2.5 py-2 ${
+                    a.respaldada
+                      ? "border-borde bg-hundido/50"
+                      : "border-mal-borde bg-mal-claro"
+                  }`}
+                >
+                  <div className="flex items-start gap-2">
+                    <span
+                      className={`mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ${
+                        a.respaldada ? "bg-bien" : "bg-mal"
+                      }`}
+                    />
+                    <div className="min-w-0">
+                      <p className="leading-snug">{a.texto}</p>
+                      {a.respaldada ? (
+                        <p className="text-[11px] text-tinta-suave mt-1">
+                          Fragmento {a.fragmento}
+                          {a.cita && <>: «{a.cita}»</>}
+                        </p>
+                      ) : (
+                        <p className="text-[11px] text-mal mt-1">
+                          Sin respaldo en los fragmentos consultados.
+                          {a.motivo && <> {a.motivo}</>}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {inferenciales.length > 0 && (
+          <div>
+            <div className="text-[11px] font-semibold uppercase tracking-wider text-tinta-suave mb-1.5">
+              Conclusiones
+            </div>
+            <div className="space-y-1.5">
+              {inferenciales.map((a, i) => (
+                <div
+                  key={i}
+                  className="rounded-lg border border-borde bg-hundido/50 px-2.5 py-2"
+                >
+                  <p className="leading-snug">{a.texto}</p>
+                </div>
+              ))}
+            </div>
+            <p className="text-[11px] text-tinta-suave mt-1.5 leading-relaxed">
+              Afirman lo que el artículo no cubre, así que no pueden
+              comprobarse contra él. Su validez se decide con criterio experto.
+            </p>
+          </div>
+        )}
+      </div>
+    </details>
+  );
+}
+
 /* ---------------------------------------------------------------- brecha */
 export function DetalleBrecha({ brecha }) {
   if (!brecha) return null;
@@ -554,6 +696,10 @@ export function DetalleBrecha({ brecha }) {
       </div>
 
       {!brecha.validacion_calibrada && <AvisoValidacion />}
+
+      {/* Fidelidad antes que el respaldo bruto: interesa más saber qué
+          afirmaciones se sostienen que qué fragmentos se consultaron. */}
+      <Fidelidad verificacion={brecha.verificacion} />
 
       {/* Trazabilidad: es lo que permite comprobar de dónde sale la brecha. */}
       <details className="border border-borde rounded-lg" open>

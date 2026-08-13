@@ -32,7 +32,14 @@ def listar_brechas(articulo_id: str, db: Session = Depends(get_db)):
 
     ids = [r.id for r in rows]
     por_brecha: dict[str, list] = {}
+    # La verificacion de fidelidad se guarda con su detalle completo: es lo
+    # que permite mostrar afirmacion por afirmacion cual se sostiene y en que
+    # fragmento, en lugar de un unico numero sin explicacion.
+    verificaciones: dict[str, dict] = {}
     for m in db.query(Metrica).filter(Metrica.referencia_id.in_(ids)).all():
+        if m.codigo == "N2.verificada":
+            verificaciones[m.referencia_id] = m.detalle or {}
+            continue
         f = ficha(m.codigo)
         por_brecha.setdefault(m.referencia_id, []).append({
             "codigo": m.codigo,
@@ -60,6 +67,7 @@ def listar_brechas(articulo_id: str, db: Session = Depends(get_db)):
             "val_reason": r.val_reason,
             "validacion_calibrada": False,
             "metricas": metricas,
+            "verificacion": verificaciones.get(r.id),
             "respaldo": respaldo,
             "secciones_consultadas": sorted({h.get("seccion") for h in respaldo
                                              if isinstance(h, dict) and h.get("seccion")}),

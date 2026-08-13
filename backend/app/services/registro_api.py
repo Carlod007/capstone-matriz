@@ -18,12 +18,12 @@ import uuid
 from datetime import datetime, timedelta
 
 from app.models.llamada_api import (  # noqa: F401
-    OP_ANALISIS, OP_EMBEDDING, OP_OTRA, OP_SINTESIS, LlamadaAPI,
+    OP_ANALISIS, OP_EMBEDDING, OP_OTRA, OP_SINTESIS, OP_VERIFICACION, LlamadaAPI,
 )
 
-# Solo las generaciones consumen la cuota diaria; los embeddings tienen la
-# suya propia, limitada por minuto.
-OPERACIONES_DE_GENERACION = (OP_ANALISIS, OP_SINTESIS)
+# Estas operaciones consumen la cuota diaria de generacion. Los embeddings
+# usan otro modelo y tienen cuota propia, contada aparte.
+OPERACIONES_DE_GENERACION = (OP_ANALISIS, OP_SINTESIS, OP_VERIFICACION)
 
 REGISTRO_ACTIVO = os.getenv("REGISTRAR_LLAMADAS", "1") not in ("0", "false", "False")
 

@@ -64,13 +64,27 @@ class TestEndpoints:
         assert "aviso" in d
 
     def test_consumo_informa_del_limite_diario(self, cliente, proyecto_indexado):
+        from app.services import verificacion
+
         r = cliente.get("/proyectos/%s/consumo" % proyecto_indexado["proyecto_id"])
         assert r.status_code == 200
         d = r.json()
         assert d["limite_diario_nivel_gratuito"] == 20
-        # Una ejecucion cuesta una generacion por articulo mas la sintesis.
-        assert d["coste_de_una_ejecucion"] == 4
+
+        # Una llamada por articulo para analizarlo, otra para verificar su
+        # fidelidad si esta activada, y una final para la sintesis. Se deriva
+        # del ajuste en lugar de fijarse a mano, para que activar o desactivar
+        # la verificacion no deje la prueba comprobando una formula obsoleta.
+        n = 3  # articulos de la fixture
+        esperado = n * (2 if verificacion.VERIFICAR else 1) + 1
+        assert d["coste_de_una_ejecucion"] == esperado
         assert isinstance(d["alcanza_para_otra_ejecucion"], bool)
+
+    def test_el_desglose_suma_el_coste_total(self, cliente, proyecto_indexado):
+        """Si el desglose no cuadra con el total, uno de los dos miente."""
+        r = cliente.get("/proyectos/%s/consumo" % proyecto_indexado["proyecto_id"])
+        d = r.json()
+        assert sum(x["cantidad"] for x in d["desglose"]) == d["coste_de_una_ejecucion"]
 
     def test_brechas_de_articulo_sin_analizar_devuelve_lista_vacia(self, cliente,
                                                                    proyecto_indexado):

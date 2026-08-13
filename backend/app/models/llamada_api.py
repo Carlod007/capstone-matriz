@@ -19,6 +19,7 @@ from app.models.proyecto import Base
 # Operaciones registradas.
 OP_ANALISIS = "analisis"
 OP_SINTESIS = "sintesis"
+OP_VERIFICACION = "verificacion"
 OP_EMBEDDING = "embedding"
 OP_OTRA = "otra"
 
