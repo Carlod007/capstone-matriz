@@ -444,9 +444,8 @@ Dos decisiones que conviene conocer:
 - **Un proyecto sin dueño no lo ve nadie.** Los anteriores a las cuentas
   quedaron así; no son "de todos", son de nadie. El fallo es cerrado.
 
-**El frontend todavía no tiene pantalla de inicio de sesión**, así que por
-ahora se prueba desde `/docs`: usa el botón *Authorize* con el token que
-devuelve `/auth/login`.
+El frontend pide correo y contraseña al entrar y recuerda la sesión ocho
+horas. Para salir, el botón *Salir* de los controles de arriba a la derecha.
 
 ---
 
@@ -455,8 +454,6 @@ devuelve `/auth/login`.
 Funciona de principio a fin en una máquina local y está medido. Lo que
 todavía no tiene:
 
-- Inicio de sesión en el frontend: el backend ya lo exige, la interfaz aún no
-  lo ofrece.
 - Ejecución en segundo plano: el análisis bloquea la petición HTTP.
 - Despliegue: los PDF se guardan en el disco local y el origen del frontend
   está fijado en el código.

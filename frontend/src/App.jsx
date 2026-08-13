@@ -19,6 +19,8 @@ import {
   ZonaArchivos,
 } from "./components/UI";
 import { useAviso } from "./components/avisos";
+import Login from "./components/Login";
+import { alExpirar, api, cerrarSesion, leerSesion } from "./sesion";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "http://127.0.0.1:8000";
 
@@ -151,7 +153,7 @@ function ErrorModal({ error, onClose }) {
 
 /* -------------- API helpers -------------- */
 async function jget(url) {
-  const r = await fetch(url);
+  const r = await api(url);
   if (!r.ok) {
     let detail;
     try {
@@ -166,7 +168,7 @@ async function jget(url) {
   return r.json();
 }
 async function jpost(url, body) {
-  const r = await fetch(url, {
+  const r = await api(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body ?? {}),
@@ -186,7 +188,7 @@ async function jpost(url, body) {
   return txt ? JSON.parse(txt) : {};
 }
 async function downloadFile(url, filename) {
-  const r = await fetch(url);
+  const r = await api(url);
   if (!r.ok) {
     let detail;
     try {
@@ -606,7 +608,9 @@ function SubirArticulos({ proyecto, goBack }) {
         setSubiendo({ hecho: i, total: archivos.length, nombre: f.name });
         const fd = new FormData();
         fd.append("pdf", f);
-        const r = await fetch(`${API_BASE}/proyectos/${proyecto.id}/archivos`, {
+        // Sin Content-Type a mano: el navegador lo pone con el separador que
+        // necesita el formulario multiparte.
+        const r = await api(`${API_BASE}/proyectos/${proyecto.id}/archivos`, {
           method: "POST",
           body: fd,
         });
@@ -1194,6 +1198,28 @@ export default function App() {
   const [proyectoSel, setProyectoSel] = useState(null);
   const [fontSize, setFontSize] = useState(16); // tamaño base
 
+  // Sesión. Se lee de localStorage al arrancar para que recargar la página no
+  // obligue a volver a entrar.
+  const [sesion, setSesion] = useState(() => leerSesion());
+
+  // El módulo de sesión avisa cuando el servidor rechaza el token. Se
+  // registra una sola vez: si cada pantalla tuviera que interpretar el 401,
+  // unas lo harían y otras mostrarían un error incomprensible.
+  useEffect(() => {
+    alExpirar(() => {
+      setSesion(null);
+      setProyectoSel(null);
+      setView("welcome");
+    });
+  }, []);
+
+  function salir() {
+    cerrarSesion();
+    setSesion(null);
+    setProyectoSel(null);
+    setView("welcome");
+  }
+
   // Tema claro u oscuro. Se respeta la preferencia del sistema la primera vez
   // y se recuerda la elección: en sesiones largas de lectura es lo primero
   // que se ajusta y molesta tener que repetirlo.
@@ -1235,6 +1261,16 @@ export default function App() {
     }
     setProyectoSel(p);
     setView(tieneSota ? "brechas" : "subir");
+  }
+
+  // Sin sesión no se monta nada más: el backend rechazaría cada llamada y la
+  // pantalla se llenaría de errores en lugar de pedir que entres.
+  if (!sesion) {
+    return (
+      <div style={{ fontSize: `${fontSize}px` }}>
+        <Login apiBase={API_BASE} onEntrar={setSesion} />
+      </div>
+    );
   }
 
   let content = null;
@@ -1300,6 +1336,17 @@ export default function App() {
               <path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z" />
             </svg>
           )}
+        </button>
+
+        <span className="w-px h-5 bg-borde mx-1" />
+
+        <button
+          onClick={salir}
+          title={`Salir de la sesión de ${sesion.usuario?.correo || ""}`}
+          aria-label="Cerrar sesión"
+          className="text-[11px] px-2.5 h-7 grid place-items-center border border-borde rounded-full text-tinta-media hover:bg-hundido hover:text-tinta transition-colors"
+        >
+          Salir
         </button>
       </div>
 

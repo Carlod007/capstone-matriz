@@ -17,6 +17,8 @@ import { useEffect, useState } from "react";
  *    opuestas, y presentarlas igual fue lo que ocultó el problema original.
  */
 
+import { api } from "../sesion";
+
 const API_BASE = import.meta.env.VITE_API_BASE || "http://127.0.0.1:8000";
 
 /* ---------------------------------------------------------------- utilidades */
@@ -155,10 +157,13 @@ export function IndicadorConsumo({ proyectoId, compacto = false }) {
     const url = proyectoId
       ? `${API_BASE}/proyectos/${proyectoId}/consumo`
       : `${API_BASE}/consumo`;
-    fetch(url)
+    api(url)
       .then((r) => (r.ok ? r.json() : null))
       .then((x) => vivo && setD(x))
-      .catch(() => {});
+      .catch(() => {
+        // Incluye la sesión caducada, que `api` ya gestionó cerrándola: aquí
+        // no hay nada que mostrar, el indicador simplemente no aparece.
+      });
     return () => {
       vivo = false;
     };
@@ -413,10 +418,12 @@ export function PanelMetricas({ proyectoId }) {
 
   useEffect(() => {
     let vivo = true;
-    fetch(`${API_BASE}/proyectos/${proyectoId}/metricas`)
+    api(`${API_BASE}/proyectos/${proyectoId}/metricas`)
       .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
       .then((x) => vivo && setDatos(x))
-      .catch((e) => vivo && setError(e));
+      // Una sesión caducada no es un error de este panel: `api` ya la cerró y
+      // la aplicación entera vuelve a la pantalla de entrada.
+      .catch((e) => vivo && !e?.sesionCaducada && setError(e));
     return () => {
       vivo = false;
     };
