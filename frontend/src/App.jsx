@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   DetalleBrecha,
   IndicadorConsumo,
@@ -17,8 +17,8 @@ import {
   Th,
   Vacio,
   ZonaArchivos,
-  useAviso,
 } from "./components/UI";
+import { useAviso } from "./components/avisos";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "http://127.0.0.1:8000";
 
@@ -309,12 +309,18 @@ function Lista({ goCreate, goProyecto }) {
           let estadoArte = null;
           try {
             articulos = await jget(`${API_BASE}/proyectos/${p.id}/articulos`);
-          } catch {}
+          } catch {
+            // Un proyecto sin artículos aún, o que falla al listarlos, no
+            // debe impedir que se vea el resto de la lista: queda en cero.
+          }
           try {
             estadoArte = await jget(
               `${API_BASE}/proyectos/${p.id}/estado_arte/latest`
             );
-          } catch {}
+          } catch {
+            // Lo normal es que todavía no exista; el 404 es la respuesta
+            // esperada, no un error que reportar.
+          }
           return {
             ...p,
             articulos_count: Array.isArray(articulos) ? articulos.length : 0,
@@ -567,7 +573,10 @@ function SubirArticulos({ proyecto, goBack }) {
   const [err, setErr] = useState(null);
   const avisar = useAviso();
 
-  async function load() {
+  // useCallback y no una función suelta: el efecto la necesita como
+  // dependencia, y sin memorizar se recrea en cada render, recargando la
+  // lista en bucle.
+  const load = useCallback(async () => {
     try {
       const data = await jget(`${API_BASE}/proyectos/${proyecto.id}/articulos`);
       setArts(Array.isArray(data) ? data : []);
@@ -575,10 +584,11 @@ function SubirArticulos({ proyecto, goBack }) {
       setArts([]);
       setErr(e);
     }
-  }
+  }, [proyecto.id]);
+
   useEffect(() => {
     load();
-  }, [proyecto.id]);
+  }, [load]);
 
   const objetivo = proyecto.n_articulos_objetivo ?? 0;
   // Antes se exigía el número exacto declarado al crear el proyecto. Ahora
@@ -1220,7 +1230,9 @@ export default function App() {
     try {
       await jget(`${API_BASE}/proyectos/${p.id}/estado_arte/latest`);
       tieneSota = true;
-    } catch {}
+    } catch {
+      // Sin estado del arte todavía: se entra por la pantalla de subida.
+    }
     setProyectoSel(p);
     setView(tieneSota ? "brechas" : "subir");
   }

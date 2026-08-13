@@ -1,4 +1,6 @@
-import { createContext, useCallback, useContext, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
+
+import { CtxAviso } from "./avisos";
 
 /**
  * Primitivas de interfaz compartidas.
@@ -16,9 +18,8 @@ import { createContext, useCallback, useContext, useEffect, useState } from "rea
 
 /* ================================================================ avisos */
 
-const CtxAviso = createContext(() => {});
-
-/** Sustituye a alert(), que bloquea la página y no permite seguir leyendo. */
+/** Sustituye a alert(), que bloquea la página y no permite seguir leyendo.
+ *  El hook para consumirlo está en avisos.js, no aquí: ver el motivo allí. */
 export function ProveedorAvisos({ children }) {
   const [avisos, setAvisos] = useState([]);
 
@@ -58,8 +59,6 @@ export function ProveedorAvisos({ children }) {
     </CtxAviso.Provider>
   );
 }
-
-export const useAviso = () => useContext(CtxAviso);
 
 /* ================================================================ piezas */
 

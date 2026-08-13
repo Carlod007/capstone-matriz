@@ -1,5 +1,7 @@
 # Matriz de brechas de investigación
 
+[![CI](https://github.com/Carlod007/capstone-matriz/actions/workflows/ci.yml/badge.svg)](https://github.com/Carlod007/capstone-matriz/actions/workflows/ci.yml)
+
 Herramienta que lee artículos científicos en PDF y ayuda a un investigador a
 responder dos preguntas: **qué se ha hecho ya** en su tema y **qué falta por
 hacer**. A partir de los PDF construye una matriz de brechas —limitaciones,
@@ -242,6 +244,20 @@ python -m pytest -m "not bd"
 Cinco de ellas (`tests/test_esquema.py`) comprueban que los modelos y la base
 sigan coincidiendo: si alguien cambia un modelo y olvida generar la
 migración, falla ahí y no en producción.
+
+### Integración continua
+
+Cada `push` dispara [el flujo de CI](.github/workflows/ci.yml), que hace en
+GitHub lo mismo que harías a mano:
+
+- levanta un MySQL vacío y construye el esquema con `alembic upgrade head`,
+  de modo que una migración mal escrita se rompe ahí;
+- ejecuta `alembic check` y las 201 pruebas contra esa base recién creada,
+  sin los datos acumulados de una máquina de desarrollo;
+- instala el frontend con `npm ci`, pasa el lint y compila.
+
+Si el distintivo de arriba está en rojo, el repositorio no está en
+condiciones de clonarse.
 
 ---
 
