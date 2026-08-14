@@ -395,6 +395,8 @@ backend/
   tests/              284 pruebas
   storage/pdfs/       PDF subidos, en una carpeta por usuario (no se versionan)
 frontend/
+  src/App.jsx         rutas y pantallas
+  src/sesion.js       token de sesión y llamadas a la API
   src/components/     interfaz
   src/index.css       tokens de diseño y tema oscuro
 database/
@@ -433,6 +435,15 @@ la medianoche del Pacífico.
 
 **El backend avisa de que el esquema está atrasado**
 Ejecuta `alembic upgrade head` desde `backend/`.
+
+**Al desplegar, recargar una dirección profunda da 404**
+El frontend usa rutas propias (`/proyectos/<id>/brechas`). En desarrollo Vite
+las resuelve solo; un servidor estático necesita que todas las rutas
+desconocidas devuelvan `index.html`. En nginx:
+
+```bash
+try_files $uri /index.html;
+```
 
 **El análisis se queda en 0 y no avanza**
 No hay ningún trabajador en marcha. El backend solo encola; quien analiza es

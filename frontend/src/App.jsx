@@ -1,5 +1,13 @@
 import { useCallback, useEffect, useState } from "react";
 import {
+  Navigate,
+  Route,
+  Routes,
+  useLocation,
+  useNavigate,
+  useParams,
+} from "react-router-dom";
+import {
   DetalleBrecha,
   IndicadorConsumo,
   PanelMetricas,
@@ -1254,11 +1262,98 @@ function BrechasProyecto({ proyecto, goBack }) {
   );
 }
 
-/* ============== APP ROUTER ============== */
+/* ============== CARGA DE UN PROYECTO POR SU URL ============== */
+/**
+ * Resuelve el proyecto que nombra la dirección y monta la pantalla.
+ *
+ * Antes el proyecto llegaba como objeto desde la lista, así que solo se podía
+ * entrar pasando por ella. Con direcciones propias hay que poder llegar de
+ * frente: pegando el enlace, recargando o volviendo con el botón atrás. En
+ * esos casos lo único que se tiene es el identificador, y el proyecto hay que
+ * pedirlo.
+ */
+function useProyectoDeLaUrl() {
+  const { id } = useParams();
+  const [proyecto, setProyecto] = useState(null);
+  const [estado, setEstado] = useState("cargando"); // cargando | listo | ausente
+
+  useEffect(() => {
+    let vivo = true;
+    (async () => {
+      try {
+        const p = await jget(`${API_BASE}/proyectos/${id}`);
+        if (!vivo) return;
+        setProyecto(p);
+        setEstado("listo");
+      } catch {
+        // Un proyecto ajeno responde 404 igual que uno inexistente, así que
+        // aquí no se puede —ni se debe— distinguir: para quien pregunta, no
+        // existe.
+        if (vivo) setEstado("ausente");
+      }
+    })();
+    return () => {
+      vivo = false;
+    };
+  }, [id]);
+
+  return { proyecto, estado };
+}
+
+/** Lo que se ve mientras se busca el proyecto, o si no aparece. */
+function ProyectoNoDisponible({ estado, onVolver }) {
+  if (estado === "cargando") {
+    return (
+      <Page title="Cargando…">
+        <Panel>
+          <div className="p-6 text-sm text-tinta-media">Buscando el proyecto…</div>
+        </Panel>
+      </Page>
+    );
+  }
+  return (
+    <Page
+      title="Proyecto no encontrado"
+      subtitle="Puede que el enlace esté mal, que el proyecto se haya borrado o que no sea de tu cuenta."
+    >
+      <Panel>
+        <div className="p-6">
+          <Btn kind="blue" onClick={onVolver}>
+            Ir a mis proyectos
+          </Btn>
+        </div>
+      </Panel>
+    </Page>
+  );
+}
+
+function RutaArticulos() {
+  const { proyecto, estado } = useProyectoDeLaUrl();
+  const navegar = useNavigate();
+  const volver = () => navegar("/proyectos");
+
+  if (estado !== "listo") {
+    return <ProyectoNoDisponible estado={estado} onVolver={volver} />;
+  }
+  return <SubirArticulos proyecto={proyecto} goBack={volver} />;
+}
+
+function RutaBrechas() {
+  const { proyecto, estado } = useProyectoDeLaUrl();
+  const navegar = useNavigate();
+  const volver = () => navegar("/proyectos");
+
+  if (estado !== "listo") {
+    return <ProyectoNoDisponible estado={estado} onVolver={volver} />;
+  }
+  return <BrechasProyecto proyecto={proyecto} goBack={volver} />;
+}
+
+/* ============== APP ============== */
 export default function App() {
-  const [view, setView] = useState("welcome"); // welcome | list | create | subir | brechas
-  const [proyectoSel, setProyectoSel] = useState(null);
   const [fontSize, setFontSize] = useState(16); // tamaño base
+  const navegar = useNavigate();
+  const lugar = useLocation();
 
   // Sesión. Se lee de localStorage al arrancar para que recargar la página no
   // obligue a volver a entrar.
@@ -1268,18 +1363,13 @@ export default function App() {
   // registra una sola vez: si cada pantalla tuviera que interpretar el 401,
   // unas lo harían y otras mostrarían un error incomprensible.
   useEffect(() => {
-    alExpirar(() => {
-      setSesion(null);
-      setProyectoSel(null);
-      setView("welcome");
-    });
+    alExpirar(() => setSesion(null));
   }, []);
 
   function salir() {
     cerrarSesion();
     setSesion(null);
-    setProyectoSel(null);
-    setView("welcome");
+    navegar("/", { replace: true });
   }
 
   // Tema claro u oscuro. Se respeta la preferencia del sistema la primera vez
@@ -1306,13 +1396,17 @@ export default function App() {
     setFontSize((prev) => (prev > 14 ? prev - 2 : prev));
   };
 
-  function goCreate() {
-    setView("create");
-  }
-  function goList() {
-    setProyectoSel(null);
-    setView("list");
-  }
+  const goCreate = () => navegar("/proyectos/nuevo");
+  const goList = () => navegar("/proyectos");
+
+  /**
+   * Abre un proyecto por la puerta que le corresponde.
+   *
+   * Con estado del arte ya generado interesan las brechas; sin él, lo que toca
+   * es subir artículos. La comprobación se hace aquí y no dentro de las
+   * pantallas para que la dirección resultante sea explícita: quien copie el
+   * enlace se lleva la vista concreta, no un "depende".
+   */
   async function goProyecto(p) {
     let tieneSota = false;
     try {
@@ -1321,29 +1415,44 @@ export default function App() {
     } catch {
       // Sin estado del arte todavía: se entra por la pantalla de subida.
     }
-    setProyectoSel(p);
-    setView(tieneSota ? "brechas" : "subir");
+    navegar(`/proyectos/${p.id}/${tieneSota ? "brechas" : "articulos"}`);
   }
 
   // Sin sesión no se monta nada más: el backend rechazaría cada llamada y la
   // pantalla se llenaría de errores en lugar de pedir que entres.
+  //
+  // La dirección a la que se quería ir se guarda para volver a ella después de
+  // entrar. Sin eso, abrir el enlace de un proyecto con la sesión caducada
+  // dejaba al usuario en el inicio, teniendo que buscarlo otra vez.
   if (!sesion) {
     return (
       <div style={{ fontSize: `${fontSize}px` }}>
-        <Login apiBase={API_BASE} onEntrar={setSesion} />
+        <Login
+          apiBase={API_BASE}
+          onEntrar={(datos) => {
+            setSesion(datos);
+            if (lugar.pathname !== "/") navegar(lugar.pathname + lugar.search);
+          }}
+        />
       </div>
     );
   }
 
-  let content = null;
-  if (view === "welcome")
-    content = <WelcomeScreen onStart={goCreate} onList={goList} />;
-  else if (view === "create") content = <CrearProyecto goBack={goList} />;
-  else if (view === "subir" && proyectoSel)
-    content = <SubirArticulos proyecto={proyectoSel} goBack={goList} />;
-  else if (view === "brechas" && proyectoSel)
-    content = <BrechasProyecto proyecto={proyectoSel} goBack={goList} />;
-  else content = <Lista goCreate={goCreate} goProyecto={goProyecto} />;
+  const content = (
+    <Routes>
+      <Route path="/" element={<WelcomeScreen onStart={goCreate} onList={goList} />} />
+      <Route
+        path="/proyectos"
+        element={<Lista goCreate={goCreate} goProyecto={goProyecto} />}
+      />
+      <Route path="/proyectos/nuevo" element={<CrearProyecto goBack={goList} />} />
+      <Route path="/proyectos/:id/articulos" element={<RutaArticulos />} />
+      <Route path="/proyectos/:id/brechas" element={<RutaBrechas />} />
+      {/* Cualquier otra dirección vuelve al inicio en lugar de dejar la
+          pantalla en blanco, que es lo que más desconcierta. */}
+      <Route path="*" element={<Navigate to="/" replace />} />
+    </Routes>
+  );
 
   return (
     <ProveedorAvisos>

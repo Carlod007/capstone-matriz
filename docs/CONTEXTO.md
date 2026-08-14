@@ -151,7 +151,7 @@ hash que era global y con varias cuentas habría filtrado artículos ajenos.
 | 3. Cola en segundo plano | ✅ hecho |
 | 4. Almacenamiento tras una interfaz | ✅ hecho |
 | 5. Configuración por entorno (CORS, secretos) | ✅ hecho |
-| 6. Rutas en el frontend, registro, renovación de sesión | pendiente |
+| 6. Rutas en el frontend | ✅ hecho |
 | 7. Docker | pendiente |
 | 8. Despliegue | pendiente |
 
@@ -165,11 +165,11 @@ encendida.
 1. **N6 sin anclaje humano.** Falta un conjunto de brechas anotado por
    expertos. Hasta entonces las métricas dicen si el sistema es *consistente*,
    no si *acierta*. Es la mayor debilidad de cara a una defensa académica.
-2. **Frontend sin rutas.** Una sola pantalla con vistas conmutadas: no se
-   puede compartir el enlace de un proyecto, el botón atrás del móvil sale de
-   la aplicación y recargar devuelve al inicio.
-3. **Aviso de SQLAlchemy** en `estado_arte.py:44` (subconsulta sin `select()`
+2. **Aviso de SQLAlchemy** en `estado_arte.py:44` (subconsulta sin `select()`
    explícito). Inofensivo hoy, romperá en una versión futura.
+3. **Sin renovación silenciosa de sesión.** A las ocho horas hay que volver a
+   entrar, y si eso ocurre a mitad de algo, se pierde lo que hubiera en el
+   formulario. La dirección sí se recuerda.
 4. **Cuota compartida.** Los 20 análisis diarios del nivel gratuito son de la
    clave, no del usuario: con el registro abierto, unos pocos desconocidos
    dejarían al dueño sin cuota. Por eso el alta está cerrada.
