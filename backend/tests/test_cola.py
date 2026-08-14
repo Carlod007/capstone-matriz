@@ -305,3 +305,59 @@ class TestEncolado:
         d = r.json()
         assert d["id"] == lote["run"]
         assert d["n_items_total"] == 3
+
+
+class TestReenganche:
+    """Volver a una pantalla cerrada a mitad.
+
+    El progreso vivia solo en la memoria de la pestana: quien lanzaba un
+    analisis y salia no volvia a verlo, asi que el trabajo seguia en el
+    servidor pero la interfaz lo daba por perdido.
+    """
+
+    def test_devuelve_la_ejecucion_en_curso(self, cliente, lote):
+        r = cliente.get("/proyectos/%s/run_activo" % lote["proyecto"])
+        assert r.status_code == 200
+        d = r.json()
+        assert d is not None
+        assert d["id"] == lote["run"]
+        assert d["n_items_total"] == 3
+
+    def test_avisa_de_que_nadie_lo_esta_procesando(self, cliente, lote):
+        """Un trabajo encolado sin trabajador en marcha se queda quieto para
+        siempre y nada lo delata. La interfaz necesita poder decirlo."""
+        from app.database import SessionLocal
+        from app.services import cola
+
+        d = cliente.get("/proyectos/%s/run_activo" % lote["proyecto"]).json()
+        assert d["en_marcha"] is False
+
+        # Sesión aparte, para simular a un trabajador tomando un artículo.
+        obrero = SessionLocal()
+        try:
+            cola.tomar_pendiente(obrero, run_id=lote["run"])
+        finally:
+            obrero.close()
+
+        d2 = cliente.get("/proyectos/%s/run_activo" % lote["proyecto"]).json()
+        assert d2["en_marcha"] is True
+
+    def test_sin_analisis_en_curso_devuelve_nulo(self, cliente, lote, db):
+        from app.models.run import EstadoRun, Run
+
+        db.query(Run).filter(Run.id == lote["run"]).update(
+            {"estado": EstadoRun.completado}, synchronize_session=False)
+        db.commit()
+
+        r = cliente.get("/proyectos/%s/run_activo" % lote["proyecto"])
+        assert r.status_code == 200
+        assert r.json() is None
+
+    def test_no_muestra_el_de_otra_cuenta(self, cliente, lote):
+        """Sin sesion no se alcanza, como el resto."""
+        from fastapi.testclient import TestClient
+        import main
+
+        anonimo = TestClient(main.app)
+        assert anonimo.get(
+            "/proyectos/%s/run_activo" % lote["proyecto"]).status_code == 401

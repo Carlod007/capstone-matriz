@@ -247,6 +247,41 @@ def listar_runs(
     ]
 
 
+@router.get("/{proyecto_id}/run_activo")
+def run_activo(
+    proyecto: Proyecto = Depends(proyecto_propio),
+    db: Session = Depends(get_db),
+):
+    """El análisis en curso del proyecto, o `null` si no hay ninguno.
+
+    Lo consulta el frontend al abrir un proyecto. Sin esto, quien lanzaba un
+    análisis y salía de la pantalla no volvía a ver su avance: el progreso
+    vivía solo en la memoria de la pestaña, de modo que el trabajo seguía en
+    el servidor pero la interfaz lo daba por perdido.
+    """
+    run = (db.query(Run)
+             .filter(Run.proyecto_id == proyecto.id,
+                     Run.estado.in_((EstadoRun.creado, EstadoRun.en_progreso)))
+             .order_by(Run.iniciado_en.desc())
+             .first())
+    if run is None:
+        return None
+
+    return {
+        "id": run.id,
+        "proyecto_id": run.proyecto_id,
+        "estado": run.estado.value,
+        "n_items_total": run.n_items_total,
+        "n_items_ok": cola.contar_ok(db, run.id),
+        # Un trabajo encolado sin trabajador en marcha se queda quieto para
+        # siempre y nada lo delata. Decirlo aquí evita que parezca lentitud.
+        "en_marcha": db.query(RunItem.id).filter(
+            RunItem.run_id == run.id,
+            RunItem.estado == EstadoRunItem.en_proceso).first() is not None,
+        "error_msg": run.error_msg,
+    }
+
+
 # ----------------------------
 # LISTAR ITEMS
 # ----------------------------

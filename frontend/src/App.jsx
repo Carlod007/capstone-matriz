@@ -592,6 +592,36 @@ function SubirArticulos({ proyecto, goBack }) {
     load();
   }, [load]);
 
+  // Reengancha un análisis que quedó en marcha.
+  //
+  // El progreso vivía solo en la memoria de la pestaña: quien lanzaba el
+  // análisis y salía de la pantalla no volvía a verlo, así que el trabajo
+  // seguía en el servidor pero la interfaz lo daba por perdido. Al abrir el
+  // proyecto se pregunta si hay alguno en curso y, si lo hay, se sigue.
+  useEffect(() => {
+    let vivo = true;
+    (async () => {
+      try {
+        const activo = await jget(`${API_BASE}/proyectos/${proyecto.id}/run_activo`);
+        if (vivo && activo) {
+          setBusy(true);
+          await seguirRun(activo.id, activo.n_items_total, { reenganche: true });
+        }
+      } catch {
+        // Sin análisis en curso o sin poder preguntarlo: la pantalla funciona
+        // igual, solo que sin reenganche.
+      } finally {
+        if (vivo) setBusy(false);
+      }
+    })();
+    return () => {
+      vivo = false;
+    };
+    // Solo al abrir el proyecto: `seguirRun` se recrea en cada render y
+    // ponerla aquí relanzaría el seguimiento sin parar.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [proyecto.id]);
+
   const objetivo = proyecto.n_articulos_objetivo ?? 0;
   // Antes se exigía el número exacto declarado al crear el proyecto. Ahora
   // basta con tener artículos: el objetivo orienta, no bloquea.
@@ -684,19 +714,39 @@ function SubirArticulos({ proyecto, goBack }) {
   }
 
   /** Consulta el avance hasta que la ejecución termina. */
-  async function seguirRun(runId, total) {
+  async function seguirRun(runId, total, { reenganche = false } = {}) {
     // Dos segundos: lo bastante ágil para que el avance se vea moverse y lo
     // bastante espaciado para no castigar al servidor durante los minutos
     // que dura un lote.
     const INTERVALO = 2000;
+    // Cuántas consultas seguidas puede pasar sin que nada avance antes de
+    // sospechar que no hay ningún trabajador en marcha. Treinta segundos: un
+    // artículo puede tardar más, pero no sin que ninguno esté siquiera
+    // tomado.
+    const VUELTAS_SIN_SENAL = 15;
+
+    let quieto = 0;
+    let ultimo = -1;
+
+    if (reenganche) {
+      avisar("Hay un análisis en curso; se muestra su avance.", "info");
+    }
 
     for (;;) {
       const estado = await jget(`${API_BASE}/proyectos/runs/${runId}`);
+      const hecho = estado.n_items_ok ?? 0;
+
+      quieto = hecho === ultimo ? quieto + 1 : 0;
+      ultimo = hecho;
+
       setFase({
         etapa: "Analizando artículos",
-        hecho: estado.n_items_ok ?? 0,
+        hecho,
         total: estado.n_items_total ?? total,
-        detalle: "Puedes cerrar esta página; el análisis sigue en el servidor.",
+        detalle:
+          quieto >= VUELTAS_SIN_SENAL
+            ? "Sin avance. Comprueba que el trabajador esté en marcha: python trabajador.py"
+            : "Puedes cerrar esta página; el análisis sigue en el servidor.",
       });
 
       if (estado.estado === "completado") {
