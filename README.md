@@ -214,6 +214,24 @@ docker compose down
 Los datos —base y PDF— viven en volúmenes con nombre y sobreviven a `down`.
 Para borrarlos también hay que pedirlo explícitamente con `down -v`.
 
+**En Windows, limita WSL.** Docker corre sobre él y, sin límite, se reserva la
+mitad de la RAM de la máquina y no la devuelve. Crea `C:\Users\TU_USUARIO\
+.wslconfig` con:
+
+```ini
+[wsl2]
+memory=5GB
+processors=4
+autoMemoryReclaim=gradual
+swap=2GB
+```
+
+Luego `wsl --shutdown` para que surta efecto.
+
+**Esta instalación es independiente de la que corre a mano.** Docker trae su
+propio MySQL, así que empieza sin cuentas ni proyectos aunque tengas datos en
+el MySQL de tu sistema. No es un fallo.
+
 ---
 
 ## Arrancar el sistema a mano
