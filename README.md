@@ -399,7 +399,10 @@ frontend/
   src/index.css       tokens de diseño y tema oscuro
 database/
   schema.sql          referencia de lectura; el esquema lo gobierna Alembic
-docs/                 especificación de métricas y plan de evolución
+docs/
+  CONTEXTO.md         qué es, cómo está, qué falta: la visión de conjunto
+  Plan_Fase_2.md      los ocho pasos hacia el despliegue
+  *.pdf               especificación de métricas y plan de evolución
 ```
 
 ---
