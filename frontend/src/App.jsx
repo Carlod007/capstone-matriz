@@ -645,69 +645,70 @@ function SubirArticulos({ proyecto, goBack }) {
   }
 
   /**
-   * Análisis por pasos, conducido desde el navegador.
+   * Encola el análisis y sigue su avance.
    *
-   * Antes se llamaba a `analizar_todo`, que indexa y analiza todo dentro de
-   * una sola petición: varios minutos sin respuesta, sin saber por dónde iba
-   * y perdiendo el lote entero si la conexión se cortaba.
+   * Antes el navegador conducía el trabajo: indexaba, pedía artículo por
+   * artículo y sintetizaba al final. Funcionaba, pero exigía tener la pestaña
+   * abierta de principio a fin, y cerrarla a mitad dejaba el lote colgado.
    *
-   * Aquí se encadenan las peticiones cortas que el backend ya ofrecía, de
-   * modo que cada paso responde enseguida y el progreso es real. No sustituye
-   * al procesamiento en segundo plano que hará falta más adelante, pero
-   * elimina el problema de fondo sin esperar a esa reforma.
+   * Ahora se encola y quien procesa es `trabajador.py`. Esta pantalla solo
+   * pregunta cómo va. Cerrarla no detiene nada: el estado vive en la base, y
+   * al volver se recupera desde donde iba.
    */
   async function analizar() {
     setErr(null);
     setBusy(true);
     try {
-      // 1) Indexar. Es idempotente: lo ya indexado no se vuelve a pagar.
-      for (let i = 0; i < arts.length; i++) {
-        setFase({
-          etapa: "Indexando artículos",
-          hecho: i,
-          total: arts.length,
-          detalle: arts[i].titulo || "(sin título)",
-        });
+      setFase({ etapa: "Poniendo el análisis en cola", hecho: 0, total: arts.length });
+      const encolado = await jpost(`${API_BASE}/proyectos/${proyecto.id}/analizar_todo`, {});
+      await seguirRun(encolado.run_id, arts.length);
+    } catch (e) {
+      // Si ya había uno en marcha, el backend responde 409 con su
+      // identificador: se sigue ese en lugar de tratarlo como error.
+      const enCurso = e?.detail?.detail?.run_id || e?.detail?.run_id;
+      if (enCurso) {
+        avisar("Ya había un análisis en curso; se muestra su avance.", "info");
         try {
-          await jpost(`${API_BASE}/embeddings/index/${arts[i].id}`);
-        } catch (e) {
-          avisar(`No se pudo indexar «${arts[i].titulo || "artículo"}»`, "aviso");
-          console.error(e);
+          await seguirRun(enCurso, arts.length);
+          return;
+        } catch (e2) {
+          setErr(e2);
+          return;
         }
       }
-
-      // 2) Crear la ejecución.
-      setFase({ etapa: "Preparando el análisis", hecho: 0, total: arts.length });
-      const run = await jpost(`${API_BASE}/proyectos/${proyecto.id}/runs`, {});
-
-      // 3) Procesar artículo a artículo, con progreso real.
-      let estado = run;
-      let vueltas = 0;
-      while (estado.estado !== "completado" && vueltas <= arts.length + 2) {
-        setFase({
-          etapa: "Analizando artículos",
-          hecho: estado.n_items_ok ?? 0,
-          total: estado.n_items_total ?? arts.length,
-        });
-        estado = await jpost(`${API_BASE}/runs/${run.id}/process_next`, {});
-        vueltas++;
-      }
-
-      // 4) Sintetizar el estado del arte.
-      setFase({
-        etapa: "Redactando el estado del arte",
-        hecho: estado.n_items_ok ?? arts.length,
-        total: estado.n_items_total ?? arts.length,
-      });
-      await jpost(`${API_BASE}/proyectos/${proyecto.id}/estado_arte`, {});
-
-      avisar("Análisis completado", "bien");
-      goBack();
-    } catch (e) {
       setErr(e);
     } finally {
       setFase(null);
       setBusy(false);
+    }
+  }
+
+  /** Consulta el avance hasta que la ejecución termina. */
+  async function seguirRun(runId, total) {
+    // Dos segundos: lo bastante ágil para que el avance se vea moverse y lo
+    // bastante espaciado para no castigar al servidor durante los minutos
+    // que dura un lote.
+    const INTERVALO = 2000;
+
+    for (;;) {
+      const estado = await jget(`${API_BASE}/proyectos/runs/${runId}`);
+      setFase({
+        etapa: "Analizando artículos",
+        hecho: estado.n_items_ok ?? 0,
+        total: estado.n_items_total ?? total,
+        detalle: "Puedes cerrar esta página; el análisis sigue en el servidor.",
+      });
+
+      if (estado.estado === "completado") {
+        avisar("Análisis completado", "bien");
+        goBack();
+        return;
+      }
+      if (estado.estado === "fallido") {
+        avisar("El análisis no pudo completarse.", "mal");
+        return;
+      }
+      await new Promise((r) => setTimeout(r, INTERVALO));
     }
   }
 
@@ -884,22 +885,33 @@ function BrechasProyecto({ proyecto, goBack }) {
     }
   }
 
-  /** Vuelve a ejecutar el análisis completo, con verificación incluida. */
+  /** Vuelve a encolar el análisis completo del proyecto. */
   async function reanalizar() {
     setErr(null);
     setOcupado("analizar");
     try {
-      const run = await jpost(`${API_BASE}/proyectos/${proyecto.id}/runs`, {});
-      let estado = run;
-      let vueltas = 0;
-      while (estado.estado !== "completado" && vueltas <= arts.length + 2) {
-        estado = await jpost(`${API_BASE}/runs/${run.id}/process_next`, {});
-        vueltas++;
+      const encolado = await jpost(
+        `${API_BASE}/proyectos/${proyecto.id}/analizar_todo`, {});
+      const runId = encolado.run_id;
+
+      for (;;) {
+        const estado = await jget(`${API_BASE}/proyectos/runs/${runId}`);
+        if (estado.estado === "completado") break;
+        if (estado.estado === "fallido") {
+          avisar("El análisis no pudo completarse.", "mal");
+          return;
+        }
+        await new Promise((r) => setTimeout(r, 2000));
       }
-      await jpost(`${API_BASE}/proyectos/${proyecto.id}/estado_arte`, {});
+
       avisar("Análisis completado", "bien");
       setRecarga((v) => v + 1);
     } catch (e) {
+      const enCurso = e?.detail?.detail?.run_id || e?.detail?.run_id;
+      if (enCurso) {
+        avisar("Ya hay un análisis en curso para este proyecto.", "aviso");
+        return;
+      }
       setErr(e);
     } finally {
       setOcupado(null);

@@ -167,7 +167,8 @@ backend local.
 
 ## Arrancar el sistema
 
-Hacen falta tres cosas encendidas: MySQL, el backend y el frontend.
+Hacen falta cuatro cosas encendidas: MySQL, el backend, el **trabajador** y el
+frontend.
 
 **MySQL** — el servicio de Windows suele arrancar solo. Para comprobarlo:
 
@@ -180,6 +181,21 @@ Get-Service -Name MySQL* | Select-Object Name, Status
 ```bash
 python -m uvicorn main:app --reload --port 8000
 ```
+
+**Trabajador** — en otra terminal, desde `backend/` y con el entorno activado:
+
+```bash
+python trabajador.py
+```
+
+Es quien analiza. El backend solo apunta el trabajo en la cola y responde al
+instante; sin el trabajador en marcha, los análisis se quedan esperando para
+siempre. Se para con Ctrl+C, que termina el artículo en curso antes de salir
+para no perder una generación ya pagada.
+
+Pueden correr varios a la vez. No se coordinan entre sí: cada uno pide a la
+base el siguiente artículo libre, y MySQL se encarga de que no cojan el
+mismo.
 
 **Frontend** — desde `frontend/`:
 
@@ -223,7 +239,9 @@ obtiene en [Google AI Studio](https://aistudio.google.com/apikey).
    posterior, así que conviene escribirlo con cuidado y no en dos palabras.
 2. **Subir los PDF** de los artículos (arrastrándolos o desde el selector).
 3. **Indexar**: prepara los artículos para la búsqueda por significado.
-4. **Analizar todo**: genera las brechas de cada artículo.
+4. **Analizar todo**: pone el proyecto en cola. La respuesta es inmediata y
+   **puedes cerrar el navegador**: el trabajador sigue por su cuenta y al
+   volver encontrarás el avance donde iba.
 5. **Verificar**: contrasta cada afirmación contra el texto fuente. Aquí es
    donde aparece el porcentaje de fidelidad y las afirmaciones sin respaldo.
 6. **Generar el estado del arte** a partir del conjunto.
@@ -251,7 +269,7 @@ Desde `backend/`, con el entorno activado:
 python -m pytest
 ```
 
-Son 238 pruebas y corren en modo simulado, sin gastar cuota. Las que
+Son 263 pruebas y corren en modo simulado, sin gastar cuota. Las que
 necesitan MySQL están marcadas con `bd` y **se saltan solas** si no hay
 conexión, de modo que la suite pasa igual en una máquina sin base de datos.
 
@@ -272,7 +290,7 @@ GitHub lo mismo que harías a mano:
 
 - levanta un MySQL vacío y construye el esquema con `alembic upgrade head`,
   de modo que una migración mal escrita se rompe ahí;
-- ejecuta `alembic check` y las 238 pruebas contra esa base recién creada,
+- ejecuta `alembic check` y las 263 pruebas contra esa base recién creada,
   sin los datos acumulados de una máquina de desarrollo;
 - instala el frontend con `npm ci`, pasa el lint y compila.
 
@@ -365,6 +383,8 @@ de dónde partir. Los PDF normales no lo necesitan.
 ```
 backend/
   main.py             arranque de FastAPI y comprobación del esquema
+  trabajador.py       proceso que vacía la cola de análisis
+  crear_cuenta.py     alta de la primera cuenta desde la terminal
   alembic.ini         configuración de migraciones (sin credenciales)
   migraciones/        única fuente de verdad del esquema
   app/
@@ -372,7 +392,7 @@ backend/
     routers/          endpoints HTTP
     services/         ingesta, RAG, verificación, métricas, límites de cuota
     utils/            extracción de texto y OCR
-  tests/              238 pruebas
+  tests/              263 pruebas
   storage/pdfs/       PDF subidos (no se versionan)
 frontend/
   src/components/     interfaz
@@ -410,6 +430,15 @@ la medianoche del Pacífico.
 
 **El backend avisa de que el esquema está atrasado**
 Ejecuta `alembic upgrade head` desde `backend/`.
+
+**El análisis se queda en 0 y no avanza**
+No hay ningún trabajador en marcha. El backend solo encola; quien analiza es
+`python trabajador.py`, en su propia terminal.
+
+**«Este proyecto ya tiene un análisis en curso» (409)**
+Hay una ejecución sin terminar. Si el trabajador está encendido, espera; si
+se cayó a mitad, arráncalo otra vez y recogerá lo que quedó pendiente por sí
+solo, sin repetir lo ya hecho.
 
 **Las pruebas marcadas `bd` se saltan todas**
 No hay conexión a MySQL. Revisa que el servicio esté arriba y que
@@ -454,7 +483,6 @@ horas. Para salir, el botón *Salir* de los controles de arriba a la derecha.
 Funciona de principio a fin en una máquina local y está medido. Lo que
 todavía no tiene:
 
-- Ejecución en segundo plano: el análisis bloquea la petición HTTP.
 - Despliegue: los PDF se guardan en el disco local y el origen del frontend
   está fijado en el código.
 - Anclaje humano de las métricas (N6).

@@ -1,5 +1,8 @@
 from sqlalchemy.orm import Mapped, mapped_column
-from sqlalchemy import CHAR, BigInteger, DateTime, Enum, ForeignKey, Index, Integer
+from sqlalchemy import (
+    CHAR, BigInteger, Boolean, DateTime, Enum, ForeignKey, Index, Integer, Text,
+    text,
+)
 from sqlalchemy.dialects.mysql import DECIMAL as MySQLDECIMAL
 from app.models.proyecto import Base
 import enum
@@ -32,6 +35,15 @@ class Run(Base):
     # modelo aunque la base ya lo definia asi.
     costo_estimado: Mapped[float] = mapped_column(
         MySQLDECIMAL(10, 2), nullable=True, default=0.0)
+    # Si al terminar todos los articulos hay que sintetizar el estado del
+    # arte. Lo pide quien encola; el trabajador no puede adivinarlo, y hacerlo
+    # siempre gastaria una generacion en ejecuciones parciales.
+    genera_estado_arte: Mapped[bool] = mapped_column(
+        Boolean, default=False, nullable=False, server_default=text("0"))
+    # Motivo por el que la ejecucion entera se dio por perdida. Los fallos de
+    # un articulo suelto van en run_item.error_msg; este es para lo que impide
+    # continuar, como quedarse sin cuota diaria a mitad del lote.
+    error_msg: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     __table_args__ = (
         Index("idx_run_proy_estado", "proyecto_id", "estado"),

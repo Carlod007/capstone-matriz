@@ -8,57 +8,62 @@ from app.database import get_db
 from app.dependencias import proyecto_propio
 from app.models.proyecto import Proyecto
 from app.models.articulo import Articulo
-from app.models.embedding_doc import EmbeddingDoc
 from app.models.run import Run, EstadoRun
 from app.models.run_item import RunItem, EstadoRunItem
 
-from app.services.embedding_service import index_articulo
-from app.routers.runs import process_next_item  # usamos la lógica existente
-from app.routers.estado_arte import generar_estado_arte  # ya existente
-
 router = APIRouter(prefix="/proyectos", tags=["pipeline"])
+
 
 @router.post("/{proyecto_id}/analizar_todo")
 def analizar_todo(
     proyecto: Proyecto = Depends(proyecto_propio),
     db: Session = Depends(get_db),
 ):
-    """
-    Pipeline 1-clic:
-      - Indexa artículos (RAG) si falta
-      - Crea Run
-      - Ejecuta process_next hasta completar
-      - Genera Estado del Arte
-    Devuelve resumen.
+    """Encola el análisis del proyecto y responde de inmediato.
 
-    `_proj_or_404` desapareció de aquí: buscaba el proyecto sin mirar de quién
-    era, y ahora eso lo resuelve la dependencia `proyecto_propio`.
-    """
-    proyecto_id = proyecto.id
+    Antes esta función hacía el trabajo entero dentro de la petición: indexar,
+    analizar artículo por artículo y sintetizar el estado del arte. Con cinco
+    artículos y el limitador en cuatro generaciones por minuto son varios
+    minutos con la petición abierta; con diez, el doble. Cualquier proxy corta
+    a los treinta o sesenta segundos, así que en un servidor no fallaría a
+    veces: fallaría siempre, y además gastando cuota en un trabajo cuyo
+    resultado nadie recibe.
 
-    arts = db.query(Articulo).filter(Articulo.proyecto_id == proyecto_id).all()
+    Ahora solo se apunta lo que hay que hacer. `trabajador.py` lo va sacando,
+    y el avance se consulta en `GET /proyectos/runs/{run_id}`. Quien lanza el
+    análisis puede cerrar el navegador.
+
+    La indexación también se movió al trabajador: es la otra parte lenta, y
+    dejarla aquí habría mantenido el problema a medias.
+    """
+    arts = db.query(Articulo).filter(Articulo.proyecto_id == proyecto.id).all()
     if not arts:
         raise HTTPException(status_code=400, detail="El proyecto no tiene artículos")
 
-    # 1) Indexación previa si falta
-    indexados = 0
-    for a in arts:
-        ya = db.query(EmbeddingDoc).filter(EmbeddingDoc.articulo_id == a.id).first()
-        if not ya:
-            n = index_articulo(db, a.id)
-            if n > 0:
-                indexados += 1
+    en_curso = (db.query(Run)
+                  .filter(Run.proyecto_id == proyecto.id,
+                          Run.estado.in_((EstadoRun.creado, EstadoRun.en_progreso)))
+                  .first())
+    if en_curso:
+        # Encolar dos veces lo mismo duplicaría el gasto de cuota sin dar nada
+        # a cambio. Se devuelve la que ya está en marcha.
+        raise HTTPException(
+            status_code=409,
+            detail={
+                "mensaje": "Este proyecto ya tiene un análisis en curso.",
+                "run_id": en_curso.id,
+            },
+        )
 
-    # 2) Crear run
     run_id = str(uuid.uuid4())
-    run = Run(
+    db.add(Run(
         id=run_id,
-        proyecto_id=proyecto_id,
+        proyecto_id=proyecto.id,
         estado=EstadoRun.creado,
         n_items_total=len(arts),
         n_items_ok=0,
-    )
-    db.add(run)
+        genera_estado_arte=True,
+    ))
     db.flush()
 
     for a in arts:
@@ -66,29 +71,18 @@ def analizar_todo(
             id=str(uuid.uuid4()),
             run_id=run_id,
             articulo_id=a.id,
-            estado=EstadoRunItem.pendiente
+            estado=EstadoRunItem.pendiente,
         ))
     db.commit()
 
-    # 3) Ejecutar hasta completar
-    #
-    # Se les pasan los objetos ya resueltos, no los identificadores: las dos
-    # funciones esperan ahora una ejecución y un proyecto cuya propiedad ya se
-    # comprobó, y así no se repite la consulta en cada vuelta del bucle.
-    while True:
-        out = process_next_item(run, db)  # reutiliza la función del router
-        if out.estado == EstadoRun.completado.value:
-            break
-
-    # 4) Generar Estado del Arte
-    ea = generar_estado_arte(proyecto, db)
-
     return {
-        "proyecto_id": proyecto_id,
-        "indexados_nuevos": indexados,
+        "proyecto_id": proyecto.id,
         "run_id": run_id,
-        "run_estado": out.estado,
-        "n_items_total": out.n_items_total,
-        "n_items_ok": out.n_items_ok,
-        "estado_arte": getattr(ea, "estado", "generado"),
+        "estado": EstadoRun.creado.value,
+        "n_items_total": len(arts),
+        "n_items_ok": 0,
+        "aviso": (
+            "El análisis quedó en cola. Puedes cerrar esta página; consulta el "
+            "avance en /proyectos/runs/%s." % run_id
+        ),
     }

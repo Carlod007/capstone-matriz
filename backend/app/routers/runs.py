@@ -20,6 +20,7 @@ from app.models.rag_log import RagLog
 from app.models.metrica import Metrica, AMBITO_BRECHA, AMBITO_ARTICULO
 from app.models.embedding_doc import EmbeddingDoc
 
+from app.services import cola
 from app.services.gemini_service import analyze
 from app.services.embedding_service import recuperar_contexto, construir_consulta
 from app.services.document_structure import extraer_abstract
@@ -284,39 +285,29 @@ def listar_items_debug(
 
 
 # ----------------------------
-# PROCESAR SIGUIENTE ITEM (Gemini + RAG + Validación Automática)
+# PROCESAR UN ITEM (Gemini + RAG + métricas)
 # ----------------------------
-@router.post("/runs/{run_id}/process_next", response_model=RunOut)
-def process_next_item(
-    run: Run = Depends(run_propio),
-    db: Session = Depends(get_db),
-):
-    # La dependencia ya resolvió la ejecución y comprobó que el proyecto es de
-    # quien la pide. `pipeline.analizar_todo` llama a esta función pasándole la
-    # ejecución que acaba de crear, así que la comprobación tampoco se repite
-    # de más.
+class FalloDefinitivo(Exception):
+    """No tiene sentido reintentar: el artículo no da para más.
+
+    Un PDF sin texto seguirá sin texto en el siguiente intento. Distinguirlo
+    de un corte de red es lo que evita gastar tres intentos y tres veces la
+    cuota en algo que no puede salir bien.
+    """
+
+
+def procesar_item(db: Session, run: Run, item: RunItem) -> None:
+    """Analiza un artículo y deja el ítem en `analizado`.
+
+    No decide qué hacer con los fallos: los deja salir. Quien lo llama —el
+    trabajador o el endpoint— sabe si conviene reintentar, y esa decisión no
+    debería estar enterrada aquí.
+    """
     run_id = run.id
-
-    pendiente = (
-        db.query(RunItem)
-        .filter(RunItem.run_id == run_id, RunItem.estado == EstadoRunItem.pendiente)
-        .first()
-    )
-    if not pendiente or run.n_items_ok >= run.n_items_total:
-        run.estado = EstadoRun.completado
-        run.finalizado_en = datetime.now()
-        _metricas_de_lote(db, run)
-        db.commit()
-        return RunOut.model_construct(
-            id=run.id,
-            proyecto_id=run.proyecto_id,
-            estado=run.estado.value,
-            n_items_total=run.n_items_total,
-            n_items_ok=run.n_items_ok,
-        )
-
-    item = pendiente
     art = db.query(Articulo).filter(Articulo.id == item.articulo_id).first()
+    if not art:
+        raise FalloDefinitivo("El artículo ya no existe.")
+
     arc = (
         db.query(Archivo)
         .filter(Archivo.articulo_id == art.id)
@@ -324,16 +315,7 @@ def process_next_item(
         .first()
     )
     if not arc:
-        item.estado = EstadoRunItem.fallido
-        item.error_msg = "Artículo sin archivo asociado."
-        db.commit()
-        return RunOut.model_construct(
-            id=run.id,
-            proyecto_id=run.proyecto_id,
-            estado=run.estado.value,
-            n_items_total=run.n_items_total,
-            n_items_ok=run.n_items_ok,
-        )
+        raise FalloDefinitivo("Artículo sin archivo asociado.")
 
     diag = extraer_con_diagnostico(arc.ruta)
     texto = diag.texto
@@ -343,18 +325,9 @@ def process_next_item(
         motivos = list(diag.avisos) or ["Texto insuficiente."]
         if not ok_ocr and diag.metodo != "ocr":
             motivos.append("OCR no disponible. " + motivo_ocr)
-        item.estado = EstadoRunItem.fallido
         # El diagnóstico N0 sustituye al escueto "Texto insuficiente": ahora el
         # usuario sabe por qué falló y si es recuperable.
-        item.error_msg = " | ".join(motivos)[:2000]
-        db.commit()
-        return RunOut.model_construct(
-            id=run.id,
-            proyecto_id=run.proyecto_id,
-            estado=run.estado.value,
-            n_items_total=run.n_items_total,
-            n_items_ok=run.n_items_ok,
-        )
+        raise FalloDefinitivo(" | ".join(motivos))
 
     pr = db.query(Proyecto).filter(Proyecto.id == run.proyecto_id).first()
     contexto = {
@@ -364,109 +337,171 @@ def process_next_item(
         "objetivo": pr.objetivo,
     }
 
-    if run.estado == EstadoRun.creado:
-        run.estado = EstadoRun.en_progreso
-        run.iniciado_en = datetime.now()
+    # --- Paso 0: indexar si hace falta ---
+    # La indexación estaba en `analizar_todo`, dentro de la petición HTTP, y
+    # es la otra parte lenta. Aquí es idempotente: lo ya indexado no se vuelve
+    # a pagar, así que un reintento no repite el gasto.
+    ya_indexado = (db.query(EmbeddingDoc.id)
+                     .filter(EmbeddingDoc.articulo_id == art.id).first())
+    if not ya_indexado:
+        from app.services.embedding_service import index_articulo
 
-    try:
-        # --- Paso 1: recuperar fragmentos por relevancia ---
-        # Antes se usaba get_top_chunks(), que devolvía los primeros ocho
-        # fragmentos del documento: el modelo solo veía resumen e introducción
-        # y nunca método, resultados ni discusión (M-10).
-        recuperados = recuperar_contexto(db, art.id, contexto, k=8)
-        support = [r["texto"] for r in recuperados]
+        if index_articulo(db, art.id) == 0:
+            raise FalloDefinitivo(
+                "No se pudo indexar el artículo: sin archivo o sin texto.")
 
-        # Trazabilidad: qué fragmentos se usaron en este análisis.
-        if recuperados:
-            db.add(RagLog(
-                id=str(uuid.uuid4()),
-                proyecto_id=run.proyecto_id,
-                run_id=run_id,
-                articulo_id=art.id,
-                consulta=construir_consulta(contexto)[:2000],
-                top_k=len(recuperados),
-                scores=[
-                    {
-                        "embedding_id": r["embedding_id"],
-                        "seccion": r["seccion"],
-                        "score": r["score"],
-                    }
-                    for r in recuperados
-                ],
-            ))
+    # --- Paso 1: recuperar fragmentos por relevancia ---
+    # Antes se usaba get_top_chunks(), que devolvía los primeros ocho
+    # fragmentos del documento: el modelo solo veía resumen e introducción
+    # y nunca método, resultados ni discusión (M-10).
+    recuperados = recuperar_contexto(db, art.id, contexto, k=8)
+    support = [r["texto"] for r in recuperados]
 
-        # --- Paso 2: análisis de brecha con Gemini usando RAG ---
-        res = analyze(texto, contexto, context_docs=(support if support else None))
-
-        brecha_txt = res.get("brecha", "")
-
-        # --- Paso 3: guardar el resultado de brecha ---
-        # La validación automática queda en "pendiente" a propósito. Las
-        # reglas anteriores se apoyaban en la entropía de caracteres y en un
-        # val_score compuesto cuyos umbrales nunca llegaban a activarse, de
-        # modo que casi todo terminaba en "aceptada" sin haber sido validado.
-        # Un estado honesto es preferible a un sello de goma: la validación
-        # volverá cuando los umbrales estén calibrados contra juicio experto.
-        rb = ResultadoBrecha(
+    # Trazabilidad: qué fragmentos se usaron en este análisis.
+    if recuperados:
+        db.add(RagLog(
             id=str(uuid.uuid4()),
-            run_item_id=item.id,
-            tipo_brecha=res.get("tipo_brecha", "otra"),
-            brecha=brecha_txt,
-            oportunidad=res.get("oportunidad", ""),
-            evidencia=None,
-            rag_hits=[
-                {"embedding_id": r["embedding_id"], "seccion": r["seccion"],
-                 "score": r["score"]}
+            proyecto_id=run.proyecto_id,
+            run_id=run_id,
+            articulo_id=art.id,
+            consulta=construir_consulta(contexto)[:2000],
+            top_k=len(recuperados),
+            scores=[
+                {
+                    "embedding_id": r["embedding_id"],
+                    "seccion": r["seccion"],
+                    "score": r["score"],
+                }
                 for r in recuperados
             ],
-            val_reason="Pendiente de calibración de la validación automática.",
-            estado_validacion="pendiente",
-        )
-        db.add(rb)
-        db.flush()
+        ))
 
-        # Contabilidad de consumo (S-04). El SDK nuevo expone usage_metadata,
-        # así que los campos del esquema dejan de quedarse en cero y se puede
-        # conocer el coste real de cada ejecución.
-        uso = res.get("_usage") or {}
-        run.tokens_in = (run.tokens_in or 0) + int(uso.get("tokens_in", 0))
-        run.tokens_out = (run.tokens_out or 0) + int(uso.get("tokens_out", 0))
+    # --- Paso 2: análisis de brecha con Gemini usando RAG ---
+    res = analyze(texto, contexto, context_docs=(support if support else None))
 
-        # --- Paso 4: métricas locales N1, N3 y N4 ---
-        _registrar_metricas(db, art, rb, res, texto, recuperados, arc.ruta)
+    brecha_txt = res.get("brecha", "")
 
-        item.estado = EstadoRunItem.analizado
-        run.n_items_ok += 1
-        # La sesión se crea con autoflush=False, así que sin este volcado la
-        # consulta siguiente leería el estado antiguo del ítem en la base y
-        # el lote nunca se daría por terminado por esta vía.
-        db.flush()
+    # --- Paso 3: guardar el resultado de brecha ---
+    # La validación automática queda en "pendiente" a propósito. Las
+    # reglas anteriores se apoyaban en la entropía de caracteres y en un
+    # val_score compuesto cuyos umbrales nunca llegaban a activarse, de
+    # modo que casi todo terminaba en "aceptada" sin haber sido validado.
+    # Un estado honesto es preferible a un sello de goma: la validación
+    # volverá cuando los umbrales estén calibrados contra juicio experto.
+    rb = ResultadoBrecha(
+        id=str(uuid.uuid4()),
+        run_item_id=item.id,
+        tipo_brecha=res.get("tipo_brecha", "otra"),
+        brecha=brecha_txt,
+        oportunidad=res.get("oportunidad", ""),
+        evidencia=None,
+        rag_hits=[
+            {"embedding_id": r["embedding_id"], "seccion": r["seccion"],
+             "score": r["score"]}
+            for r in recuperados
+        ],
+        val_reason="Pendiente de calibración de la validación automática.",
+        estado_validacion="pendiente",
+    )
+    db.add(rb)
+    db.flush()
 
-        # --- Paso 5: cierre automático si no hay pendientes ---
-        pendiente_restante = (
-            db.query(RunItem)
-            .filter(
-                RunItem.run_id == run_id,
-                RunItem.estado == EstadoRunItem.pendiente,
-            )
-            .first()
-        )
-        if not pendiente_restante:
-            run.estado = EstadoRun.completado
-            run.finalizado_en = datetime.now()
-            # N3.1 y N3.4 comparan las brechas entre sí, de modo que solo
-            # tienen sentido cuando el lote está completo.
-            _metricas_de_lote(db, run)
+    # Contabilidad de consumo (S-04). El SDK nuevo expone usage_metadata,
+    # así que los campos del esquema dejan de quedarse en cero y se puede
+    # conocer el coste real de cada ejecución.
+    uso = res.get("_usage") or {}
+    run.tokens_in = (run.tokens_in or 0) + int(uso.get("tokens_in", 0))
+    run.tokens_out = (run.tokens_out or 0) + int(uso.get("tokens_out", 0))
 
-    except Exception as e:
-        item.estado = EstadoRunItem.fallido
-        item.error_msg = str(e)
+    # --- Paso 4: métricas locales N1, N3 y N4 ---
+    _registrar_metricas(db, art, rb, res, texto, recuperados, arc.ruta)
 
+    item.estado = EstadoRunItem.analizado
+    item.error_msg = None  # si venía de un intento fallido, ya no aplica
+    # La sesión se crea con autoflush=False, así que sin este volcado la
+    # consulta siguiente leería el estado antiguo del ítem en la base.
+    db.flush()
+
+    # Se recuenta en la base en lugar de hacer `n_items_ok += 1`. Con un solo
+    # proceso daba igual; con varios trabajadores, dos incrementos a la vez
+    # leen el mismo valor y uno de los dos se pierde.
+    run.n_items_ok = cola.contar_ok(db, run_id)
     db.commit()
+
+
+def cerrar_run(db: Session, run: Run) -> None:
+    """Da la ejecución por terminada y calcula las métricas del lote.
+
+    Es idempotente: cerrar dos veces la misma ejecución no duplica nada, lo
+    que importa porque quien la cierra es un barrido periódico y no el
+    trabajador que acabó el último artículo. Si ese trabajador muriera justo
+    después de guardarlo, nadie cerraría la ejecución.
+    """
+    if run.estado == EstadoRun.completado:
+        return
+
+    run.n_items_ok = cola.contar_ok(db, run.id)
+    run.estado = EstadoRun.completado
+    run.finalizado_en = datetime.now()
+    # N3.1 y N3.4 comparan las brechas entre sí, de modo que solo tienen
+    # sentido cuando el lote está completo.
+    _metricas_de_lote(db, run)
+    db.commit()
+
+
+@router.get("/runs/{run_id}", response_model=RunOut)
+def estado_run(run: Run = Depends(run_propio), db: Session = Depends(get_db)):
+    """Cómo va una ejecución. Es lo que consulta el frontend mientras espera.
+
+    Se recuenta en la base en vez de devolver el contador guardado: si un
+    trabajador cayó a mitad, el contador podría haberse quedado corto.
+    """
+    run.n_items_ok = cola.contar_ok(db, run.id)
+    return _estado(run)
+
+
+@router.post("/runs/{run_id}/process_next", response_model=RunOut)
+def process_next_item(
+    run: Run = Depends(run_propio),
+    db: Session = Depends(get_db),
+):
+    """Procesa un artículo de la ejecución y devuelve cómo va.
+
+    Se conserva para el análisis conducido desde el navegador, que sigue
+    sirviendo cuando quien mira quiere ver el avance paso a paso. El trabajo
+    de fondo lo hace `trabajador.py`, sobre la misma cola y las mismas
+    funciones: los dos caminos no pueden divergir porque comparten el código.
+    """
+    item = cola.tomar_pendiente(db, run_id=run.id)
+
+    if item is None:
+        if not cola.quedan_pendientes(db, run.id):
+            cerrar_run(db, run)
+        return _estado(run)
+
+    cola.marcar_en_progreso(db, run)
+    try:
+        procesar_item(db, run, item)
+    except FalloDefinitivo as e:
+        item.estado = EstadoRunItem.fallido
+        item.error_msg = str(e)[:2000]
+        db.commit()
+    except Exception as e:  # noqa: BLE001
+        db.rollback()
+        cola.devolver(db, item, str(e))
+
+    if not cola.quedan_pendientes(db, run.id):
+        cerrar_run(db, run)
+
+    db.refresh(run)
+    return _estado(run)
+
+
+def _estado(run: Run) -> RunOut:
     return RunOut.model_construct(
         id=run.id,
         proyecto_id=run.proyecto_id,
-        estado=run.estado.value,
+        estado=run.estado.value if hasattr(run.estado, "value") else run.estado,
         n_items_total=run.n_items_total,
         n_items_ok=run.n_items_ok,
     )
