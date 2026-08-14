@@ -1,17 +1,14 @@
-import os, uuid, hashlib, re
+import uuid, hashlib, re
 from fastapi import APIRouter, UploadFile, File, Form, HTTPException, Depends
 from sqlalchemy.orm import Session
-from dotenv import load_dotenv
 from app.database import get_db
 from app.dependencias import proyecto_propio
 from app.models.archivo import Archivo, EstadoArchivo
 from app.models.articulo import Articulo
 from app.models.proyecto import Proyecto
+from app.services import almacenamiento
 import fitz  # PyMuPDF
 from pdfminer.high_level import extract_text as pdfminer_extract
-
-load_dotenv()
-STORAGE_DIR = os.getenv("STORAGE_DIR", "storage/pdfs")
 
 router = APIRouter(prefix="/proyectos", tags=["archivos"])
 
@@ -91,7 +88,6 @@ async def subir_pdf(
     proyecto_id = proyecto.id
     if not pdf.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Solo PDF")
-    os.makedirs(STORAGE_DIR, exist_ok=True)
 
     data = await pdf.read()
     file_hash = _sha256_bytes(data)
@@ -116,11 +112,14 @@ async def subir_pdf(
             "estado": duplicado.estado,
         }
 
+    # La clave lleva el usuario delante para que el aislamiento entre cuentas
+    # valga también en el disco. Lo que se guarda en `archivo.ruta` es la
+    # clave, no una ruta: así el sitio donde vive el archivo puede cambiar sin
+    # tocar a quien lo lee.
+    clave = almacenamiento.nueva_clave(proyecto.usuario_id)
+    almacenamiento.guardar(clave, data)
     file_id = str(uuid.uuid4())
-    fname = f"{file_id}.pdf"
-    path = os.path.join(STORAGE_DIR, fname)
-    with open(path, "wb") as f:
-        f.write(data)
+    path = almacenamiento.ruta_local(clave)
 
     # Limpieza y extracción
     titulo = clean(titulo)
@@ -156,7 +155,7 @@ async def subir_pdf(
         proyecto_id=proyecto_id,
         articulo_id=art_id,
         nombre=pdf.filename,
-        ruta=path,
+        ruta=clave,
         hash_sha256=file_hash,
         bytes=len(data),
         estado=estado,

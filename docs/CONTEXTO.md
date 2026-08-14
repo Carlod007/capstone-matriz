@@ -87,7 +87,7 @@ PDF → ingesta (texto + OCR si hace falta + detección de secciones)
 - Cuentas, sesión por token, aislamiento entre usuarios
 - Cola de trabajos con reintentos y recuperación de trabajadores caídos
 - Limitador de cuota propio (ventana deslizante) antes de chocar con la API
-- **263 pruebas automáticas**, integración continua en verde
+- **284 pruebas automáticas**, integración continua en verde
 - Esquema gobernado por Alembic, verificado desde base vacía
 
 ### Verificado con datos reales
@@ -149,8 +149,8 @@ hash que era global y con varias cuentas habría filtrado artículos ajenos.
 | 1. Usuarios y sesión | ✅ hecho |
 | 2. Propiedad de los datos | ✅ hecho |
 | 3. Cola en segundo plano | ✅ hecho |
-| 4. Almacenamiento tras una interfaz | pendiente |
-| 5. Configuración por entorno (CORS, secretos) | parcial |
+| 4. Almacenamiento tras una interfaz | ✅ hecho |
+| 5. Configuración por entorno (CORS, secretos) | ✅ hecho |
 | 6. Rutas en el frontend, registro, renovación de sesión | pendiente |
 | 7. Docker | pendiente |
 | 8. Despliegue | pendiente |
@@ -165,16 +165,12 @@ encendida.
 1. **N6 sin anclaje humano.** Falta un conjunto de brechas anotado por
    expertos. Hasta entonces las métricas dicen si el sistema es *consistente*,
    no si *acierta*. Es la mayor debilidad de cara a una defensa académica.
-2. **Al reabrir un proyecto con análisis en curso no se ve su progreso.** La
-   pantalla solo lo sigue mientras está abierta; hay que pulsar *Analizar* de
-   nuevo para reengancharlo. Contradice lo que promete el paso 3.
-3. **CORS fijado en el código** (`main.py`), solo `localhost:5173`.
-4. **Frontend sin rutas.** Una sola pantalla con vistas conmutadas: no se
+2. **Frontend sin rutas.** Una sola pantalla con vistas conmutadas: no se
    puede compartir el enlace de un proyecto, el botón atrás del móvil sale de
    la aplicación y recargar devuelve al inicio.
-5. **Aviso de SQLAlchemy** en `estado_arte.py:44` (subconsulta sin `select()`
+3. **Aviso de SQLAlchemy** en `estado_arte.py:44` (subconsulta sin `select()`
    explícito). Inofensivo hoy, romperá en una versión futura.
-6. **Cuota compartida.** Los 20 análisis diarios del nivel gratuito son de la
+4. **Cuota compartida.** Los 20 análisis diarios del nivel gratuito son de la
    clave, no del usuario: con el registro abierto, unos pocos desconocidos
    dejarían al dueño sin cuota. Por eso el alta está cerrada.
 
@@ -204,7 +200,7 @@ Si el objetivo es **proyecto profesional presentable**, lo que más pesa:
 - Falta el despliegue: hoy vive en una máquina y requiere cuatro procesos a
   mano.
 - El frontend sin rutas se nota enseguida en móvil.
-- A favor: migraciones, integración continua, 263 pruebas, aislamiento entre
+- A favor: migraciones, integración continua, 284 pruebas, aislamiento entre
   cuentas probado endpoint por endpoint, y un README que instala desde cero.
 
 ---

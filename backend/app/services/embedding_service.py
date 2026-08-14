@@ -196,7 +196,15 @@ def index_articulo(db: Session, articulo_id: str, max_chars: int | None = None,
     if not arc:
         return 0
 
-    diag = extraer_con_diagnostico(arc.ruta)
+    # `arc.ruta` guarda una clave de almacenamiento, no un camino del disco.
+    from app.services import almacenamiento
+
+    try:
+        ruta_pdf = almacenamiento.ruta_local(arc.ruta)
+    except almacenamiento.ClaveInvalida:
+        return 0
+
+    diag = extraer_con_diagnostico(ruta_pdf)
     texto = diag.texto
     fragmentos = fragmentar(texto, max_chars=max_chars, overlap=overlap)
     if not fragmentos:

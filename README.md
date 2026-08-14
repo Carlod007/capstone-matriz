@@ -269,7 +269,7 @@ Desde `backend/`, con el entorno activado:
 python -m pytest
 ```
 
-Son 263 pruebas y corren en modo simulado, sin gastar cuota. Las que
+Son 284 pruebas y corren en modo simulado, sin gastar cuota. Las que
 necesitan MySQL están marcadas con `bd` y **se saltan solas** si no hay
 conexión, de modo que la suite pasa igual en una máquina sin base de datos.
 
@@ -290,7 +290,7 @@ GitHub lo mismo que harías a mano:
 
 - levanta un MySQL vacío y construye el esquema con `alembic upgrade head`,
   de modo que una migración mal escrita se rompe ahí;
-- ejecuta `alembic check` y las 263 pruebas contra esa base recién creada,
+- ejecuta `alembic check` y las 284 pruebas contra esa base recién creada,
   sin los datos acumulados de una máquina de desarrollo;
 - instala el frontend con `npm ci`, pasa el lint y compila.
 
@@ -392,8 +392,8 @@ backend/
     routers/          endpoints HTTP
     services/         ingesta, RAG, verificación, métricas, límites de cuota
     utils/            extracción de texto y OCR
-  tests/              263 pruebas
-  storage/pdfs/       PDF subidos (no se versionan)
+  tests/              284 pruebas
+  storage/pdfs/       PDF subidos, en una carpeta por usuario (no se versionan)
 frontend/
   src/components/     interfaz
   src/index.css       tokens de diseño y tema oscuro
@@ -423,8 +423,8 @@ Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
 **`Failed to fetch` en el navegador**
 El frontend no encuentra el backend. Comprueba que responde
 —<http://localhost:8000/health> debe devolver `{"ok": true}`— y que
-`VITE_API_BASE` en `frontend/.env` apunta a ese puerto. Si el backend está en
-otro origen, hay que añadirlo a la lista de CORS en `backend/main.py`.
+`VITE_API_BASE` en `frontend/.env` apunta a ese puerto. Si el frontend se
+sirve desde otro origen, añádelo a `CORS_ORIGENES` en `backend/.env`.
 
 **Error 429 de la API**
 Se agotó la cuota. Si es la del minuto, el sistema espera solo; si es la

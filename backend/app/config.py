@@ -41,6 +41,31 @@ def _entero(nombre: str, defecto: int) -> int:
         ) from None
 
 
+# ------------------------------------------------------- almacenamiento
+
+# Donde viven los PDF subidos. Solo lo lee app/services/almacenamiento.py; el
+# resto del codigo trabaja con claves, no con rutas.
+STORAGE_DIR = _texto("STORAGE_DIR", "storage/pdfs")
+
+
+# --------------------------------------------------------------------- red
+
+def _lista(nombre: str, defecto: list[str]) -> list[str]:
+    v = _texto(nombre)
+    if not v:
+        return list(defecto)
+    return [x.strip() for x in v.split(",") if x.strip()]
+
+
+# Origenes que pueden llamar a la API desde un navegador. Estaba fijado en el
+# codigo con localhost:5173, de modo que desde un dominio real el navegador
+# bloqueaba todas las llamadas antes de enviarlas.
+CORS_ORIGENES = _lista("CORS_ORIGENES", [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+])
+
+
 # ------------------------------------------------------------------ sesion
 
 # Secreto con el que se firman los tokens. Sin valor por defecto a proposito:
@@ -85,6 +110,16 @@ def revisar(estricto: bool = True) -> list[str]:
         faltan.append(
             "JWT_SECRETO: demasiado corto (%d caracteres, minimo 32). Un "
             "secreto adivinable equivale a no tener ninguno." % len(JWT_SECRETO)
+        )
+
+    if "*" in CORS_ORIGENES:
+        # Con credenciales habilitadas, un comodin permite a cualquier pagina
+        # de internet hacer peticiones con la sesion del usuario. Los
+        # navegadores lo rechazan en esa combinacion, asi que el efecto real
+        # seria que la aplicacion deja de funcionar sin decir por que.
+        faltan.append(
+            "CORS_ORIGENES: no admite '*'. Enumera los origenes separados por "
+            "comas, por ejemplo https://midominio.com,http://localhost:5173"
         )
 
     if estricto and faltan:

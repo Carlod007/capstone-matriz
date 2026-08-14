@@ -108,12 +108,12 @@ app = FastAPI(title="Capstone Backend", swagger_ui_parameters={"theme": "flattop
 # -------------------------------
 # CORS
 # -------------------------------
+# Los orígenes salen de la variable CORS_ORIGENES. Estaban fijados aquí con
+# localhost:5173, así que desde un dominio real el navegador bloqueaba todas
+# las llamadas antes de enviarlas.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-    ],
+    allow_origins=config.CORS_ORIGENES,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

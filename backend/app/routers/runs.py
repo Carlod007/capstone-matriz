@@ -20,7 +20,7 @@ from app.models.rag_log import RagLog
 from app.models.metrica import Metrica, AMBITO_BRECHA, AMBITO_ARTICULO
 from app.models.embedding_doc import EmbeddingDoc
 
-from app.services import cola
+from app.services import almacenamiento, cola
 from app.services.gemini_service import analyze
 from app.services.embedding_service import recuperar_contexto, construir_consulta
 from app.services.document_structure import extraer_abstract
@@ -352,7 +352,15 @@ def procesar_item(db: Session, run: Run, item: RunItem) -> None:
     if not arc:
         raise FalloDefinitivo("Artículo sin archivo asociado.")
 
-    diag = extraer_con_diagnostico(arc.ruta)
+    # `arc.ruta` es una clave, no un camino: se traduce aquí. Los archivos
+    # subidos antes de que existieran las claves siguen guardando la ruta
+    # absoluta, y `ruta_local` las acepta tal cual.
+    try:
+        ruta_pdf = almacenamiento.ruta_local(arc.ruta)
+    except almacenamiento.ClaveInvalida as e:
+        raise FalloDefinitivo("Referencia de archivo no válida: %s" % e) from None
+
+    diag = extraer_con_diagnostico(ruta_pdf)
     texto = diag.texto
     if not diag.utilizable:
         from app.services.ocr_fallback import ocr_disponible
@@ -449,7 +457,7 @@ def procesar_item(db: Session, run: Run, item: RunItem) -> None:
     run.tokens_out = (run.tokens_out or 0) + int(uso.get("tokens_out", 0))
 
     # --- Paso 4: métricas locales N1, N3 y N4 ---
-    _registrar_metricas(db, art, rb, res, texto, recuperados, arc.ruta)
+    _registrar_metricas(db, art, rb, res, texto, recuperados, ruta_pdf)
 
     item.estado = EstadoRunItem.analizado
     item.error_msg = None  # si venía de un intento fallido, ya no aplica
