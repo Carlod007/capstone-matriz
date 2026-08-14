@@ -28,6 +28,27 @@ def _preguntar(texto: str) -> str:
         sys.exit(1)
 
 
+def adoptar_huerfanos(s, usuario_id: str, primera: bool) -> int:
+    """Asigna a `usuario_id` los proyectos sin dueno. Devuelve cuantos.
+
+    Solo si es la primera cuenta: con varias, adjudicarle los huerfanos a
+    quien pase por aqui seria entregarle datos que quiza no son suyos.
+
+    El usuario tiene que existir ya en la base al llamar a esto. La
+    actualizacion se ejecuta como SQL directo y no arrastra los objetos
+    pendientes de la sesion: sin un flush previo, el UPDATE llega antes que
+    el INSERT y la clave foranea falla.
+    """
+    from app.models.proyecto import Proyecto
+    from app.models.usuario import Usuario  # noqa: F401  (registra la tabla)
+
+    if not primera:
+        return 0
+    return (s.query(Proyecto)
+             .filter(Proyecto.usuario_id.is_(None))
+             .update({"usuario_id": usuario_id}, synchronize_session=False))
+
+
 def main() -> int:
     from app.config import revisar
     from app.database import SessionLocal
@@ -80,16 +101,14 @@ def main() -> int:
                           contrasena_hash=seguridad.cifrar(clave),
                           nombre=nombre, activo=True)
         s.add(usuario)
+        # El flush es obligatorio, no una optimizacion: la actualizacion de
+        # mas abajo se ejecuta como SQL directo y no arrastra consigo los
+        # objetos pendientes. Sin el, el UPDATE llega a la base antes que el
+        # INSERT y la clave foranea apunta a un usuario que todavia no
+        # existe: "Cannot add or update a child row".
+        s.flush()
 
-        # Los proyectos anteriores a las cuentas no son de nadie. Se adoptan
-        # solo si esta es la primera: con varias cuentas, adjudicarselos a
-        # quien pase por aqui seria entregarle datos que quiza no son suyos.
-        adoptados = 0
-        if huerfanos and primera:
-            adoptados = (s.query(Proyecto)
-                          .filter(Proyecto.usuario_id.is_(None))
-                          .update({"usuario_id": usuario.id},
-                                  synchronize_session=False))
+        adoptados = adoptar_huerfanos(s, usuario.id, primera)
 
         s.commit()
     finally:
