@@ -17,8 +17,9 @@ base de datos MySQL y modelos de Gemini para la generación.
 
 - [Qué hace, en concreto](#qué-hace-en-concreto)
 - [Requisitos](#requisitos)
+- [Arrancar todo con Docker](#arrancar-todo-con-docker)
 - [Instalación desde cero](#instalación-desde-cero)
-- [Arrancar el sistema](#arrancar-el-sistema)
+- [Arrancar el sistema a mano](#arrancar-el-sistema-a-mano)
 - [Modo simulado y modo real](#modo-simulado-y-modo-real)
 - [Flujo de uso](#flujo-de-uso)
 - [Cuentas](#cuentas)
@@ -66,6 +67,10 @@ capa, esas tres habrían llegado al investigador con apariencia de hecho.
 
 Sin clave de API y sin Tesseract el sistema arranca y se puede recorrer
 entero en modo simulado.
+
+**Con Docker no necesitas nada de lo anterior**, solo Docker Desktop: la
+imagen ya trae Python, Tesseract con español e inglés, y MySQL viene en su
+propio contenedor. Ver [Arrancar todo con Docker](#arrancar-todo-con-docker).
 
 ---
 
@@ -165,10 +170,57 @@ backend local.
 
 ---
 
-## Arrancar el sistema
+## Arrancar todo con Docker
 
-Hacen falta cuatro cosas encendidas: MySQL, el backend, el **trabajador** y el
-frontend.
+La vía corta. Un solo comando levanta las cuatro piezas, y lo que corre aquí
+es lo mismo que correrá en el servidor.
+
+Necesitas [Docker Desktop](https://www.docker.com/products/docker-desktop/)
+—gratis, sin cuenta— y nada más: ni Python, ni Node, ni MySQL instalados.
+
+```bash
+copy .env.example .env
+```
+
+Rellena `MYSQL_PASSWORD` y `JWT_SECRETO` (el archivo explica cada variable) y:
+
+```bash
+docker compose up --build
+```
+
+La aplicación queda en <http://localhost:8080> y la API en
+<http://localhost:8000>. El esquema se crea solo: un servicio aparte ejecuta
+`alembic upgrade head` y los demás esperan a que termine.
+
+Para crear la primera cuenta, con todo en marcha:
+
+```bash
+docker compose exec backend python crear_cuenta.py
+```
+
+Para analizar más artículos a la vez, levanta más trabajadores. No hay nada
+que configurar: cada uno pide a la base el siguiente artículo libre.
+
+```bash
+docker compose up --scale trabajador=3
+```
+
+Parar sin perder nada:
+
+```bash
+docker compose down
+```
+
+Los datos —base y PDF— viven en volúmenes con nombre y sobreviven a `down`.
+Para borrarlos también hay que pedirlo explícitamente con `down -v`.
+
+---
+
+## Arrancar el sistema a mano
+
+La vía larga, útil para desarrollar: recarga automática al guardar y registros
+directos en tu terminal. Hacen falta cuatro cosas encendidas: MySQL, el
+backend, el **trabajador** y el frontend.
 
 **MySQL** — el servicio de Windows suele arrancar solo. Para comprobarlo:
 
@@ -381,7 +433,9 @@ de dónde partir. Los PDF normales no lo necesitan.
 ## Estructura del repositorio
 
 ```
+docker-compose.yml    levanta las cuatro piezas con un comando
 backend/
+  Dockerfile          imagen compartida por el backend y el trabajador
   main.py             arranque de FastAPI y comprobación del esquema
   trabajador.py       proceso que vacía la cola de análisis
   crear_cuenta.py     alta de la primera cuenta desde la terminal

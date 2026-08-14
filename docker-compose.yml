@@ -1,0 +1,117 @@
+# Levanta el sistema entero con un comando:
+#
+#     docker compose up
+#
+# Sustituye a las cuatro terminales —MySQL, backend, trabajador y frontend—
+# y, mas importante, hace que lo que corre aqui sea lo mismo que correra en el
+# servidor. Hasta ahora "funciona en mi maquina" era literal: la maquina tenia
+# MySQL instalado a mano, Tesseract en una ruta concreta y un entorno virtual
+# con lo que se hubiera instalado por el camino.
+#
+# Los secretos se leen de un archivo .env en esta misma carpeta. Ver
+# .env.example para saber cuales hacen falta.
+
+services:
+  # ------------------------------------------------------------------ base
+  mysql:
+    image: mysql:8.0
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_PASSWORD:?falta MYSQL_PASSWORD en el .env}
+      MYSQL_DATABASE: ${MYSQL_BASE:-capstone}
+    command: >-
+      --character-set-server=utf8mb4
+      --collation-server=utf8mb4_0900_ai_ci
+    volumes:
+      # Volumen con nombre y no una carpeta del proyecto: los datos deben
+      # sobrevivir a `docker compose down` y a que se borre el repositorio.
+      - datos_mysql:/var/lib/mysql
+    healthcheck:
+      # Los demas servicios esperan a que esto pase. Sin la comprobacion,
+      # arrancan antes de que MySQL acepte conexiones y fallan por carrera.
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-uroot",
+             "-p${MYSQL_PASSWORD}"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+
+  # ----------------------------------------------------------- migraciones
+  migraciones:
+    build: ./backend
+    command: ["alembic", "upgrade", "head"]
+    environment:
+      MYSQL_URI: mysql+pymysql://root:${MYSQL_PASSWORD}@mysql:3306/${MYSQL_BASE:-capstone}
+      JWT_SECRETO: ${JWT_SECRETO:?falta JWT_SECRETO en el .env}
+    depends_on:
+      mysql:
+        condition: service_healthy
+    restart: "no"
+
+  # --------------------------------------------------------------- backend
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    environment:
+      MYSQL_URI: mysql+pymysql://root:${MYSQL_PASSWORD}@mysql:3306/${MYSQL_BASE:-capstone}
+      JWT_SECRETO: ${JWT_SECRETO:?falta JWT_SECRETO en el .env}
+      JWT_HORAS: ${JWT_HORAS:-8}
+      REGISTRO_ABIERTO: ${REGISTRO_ABIERTO:-false}
+      GEMINI_MODE: ${GEMINI_MODE:-mock}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      CORS_ORIGENES: ${CORS_ORIGENES:-http://localhost:8080}
+      STORAGE_DIR: /app/storage/pdfs
+    volumes:
+      # Compartido con el trabajador. Es el detalle que rompe si se olvida:
+      # el backend guarda el PDF y el trabajador lo abre, asi que ver el mismo
+      # disco no es comodidad, es requisito.
+      - pdfs:/app/storage/pdfs
+    ports:
+      - "${PUERTO_BACKEND:-8000}:8000"
+    depends_on:
+      mysql:
+        condition: service_healthy
+      migraciones:
+        # El esquema tiene que estar al dia antes de atender peticiones.
+        condition: service_completed_successfully
+
+  # ------------------------------------------------------------ trabajador
+  trabajador:
+    build: ./backend
+    command: ["python", "trabajador.py"]
+    restart: unless-stopped
+    environment:
+      MYSQL_URI: mysql+pymysql://root:${MYSQL_PASSWORD}@mysql:3306/${MYSQL_BASE:-capstone}
+      JWT_SECRETO: ${JWT_SECRETO:?falta JWT_SECRETO en el .env}
+      GEMINI_MODE: ${GEMINI_MODE:-mock}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      STORAGE_DIR: /app/storage/pdfs
+    volumes:
+      - pdfs:/app/storage/pdfs
+    depends_on:
+      mysql:
+        condition: service_healthy
+      migraciones:
+        condition: service_completed_successfully
+    # Para procesar mas articulos a la vez:
+    #     docker compose up --scale trabajador=3
+    # No hace falta configurar nada: cada uno pide a la base el siguiente
+    # articulo libre y MySQL se encarga de que no cojan el mismo.
+
+  # -------------------------------------------------------------- frontend
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        # Se incrusta al compilar, no se lee al arrancar: cambiarla obliga a
+        # reconstruir la imagen con `docker compose build frontend`.
+        VITE_API_BASE: ${VITE_API_BASE:-http://localhost:8000}
+    restart: unless-stopped
+    ports:
+      - "${PUERTO_FRONTEND:-8080}:80"
+    depends_on:
+      - backend
+
+volumes:
+  datos_mysql:
+  pdfs:

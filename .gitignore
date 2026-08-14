@@ -1,0 +1,11 @@
+# Variables de entorno del despliegue con Docker.
+#
+# Contiene la contrasena de MySQL, el secreto de las sesiones y la clave de la
+# API. Hasta ahora solo estaban ignorados los .env de backend/ y frontend/;
+# este es nuevo y sin esta linea se habria versionado con los secretos dentro.
+.env
+.env.*
+!.env.example
+
+# Datos y salidas locales
+*.log

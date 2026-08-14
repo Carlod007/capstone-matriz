@@ -1,0 +1,25 @@
+# Lo que no debe entrar en la imagen.
+#
+# El .env es lo importante de esta lista: contiene la contrasena de la base, el
+# secreto de sesion y la clave de la API. Copiarlo dentro de la imagen los
+# dejaria grabados en una capa, y esa capa viaja a donde vaya la imagen. Las
+# variables se pasan al contenedor al arrancarlo, no se hornean.
+.env
+.env.*
+!.env.example
+
+# El entorno virtual es del sistema donde se creo: sus binarios no sirven
+# dentro de la imagen y pesa cientos de megas.
+.venv/
+venv/
+
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# Los PDF de los usuarios viven en un volumen, no en la imagen.
+storage/pdfs/*
+!storage/pdfs/.gitkeep
+
+*.log

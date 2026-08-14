@@ -152,8 +152,13 @@ hash que era global y con varias cuentas habría filtrado artículos ajenos.
 | 4. Almacenamiento tras una interfaz | ✅ hecho |
 | 5. Configuración por entorno (CORS, secretos) | ✅ hecho |
 | 6. Rutas en el frontend | ✅ hecho |
-| 7. Docker | pendiente |
+| 7. Docker | escrito, **sin verificar** |
 | 8. Despliegue | pendiente |
+
+**Aviso sobre el paso 7:** los ficheros de Docker están escritos pero nunca se
+han construido, porque la máquina de desarrollo no tiene Docker instalado. Es
+lo único del proyecto entregado sin ejecutar; todo lo demás se probó antes de
+darlo por hecho.
 
 **Infraestructura acordada:** una máquina Oracle Cloud "Always Free" con Docker
 Compose y nginx. Gratis y permanente. Alternativa sin tarjeta: túnel de

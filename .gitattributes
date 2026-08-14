@@ -14,3 +14,12 @@
 # El formato de estos archivos depende de la herramienta que los consume
 *.sql   text eol=lf
 requirements.txt text eol=lf
+
+# Todo lo que acaba dentro de una imagen de Docker va con LF. Los contenedores
+# son Linux: un archivo con saltos de linea de Windows produce errores que no
+# mencionan los saltos de linea y cuestan una tarde de encontrar.
+Dockerfile      text eol=lf
+*.dockerfile    text eol=lf
+docker-compose.yml text eol=lf
+*.sh            text eol=lf
+nginx.conf      text eol=lf
