@@ -66,8 +66,12 @@ services:
       # el backend guarda el PDF y el trabajador lo abre, asi que ver el mismo
       # disco no es comodidad, es requisito.
       - pdfs:/app/storage/pdfs
+    # Se publica solo en la maquina local, no en internet: el navegador llega
+    # al backend a traves de nginx, y dejar el puerto abierto al exterior solo
+    # anadiria una puerta mas que vigilar. Sirve para depurar con curl desde el
+    # propio servidor.
     ports:
-      - "${PUERTO_BACKEND:-8000}:8000"
+      - "127.0.0.1:${PUERTO_BACKEND:-8000}:8000"
     depends_on:
       mysql:
         condition: service_healthy
@@ -103,9 +107,11 @@ services:
     build:
       context: ./frontend
       args:
-        # Se incrusta al compilar, no se lee al arrancar: cambiarla obliga a
-        # reconstruir la imagen con `docker compose build frontend`.
-        VITE_API_BASE: ${VITE_API_BASE:-http://localhost:8000}
+        # `/api` y no una dirección completa: nginx sirve la aplicación y hace
+        # de intermediario hacia el backend por el mismo origen. Así el puerto
+        # del backend no necesita estar abierto al exterior y no hay CORS que
+        # configurar. Se incrusta al compilar, no se lee al arrancar.
+        VITE_API_BASE: ${VITE_API_BASE:-/api}
     restart: unless-stopped
     ports:
       - "${PUERTO_FRONTEND:-8080}:80"
