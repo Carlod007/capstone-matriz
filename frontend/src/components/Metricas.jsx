@@ -563,6 +563,7 @@ export function Fidelidad({ verificacion }) {
     trazabilidad,
     equilibrio_evidencial: equilibrio,
     n_sin_respaldo: sinRespaldo,
+    n_dependientes: dependientes = 0,
   } = verificacion;
 
   const evidenciales = afirmaciones.filter((a) => a.tipo === "evidencial");
@@ -577,7 +578,9 @@ export function Fidelidad({ verificacion }) {
             {" "}· {Math.round((fidelidad ?? 0) * 100)}% de las afirmaciones
             comprobables está respaldada
             {sinRespaldo > 0 && (
-              <span className="text-mal"> · {sinRespaldo} sin respaldo</span>
+              <span className="text-mal">
+                {" "}· {sinRespaldo} sin respaldo en los fragmentos
+              </span>
             )}
           </span>
         ) : (
@@ -590,6 +593,33 @@ export function Fidelidad({ verificacion }) {
           <p className="text-tinta-suave leading-relaxed">
             {motivo ||
               "La verificación no llegó a ejecutarse, así que no hay medición."}
+          </p>
+        )}
+
+        {/* El alcance de la medición, dicho antes de los números.
+            Sin esta frase, un 60 % se lee como «el 40 % es inventado», y no es
+            eso: la comprobación se hace contra los ocho fragmentos que el
+            modelo leyó, no contra el artículo completo. Una afirmación puede
+            ser cierta y estar en otra página. */}
+        {disponible && (
+          <p className="text-tinta-suave leading-relaxed">
+            Se comprueba contra los fragmentos que el modelo leyó, no contra el
+            artículo completo. «Sin respaldo» significa que esos fragmentos no
+            la sostienen, no que sea falsa: conviene mirar el artículo antes de
+            descartarla.
+          </p>
+        )}
+
+        {/* Si esto aparece, el fallo es del verificador y no del modelo que
+            redactó la brecha: conviene que se vea y no que se disimule. */}
+        {disponible && dependientes > 0 && (
+          <p className="text-aviso leading-relaxed">
+            {dependientes}{" "}
+            {dependientes === 1 ? "afirmación quedó" : "afirmaciones quedaron"}{" "}
+            fuera del cálculo por perder el sujeto al descomponerse (empezaban
+            por «Esto», «Ello»…). Sin antecedente no hay fragmento que pueda
+            respaldarlas, así que contarlas habría hundido la fidelidad por un
+            defecto de redacción.
           </p>
         )}
 

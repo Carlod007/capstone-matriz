@@ -927,14 +927,29 @@ function BrechasProyecto({ proyecto, goBack }) {
         (n, d) => n + (d.sin_respaldo || 0),
         0
       );
-      avisar(
-        `${r.verificadas} de ${r.brechas} brechas verificadas` +
-          (sinRespaldo
-            ? ` · ${sinRespaldo} afirmaciones sin respaldo`
-            : ""),
-        sinRespaldo ? "aviso" : "bien",
-        8000
-      );
+
+      // `verificadas` cuenta las que se verificaron *en esta llamada*, no las
+      // que están verificadas. Decir "0 de 5" cuando las cinco ya lo estaban
+      // hacía pensar que había fallado, y era justo lo contrario: no había
+      // nada que rehacer. La cuota es cara, así que no repetirlo es la
+      // conducta correcta; solo hacía falta contarlo bien.
+      const nuevas = r.verificadas ?? 0;
+      const yaEstaban = (r.brechas ?? 0) - nuevas;
+
+      let mensaje;
+      if (nuevas === 0 && yaEstaban > 0) {
+        mensaje = `Ya estaban verificadas las ${yaEstaban} brechas; no se repitió ninguna`;
+      } else {
+        mensaje = `${nuevas} ${nuevas === 1 ? "brecha" : "brechas"} verificadas`;
+        if (yaEstaban > 0) mensaje += ` · ${yaEstaban} ya lo estaban`;
+      }
+      if (sinRespaldo) {
+        mensaje += ` · ${sinRespaldo} ${
+          sinRespaldo === 1 ? "afirmación" : "afirmaciones"
+        } sin respaldo en los fragmentos`;
+      }
+
+      avisar(mensaje, sinRespaldo ? "aviso" : "bien", 8000);
       setRecarga((v) => v + 1);
     } catch (e) {
       setErr(e);

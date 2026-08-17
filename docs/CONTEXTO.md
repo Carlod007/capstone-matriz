@@ -178,12 +178,18 @@ Chile West, con Docker Compose y Caddy. Coste cero y permanente.
 1. **N6 sin anclaje humano.** Falta un conjunto de brechas anotado por
    expertos. Hasta entonces las métricas dicen si el sistema es *consistente*,
    no si *acierta*. Es la mayor debilidad de cara a una defensa académica.
-2. **Aviso de SQLAlchemy** en `estado_arte.py:44` (subconsulta sin `select()`
+2. **N2 no detecta contradicciones.** Comprueba si una afirmación evidencial
+   está respaldada, pero una inferencia que *contradice* la fuente queda fuera
+   del cálculo por diseño. Medido con datos reales: sobre un artículo de
+   tuberías el sistema escribió «posibles diseños inseguros» cuando el
+   artículo califica el estándar de conservador y la palabra *unsafe* no
+   aparece en el texto. Contradecir es peor que no estar respaldado.
+3. **Aviso de SQLAlchemy** en `estado_arte.py:44` (subconsulta sin `select()`
    explícito). Inofensivo hoy, romperá en una versión futura.
-3. **Sin renovación silenciosa de sesión.** A las ocho horas hay que volver a
+4. **Sin renovación silenciosa de sesión.** A las ocho horas hay que volver a
    entrar, y si eso ocurre a mitad de algo, se pierde lo que hubiera en el
    formulario. La dirección sí se recuerda.
-4. **Cuota compartida.** Los 20 análisis diarios del nivel gratuito son de la
+5. **Cuota compartida.** Los 20 análisis diarios del nivel gratuito son de la
    clave, no del usuario: con el registro abierto, unos pocos desconocidos
    dejarían al dueño sin cuota. Por eso el alta está cerrada.
 

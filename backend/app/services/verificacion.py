@@ -49,7 +49,23 @@ FRAGMENTOS numerados de ese artículo que se usaron para redactarla.
 Tu tarea tiene tres pasos:
 
 1. DESCOMPONER la brecha en afirmaciones atómicas: cada una debe expresar un
-   solo hecho o una sola conclusión. No reformules ni añadas nada.
+   solo hecho o una sola conclusión.
+
+   Cada afirmación tiene que entenderse SOLA, sin leer las demás. Está
+   prohibido empezar por "Esto", "Ello", "Eso", "Dicho", "Lo anterior" o
+   cualquier pronombre que remita a otra afirmación: sustituye el pronombre
+   por aquello a lo que se refiere, aunque tengas que repetirlo en varias
+   afirmaciones. Tampoco uses puntos suspensivos para recortar.
+
+   Mal:  "Esto permite que las predicciones violen restricciones."
+   Bien: "La ausencia de restricciones de capacidad enzimática permite que las
+         predicciones de flujo violen restricciones bioquímicas."
+
+   Es la regla más importante de este paso: una afirmación que ha perdido su
+   sujeto no se puede comprobar contra ningún fragmento, y acabaría marcada
+   como no respaldada por un defecto de redacción y no por falta de respaldo.
+
+   Salvo por resolver esos pronombres, no reformules ni añadas nada.
 
 2. CLASIFICAR cada afirmación:
    - "evidencial": describe lo que el artículo hace, dice, mide o reporta.
@@ -84,6 +100,37 @@ Formato exacto:
 }"""
 
 
+# Una afirmación que empieza por un pronombre sin antecedente perdió su sujeto
+# al descomponerse. No es comprobable contra ningún fragmento, y contarla como
+# "no respaldada" hunde la fidelidad por un defecto de redacción del propio
+# verificador. Se detecta aquí para poder excluirla y, sobre todo, para que el
+# defecto quede a la vista en lugar de disfrazarse de alucinación.
+# Se queda corto a propósito. Solo entran los arranques que no aportan
+# absolutamente nada por sí mismos:
+#
+#   - "Esto / Eso / Ello / Lo anterior": pronombres huecos, sin contenido.
+#   - "Dicho / Dicha": significan literalmente "el ya mencionado".
+#
+# Quedan fuera "Este artículo…", "Estos autores…" o "Estas limitaciones…",
+# que aunque remitan al contexto sí traen un sustantivo con el que buscar en
+# los fragmentos. Excluirlas sería peor que incluirlas: subiría la fidelidad
+# descartando afirmaciones que sí se podían comprobar, y una métrica que se
+# infla sola no sirve para nada.
+_SIN_SUJETO = re.compile(
+    r"^\s*(esto|eso|ello|lo anterior|dicho|dicha|dichos|dichas)\b",
+    re.IGNORECASE,
+)
+
+
+def _es_autonoma(texto: str) -> bool:
+    """Si la afirmación se entiende sin leer las demás."""
+    if _SIN_SUJETO.match(texto):
+        return False
+    # Los puntos suspensivos delatan un recorte: "se basan en... una
+    # superestructura" no es una afirmación, es un fragmento de una.
+    return "..." not in texto and "…" not in texto
+
+
 @dataclass
 class Afirmacion:
     texto: str
@@ -92,6 +139,8 @@ class Afirmacion:
     fragmento: int | None = None
     cita: str | None = None
     motivo: str = ""
+    # Se calcula, no lo decide el modelo.
+    autonoma: bool = True
 
     def dict(self) -> dict:
         return asdict(self)
@@ -114,13 +163,26 @@ class Verificacion:
         return [a for a in self.afirmaciones if a.tipo == INFERENCIAL]
 
     @property
+    def dependientes(self) -> List[Afirmacion]:
+        """Afirmaciones que perdieron su sujeto al descomponerse."""
+        return [a for a in self.afirmaciones if not a.autonoma]
+
+    @property
     def fidelidad(self) -> float:
         """N2.1: proporción de afirmaciones evidenciales respaldadas.
 
         Es la métrica central del sistema. Una afirmación evidencial sin
         respaldo es, por definición, una alucinación.
+
+        Se excluyen las que perdieron el sujeto al descomponerse. Sobre datos
+        reales, cuatro de las cinco brechas de una prueba bajaron de 1.0 por
+        afirmaciones como "Esto limita su fiabilidad": sin antecedente no hay
+        fragmento que pueda respaldarlas, así que contarlas como alucinación
+        atribuye al modelo un fallo que es del propio verificador. Cuántas se
+        excluyeron aparece en `resumen()`, para que el defecto se vea en lugar
+        de quedar disimulado en el número.
         """
-        ev = self.evidenciales
+        ev = [a for a in self.evidenciales if a.autonoma]
         if not ev:
             return 0.0
         return round(sum(1 for a in ev if a.respaldada) / len(ev), 4)
@@ -157,7 +219,12 @@ class Verificacion:
             "n_afirmaciones": len(self.afirmaciones),
             "n_evidenciales": len(self.evidenciales),
             "n_inferenciales": len(self.inferenciales),
-            "n_sin_respaldo": sum(1 for a in self.evidenciales if not a.respaldada),
+            "n_sin_respaldo": sum(1 for a in self.evidenciales
+                                  if a.autonoma and not a.respaldada),
+            # Cuántas se descartaron por haber perdido el sujeto. Si esto sube,
+            # el problema está en la descomposición, no en el modelo que
+            # redactó la brecha.
+            "n_dependientes": len(self.dependientes),
             "fidelidad": self.fidelidad,
             "trazabilidad": self.trazabilidad,
             "equilibrio_evidencial": self.equilibrio_evidencial,
@@ -344,6 +411,7 @@ def _interpretar(bruto: str, usage: dict, n_fragmentos: int) -> Verificacion:
             fragmento=frag,
             cita=((c.get("cita") or "").strip()[:200] or None) if frag else None,
             motivo=(c.get("motivo") or "").strip()[:300],
+            autonoma=_es_autonoma(texto_af),
         ))
 
     if not afirmaciones:
