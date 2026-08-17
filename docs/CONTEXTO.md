@@ -153,7 +153,14 @@ hash que era global y con varias cuentas habría filtrado artículos ajenos.
 | 5. Configuración por entorno (CORS, secretos) | ✅ hecho |
 | 6. Rutas en el frontend | ✅ hecho |
 | 7. Docker | ✅ hecho |
-| 8. Despliegue | pendiente |
+| 8. Despliegue | ✅ hecho |
+
+**Fase 2 cerrada.** El sistema vive en un servidor Oracle Cloud (nivel Always
+Free, coste cero) en **https://147-224-233-59.sslip.io**, con certificado de
+Let's Encrypt que Caddy renueva solo, arranque automático comprobado con un
+reinicio real, y copia de seguridad diaria de la base con rotación de siete
+días. El detalle completo, incluidos los cinco problemas que aparecieron y
+cómo se resolvieron, está en `Despliegue_Oracle_Cloud.pdf`.
 
 `docker compose up` levanta las cinco piezas —MySQL, migraciones, backend,
 trabajador y frontend— y aplica el esquema solo. Verificado de extremo a
@@ -163,10 +170,8 @@ cuentas, CORS y rutas profundas del frontend.
 En Windows conviene limitar WSL con un `.wslconfig`: sin él se reserva la
 mitad de la RAM de la máquina y no la devuelve.
 
-**Infraestructura acordada:** una máquina Oracle Cloud "Always Free" con Docker
-Compose y nginx. Gratis y permanente. Alternativa sin tarjeta: túnel de
-Cloudflare desde el PC, con la limitación de que solo funciona con la máquina
-encendida.
+**Infraestructura:** máquina Oracle Cloud "Always Free" (4 OCPU ARM, 24 GB) en
+Chile West, con Docker Compose y Caddy. Coste cero y permanente.
 
 ### Deuda conocida, en orden de importancia
 
@@ -205,11 +210,13 @@ Si el objetivo es **nivel académico sólido**, lo que más pesa:
 
 Si el objetivo es **proyecto profesional presentable**, lo que más pesa:
 
-- Falta el despliegue: hoy vive en una máquina y requiere cuatro procesos a
-  mano.
-- El frontend sin rutas se nota enseguida en móvil.
-- A favor: migraciones, integración continua, 284 pruebas, aislamiento entre
-  cuentas probado endpoint por endpoint, y un README que instala desde cero.
+- **A favor:** desplegado y accesible con HTTPS, migraciones con Alembic,
+  integración continua, 284 pruebas, aislamiento entre cuentas probado
+  endpoint por endpoint, cola de trabajos con reintentos, copias de seguridad
+  programadas y un README que instala desde cero.
+- Lo que se echa en falta: dominio propio en lugar de un nombre derivado de la
+  IP, y observabilidad (hoy los fallos se ven mirando registros a mano).
+- Queda pendiente la deuda enumerada arriba, con N6 a la cabeza.
 
 ---
 
