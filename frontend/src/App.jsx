@@ -918,11 +918,15 @@ function BrechasProyecto({ proyecto, goBack }) {
    * ademas sustituiría unos resultados que estaban bien, así que se verifica
    * sobre lo existente: una llamada por brecha en vez de dos.
    */
-  async function verificarFidelidad() {
+  async function verificarFidelidad(rehacer = false) {
     setErr(null);
-    setOcupado("verificar");
+    setOcupado(rehacer ? "rehacer" : "verificar");
     try {
-      const r = await jpost(`${API_BASE}/proyectos/${proyecto.id}/verificar`);
+      const r = await jpost(
+        `${API_BASE}/proyectos/${proyecto.id}/verificar${
+          rehacer ? "?rehacer=true" : ""
+        }`
+      );
       const sinRespaldo = (r.detalle || []).reduce(
         (n, d) => n + (d.sin_respaldo || 0),
         0
@@ -938,7 +942,9 @@ function BrechasProyecto({ proyecto, goBack }) {
 
       let mensaje;
       if (nuevas === 0 && yaEstaban > 0) {
-        mensaje = `Ya estaban verificadas las ${yaEstaban} brechas; no se repitió ninguna`;
+        mensaje =
+          `Ya estaban verificadas las ${yaEstaban} brechas; no se repitió ` +
+          "ninguna. Usa «Volver a verificar» si quieres rehacerlas.";
       } else {
         mensaje = `${nuevas} ${nuevas === 1 ? "brecha" : "brechas"} verificadas`;
         if (yaEstaban > 0) mensaje += ` · ${yaEstaban} ya lo estaban`;
@@ -1054,9 +1060,38 @@ function BrechasProyecto({ proyecto, goBack }) {
           <>
             {/* Verificar cuesta la mitad que reanalizar y no sustituye unos
                 resultados que ya estaban bien, asi que va primero. */}
-            <Btn kind="blue" onClick={verificarFidelidad} disabled={ocupado}>
+            <Btn
+              kind="blue"
+              onClick={() => verificarFidelidad(false)}
+              disabled={ocupado}
+              title="Verifica solo las brechas que aún no lo estén"
+            >
               {ocupado === "verificar" ? "Verificando…" : "Verificar fidelidad"}
             </Btn>
+
+            {/* Rehacer una verificación ya pagada solo tiene sentido cuando el
+                verificador ha mejorado, así que va aparte y avisando del coste.
+                Sin este botón no había forma de aprovechar una mejora: el
+                camino normal ve que están hechas y no toca nada. */}
+            <Btn
+              kind="ghost"
+              onClick={() => {
+                const n = arts.length || 0;
+                const aviso =
+                  `Se volverán a verificar todas las brechas desde cero.\n\n` +
+                  `Cuesta aproximadamente ${n || "una"} ${
+                    n === 1 ? "generación" : "generaciones"
+                  } de tu cuota diaria.\n\n` +
+                  "Tiene sentido si el verificador ha cambiado; si no, el " +
+                  "resultado será el mismo y habrás gastado cuota.";
+                if (window.confirm(aviso)) verificarFidelidad(true);
+              }}
+              disabled={ocupado}
+              title="Rehace la verificación aunque ya esté hecha. Consume cuota."
+            >
+              {ocupado === "rehacer" ? "Rehaciendo…" : "Volver a verificar"}
+            </Btn>
+
             <Btn kind="ghost" onClick={reanalizar} disabled={ocupado}>
               {ocupado === "analizar" ? "Analizando…" : "Volver a analizar"}
             </Btn>
