@@ -128,13 +128,33 @@ export function AvisoValidacion() {
       <summary className="cursor-pointer select-none px-3 py-2 font-medium marker:text-current">
         Validación automática pendiente de calibrar
       </summary>
-      <p className="px-3 pb-3 leading-relaxed opacity-90">
-        Las reglas anteriores se apoyaban en umbrales que nunca llegaban a
-        activarse, de modo que casi toda brecha acababa marcada como aceptada
-        sin haber sido validada. Hasta calibrarlos contra criterio experto, el
-        sistema prefiere declararse indeciso antes que dar por buena una brecha
-        que no ha comprobado.
-      </p>
+      <div className="px-3 pb-3 space-y-2 leading-relaxed opacity-90">
+        {/* El título solo tenía sentido para quien ya conocía la historia. Lo
+            primero que hace falta es decir qué significa para quien lee una
+            brecha ahora mismo. */}
+        <p>
+          <b>Qué significa para ti:</b> las brechas aparecen como «pendiente» en
+          vez de «aceptada» o «rechazada». Nadie ha dictaminado si son buenas;
+          hay que leerlas con criterio propio.
+        </p>
+        <p>
+          <b>Por qué está así:</b> había reglas que puntuaban cada brecha
+          automáticamente, pero sus umbrales nunca llegaban a activarse y casi
+          todas terminaban marcadas como aceptadas sin haber sido comprobadas.
+          Un sello de goma es peor que ningún sello, así que se desactivaron.
+        </p>
+        <p>
+          <b>Qué falta:</b> un conjunto de brechas evaluadas por expertos con el
+          que ajustar los umbrales. Hasta entonces el sistema prefiere
+          declararse indeciso antes que dar por buena una brecha que no ha
+          comprobado.
+        </p>
+        <p className="text-[13px]">
+          Lo que sí está medido es la <b>fidelidad a las fuentes</b>, más abajo:
+          eso no dice si la brecha es valiosa, pero sí si lo que afirma está en
+          el artículo.
+        </p>
+      </div>
     </details>
   );
 }
@@ -623,19 +643,42 @@ export function Fidelidad({ verificacion }) {
           </p>
         )}
 
+        {/* Cada indicador con lo que mide debajo. Antes eran tres números con
+            una etiqueta de una palabra, y "Base factual" o "Trazabilidad" no
+            dicen nada por sí solos: había que conocer la especificación para
+            interpretarlos. */}
         {disponible && (
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
             {[
-              ["Fidelidad", fidelidad],
-              ["Trazabilidad", trazabilidad],
-              ["Base factual", equilibrio],
-            ].map(([k, v]) => (
+              [
+                "Fidelidad",
+                fidelidad,
+                "De las afirmaciones que se pueden comprobar, cuántas sostiene el texto del artículo. Es la medida central: 1.00 significa que ninguna se inventó.",
+              ],
+              [
+                "Trazabilidad",
+                trazabilidad,
+                "Qué parte de la brecha viene con una cita concreta detrás. Sin cita no puedes ir al artículo a comprobarlo tú.",
+              ],
+              [
+                "Base factual",
+                equilibrio,
+                "Cuánto de la brecha son hechos del artículo y cuánto interpretación del modelo. Muy bajo significa que casi todo es opinión, aunque la fidelidad salga alta.",
+              ],
+            ].map(([k, v, explica]) => (
               <div
                 key={k}
-                className="border border-borde rounded-lg px-2 py-1.5 text-center"
+                className="border border-borde rounded-lg px-2.5 py-2"
               >
-                <div className="text-[11px] text-tinta-suave">{k}</div>
-                <div className="font-medium tabular-nums">{fmt(v, 2)}</div>
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className="text-[11px] font-medium text-tinta-media">
+                    {k}
+                  </span>
+                  <span className="font-medium tabular-nums">{fmt(v, 2)}</span>
+                </div>
+                <p className="text-[11px] leading-snug text-tinta-suave mt-1">
+                  {explica}
+                </p>
               </div>
             ))}
           </div>
@@ -643,9 +686,14 @@ export function Fidelidad({ verificacion }) {
 
         {evidenciales.length > 0 && (
           <div>
-            <div className="text-[11px] font-semibold uppercase tracking-wider text-tinta-suave mb-1.5">
+            <div className="text-[11px] font-semibold uppercase tracking-wider text-tinta-suave mb-1">
               Comprobables contra el artículo
             </div>
+            <p className="text-[11px] text-tinta-suave mb-1.5 leading-snug">
+              Afirmaciones que dicen algo que el artículo hace, mide o reporta,
+              así que se puede buscar en el texto. Las que solo interpretan
+              —«falta estudiar X»— no se pueden comprobar y van más abajo.
+            </p>
             <div className="space-y-1.5">
               {evidenciales.map((a, i) => (
                 <div
@@ -744,24 +792,53 @@ export function DetalleBrecha({ brecha }) {
           En qué se apoyó el análisis ({respaldo.length} fragmentos del artículo)
         </summary>
         <div className="p-3 space-y-2">
+          {/* Sin esta explicación, "relevancia 0.412" no significa nada: nadie
+              sabe si 0.4 es mucho o poco, ni por qué el modelo leyó solo un
+              trozo del artículo en lugar de todo. */}
+          <p className="text-[11px] text-tinta-suave leading-snug">
+            El artículo no se le da entero al modelo: se parte en fragmentos y se
+            le pasan los más pertinentes al tema del proyecto. Estos son los que
+            leyó para escribir esta brecha, y los únicos contra los que se
+            comprueba su fidelidad.
+          </p>
+
           {brecha.secciones_consultadas?.length > 0 && (
-            <div className="flex flex-wrap gap-1">
-              {brecha.secciones_consultadas.map((s) => (
-                <Etiqueta key={s} tono="azul">
-                  {s}
-                </Etiqueta>
-              ))}
+            <div>
+              <div className="text-[11px] text-tinta-suave mb-1">
+                Secciones de las que salieron. Que aparezcan método, resultados
+                o discusión es buena señal: significa que no se quedó en el
+                resumen y la introducción.
+              </div>
+              <div className="flex flex-wrap gap-1">
+                {brecha.secciones_consultadas.map((s) => (
+                  <Etiqueta key={s} tono="azul">
+                    {s}
+                  </Etiqueta>
+                ))}
+              </div>
             </div>
           )}
+
           {respaldo.length === 0 && (
             <div className="text-tinta-suave">
               No se registró el respaldo de este análisis.
             </div>
           )}
+
+          {respaldo.length > 0 && (
+            <div className="text-[11px] text-tinta-suave">
+              La <b>relevancia</b> es cuánto se parece el fragmento a lo que se
+              buscaba, de 0 a 1. Sirve para comparar entre sí los de un mismo
+              análisis, no como nota de calidad.
+            </div>
+          )}
+
           {respaldo.map((h, i) => (
             <div key={i} className="border border-borde rounded-lg p-2 bg-hundido">
               <div className="flex items-center justify-between text-[11px] text-tinta-suave">
-                <span>sección: {h.seccion || "—"}</span>
+                <span>
+                  Fragmento {i + 1} · sección: {h.seccion || "sin identificar"}
+                </span>
                 <span>relevancia {fmt(h.score, 3)}</span>
               </div>
             </div>
@@ -774,17 +851,74 @@ export function DetalleBrecha({ brecha }) {
           Métricas de esta brecha ({metricas.length})
         </summary>
         <div className="p-3 grid grid-cols-1 md:grid-cols-2 gap-2">
-          {metricas.map((m) => (
-            <div key={m.codigo} className="border border-borde rounded-lg p-2" title={m.interpretacion}>
-              <div className="flex items-center justify-between gap-2">
-                <span className="text-tinta-media">{m.nombre}</span>
-                <span className="font-medium">{fmt(m.valor)}</span>
+          {metricas.map((m) => {
+            // Una métrica sin valor no es un cero: es una que no aplica a este
+            // caso. ROUGE cuenta palabras compartidas, así que entre un resumen
+            // en español y un abstract en inglés daría casi cero por
+            // construcción, por bueno que fuera el resumen. Mostrar ese cero
+            // era el fallo original de este proyecto.
+            const noAplica =
+              m.valor === null || m.valor === undefined ||
+              m.detalle?.aplicable === false;
+            const motivo = m.detalle?.motivo;
+
+            return (
+              <div
+                key={m.codigo}
+                className={`border rounded-lg p-2 ${
+                  noAplica ? "border-borde bg-hundido/40" : "border-borde"
+                }`}
+              >
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className="font-medium text-tinta">{m.nombre}</span>
+                  <span
+                    className={
+                      noAplica
+                        ? "text-[11px] text-tinta-suave shrink-0"
+                        : "font-medium tabular-nums"
+                    }
+                  >
+                    {noAplica ? "no aplicable" : fmt(m.valor)}
+                  </span>
+                </div>
+
+                {/* La descripción, visible. Estaba solo en el atributo `title`,
+                    que no existe cuando se mira desde el celular. */}
+                {m.descripcion && (
+                  <p className="text-[11px] leading-snug text-tinta-media mt-1">
+                    {m.descripcion}
+                  </p>
+                )}
+
+                {noAplica && motivo && (
+                  <p className="text-[11px] leading-snug text-aviso mt-1">
+                    {motivo}
+                  </p>
+                )}
+
+                {!noAplica && m.interpretacion && (
+                  <p className="text-[11px] leading-snug text-tinta-suave mt-1">
+                    {m.interpretacion}
+                  </p>
+                )}
+
+                <div className="text-[11px] text-tinta-suave mt-1.5">
+                  {m.codigo}
+                  {!noAplica && (
+                    <>
+                      {" · "}
+                      {m.mejor === "alto"
+                        ? "mejor cuanto más alto"
+                        : m.mejor === "bajo"
+                        ? "mejor cuanto más bajo"
+                        : "sin dirección buena o mala"}
+                      {m.rango && ` · va de ${m.rango}`}
+                    </>
+                  )}
+                </div>
               </div>
-              <div className="text-[11px] text-tinta-suave mt-1">
-                {m.codigo} · mejor {m.mejor} · {m.rango}
-              </div>
-            </div>
-          ))}
+            );
+          })}
           {metricas.length === 0 && (
             <div className="text-tinta-suave">Sin métricas registradas.</div>
           )}

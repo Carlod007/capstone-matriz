@@ -145,12 +145,37 @@ def _registrar_metricas(db, art, rb, res, texto, recuperados, ruta_pdf) -> None:
     # --- N4: calidad del resumen, contra el abstract REAL ---
     abstract = extraer_abstract(texto)
     m4 = N.n4_calidad_resumen(resumen_txt, abstract)
+
+    # Las cinco variantes de ROUGE se guardan sin valor cuando no son
+    # aplicables, no en cero.
+    #
+    # Antes se almacenaba el 0.0 que traían por defecto, y la pantalla mostraba
+    # "0.000": exactamente el problema que esta capa vino a resolver. Un cero
+    # se lee como "el resumen no se parece en nada al abstract" cuando lo que
+    # ocurre es que ROUGE cuenta palabras compartidas y el resumen está en
+    # español mientras el abstract está en inglés. Sin valor y con el motivo al
+    # lado, la interfaz puede decir "no aplicable" y explicar por qué.
+    detalle_rouge = None if m4.rouge_aplicable else {
+        "aplicable": False,
+        "motivo": m4.motivo,
+        "idioma_resumen": m4.idioma_generado,
+        "idioma_abstract": m4.idioma_referencia,
+    }
     for codigo, valor in (("N4.1a", m4.rouge1_prec), ("N4.1b", m4.rouge1_rec),
                           ("N4.1c", m4.rouge1_f1), ("N4.1d", m4.rouge2_f1),
-                          ("N4.1e", m4.rougeL_f1), ("N4.2", m4.similitud_semantica),
+                          ("N4.1e", m4.rougeL_f1)):
+        det = dict(detalle_rouge) if detalle_rouge else None
+        if codigo == "N4.1a":
+            det = det or {}
+            det["referencia_valida"] = m4.referencia_valida
+        _metrica(db, art.proyecto_id, AMBITO_BRECHA, rb.id, codigo,
+                 valor if m4.rouge_aplicable else None, det)
+
+    # Estas dos sí valen entre idiomas distintos: la similitud semántica compara
+    # significado y la densidad léxica no depende de la referencia.
+    for codigo, valor in (("N4.2", m4.similitud_semantica),
                           ("N4.4", m4.densidad_lexica)):
-        _metrica(db, art.proyecto_id, AMBITO_BRECHA, rb.id, codigo, valor,
-                 {"referencia_valida": m4.referencia_valida} if codigo == "N4.1a" else None)
+        _metrica(db, art.proyecto_id, AMBITO_BRECHA, rb.id, codigo, valor)
 
     _metrica(db, art.proyecto_id, AMBITO_ARTICULO, art.id, "N4.ref",
              1.0 if m4.referencia_valida else 0.0,
