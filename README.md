@@ -188,9 +188,13 @@ Rellena `MYSQL_PASSWORD` y `JWT_SECRETO` (el archivo explica cada variable) y:
 docker compose up --build
 ```
 
-La aplicación queda en <http://localhost:8080> y la API en
-<http://localhost:8000>. El esquema se crea solo: un servicio aparte ejecuta
-`alembic upgrade head` y los demás esperan a que termine.
+La aplicación queda en <http://localhost:8080>. El esquema se crea solo: un
+servicio aparte ejecuta `alembic upgrade head` y los demás esperan a que
+termine.
+
+La API se sirve **por el mismo origen, bajo `/api`**. No hace falta abrir el
+puerto del backend: Caddy hace de intermediario, y por eso tampoco hay CORS
+que configurar.
 
 Para crear la primera cuenta, con todo en marcha:
 
@@ -231,6 +235,45 @@ Luego `wsl --shutdown` para que surta efecto.
 **Esta instalación es independiente de la que corre a mano.** Docker trae su
 propio MySQL, así que empieza sin cuentas ni proyectos aunque tengas datos en
 el MySQL de tu sistema. No es un fallo.
+
+### Desplegar en un servidor con HTTPS
+
+En el `.env` del servidor, define el dominio y los puertos reales:
+
+```ini
+DOMINIO=mi-dominio.com
+PUERTO_HTTP=80
+PUERTO_HTTPS=443
+```
+
+Con eso, **Caddy consigue el certificado de Let's Encrypt y lo renueva solo**.
+No hay que instalar certbot ni programar nada: pide el certificado al arrancar
+y lo renueva cada dos meses. El puerto 80 tiene que estar abierto aunque uses
+HTTPS, porque por ahí comprueba Let's Encrypt que el dominio es tuyo.
+
+**¿Sin dominio propio?** `sslip.io` convierte cualquier IP en un nombre, sin
+registrarse en ningún sitio: para `203.0.113.10` sería
+`DOMINIO=203-0-113-10.sslip.io`.
+
+Los certificados viven en un volumen. Si lo borras, Caddy los vuelve a pedir, y
+Let's Encrypt limita cuántas veces se puede hacer eso por semana.
+
+### Copias de seguridad
+
+En el servidor, los datos ya no están también en tu equipo. `respaldar.sh`
+vuelca la base comprimida y conserva los últimos siete días:
+
+```bash
+./respaldar.sh
+```
+
+Para que corra solo cada noche, con `crontab -e`:
+
+```bash
+15 3 * * * cd /home/ubuntu/capstone-matriz && ./respaldar.sh >> respaldos/registro.log 2>&1
+```
+
+Los volcados no se versionan: contienen correos y hashes de contraseña.
 
 ---
 
@@ -452,6 +495,7 @@ de dónde partir. Los PDF normales no lo necesitan.
 
 ```
 docker-compose.yml    levanta las cuatro piezas con un comando
+respaldar.sh          volcado diario de la base, con rotación
 backend/
   Dockerfile          imagen compartida por el backend y el trabajador
   main.py             arranque de FastAPI y comprobación del esquema
@@ -467,6 +511,7 @@ backend/
   tests/              284 pruebas
   storage/pdfs/       PDF subidos, en una carpeta por usuario (no se versionan)
 frontend/
+  Caddyfile           servidor web, proxy a la API y HTTPS automático
   src/App.jsx         rutas y pantallas
   src/sesion.js       token de sesión y llamadas a la API
   src/components/     interfaz

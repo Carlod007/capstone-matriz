@@ -9,3 +9,7 @@
 
 # Datos y salidas locales
 *.log
+
+# Volcados de la base. Son datos, y de los sensibles: contienen los correos y
+# los hashes de contrasena de las cuentas.
+respaldos/

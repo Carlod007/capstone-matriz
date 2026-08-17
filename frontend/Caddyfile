@@ -1,0 +1,54 @@
+# Servidor web y proxy hacia la API.
+#
+# Sustituye a nginx por una razon concreta: Caddy pide, instala y renueva los
+# certificados de Let's Encrypt por su cuenta. Con nginx habria que anadir
+# certbot, montar volumenes de certificados y programar la renovacion; y si esa
+# renovacion falla, falla en silencio y uno se entera cuando el navegador
+# empieza a avisar de un certificado caducado.
+#
+# DOMINIO decide el modo:
+#   - Un nombre de dominio  -> Caddy consigue certificado y sirve por HTTPS,
+#                              redirigiendo el trafico de HTTP automaticamente.
+#   - Sin definir           -> escucha en el puerto 80 sin cifrar, que es lo
+#                              que hace falta en desarrollo.
+
+{$DOMINIO::80} {
+	# Los PDF de un articulo pasan del mega con facilidad.
+	request_body {
+		max_size 64MB
+	}
+
+	encode gzip
+
+	# La API, por el mismo origen que la aplicacion.
+	#
+	# Que compartan origen es lo que evita tener que abrir el puerto del
+	# backend a internet y lo que hace innecesaria la lista de origenes de
+	# CORS. `strip_prefix` quita el /api: la peticion /api/proyectos llega al
+	# backend como /proyectos.
+	handle /api/* {
+		uri strip_prefix /api
+		reverse_proxy backend:8000 {
+			header_up X-Forwarded-Proto {scheme}
+		}
+	}
+
+	# La aplicacion.
+	handle {
+		root * /usr/share/caddy
+
+		# Las direcciones del frontend —/proyectos/<id>/brechas y demas— no
+		# corresponden a ningun archivo: las resuelve el router dentro del
+		# navegador. Sin esto, recargar una de ellas daria 404.
+		try_files {path} /index.html
+		file_server
+	}
+
+	# Los archivos con huella en el nombre cambian de nombre cuando cambia su
+	# contenido, asi que se pueden guardar para siempre. index.html no lleva
+	# huella y no debe guardarse: es quien dice cuales son los archivos
+	# actuales.
+	@estaticos path /assets/*
+	header @estaticos Cache-Control "public, max-age=31536000, immutable"
+	header /index.html Cache-Control "no-cache"
+}

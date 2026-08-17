@@ -24,9 +24,12 @@ ENV VITE_API_BASE=$VITE_API_BASE
 RUN npm run build
 
 # ------------------------------------------------------------------ servir
-FROM nginx:1.27-alpine
+#
+# Caddy y no nginx: consigue y renueva los certificados de Let's Encrypt por su
+# cuenta. Ver el comentario de cabecera del Caddyfile.
+FROM caddy:2-alpine
 
-COPY --from=compilacion /app/dist /usr/share/nginx/html
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY --from=compilacion /app/dist /usr/share/caddy
+COPY Caddyfile /etc/caddy/Caddyfile
 
-EXPOSE 80
+EXPOSE 80 443

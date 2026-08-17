@@ -113,11 +113,26 @@ services:
         # configurar. Se incrusta al compilar, no se lee al arrancar.
         VITE_API_BASE: ${VITE_API_BASE:-/api}
     restart: unless-stopped
+    environment:
+      # Con un dominio, Caddy consigue certificado y sirve por HTTPS. Sin el,
+      # escucha en el 80 sin cifrar, que es lo que hace falta en desarrollo.
+      DOMINIO: ${DOMINIO:-}
     ports:
-      - "${PUERTO_FRONTEND:-8080}:80"
+      # El 80 no es opcional aunque se use HTTPS: Let's Encrypt comprueba por
+      # ahi que el dominio es tuyo, y de el sale la redireccion a HTTPS.
+      - "${PUERTO_HTTP:-8080}:80"
+      - "${PUERTO_HTTPS:-8443}:443"
+    volumes:
+      # Los certificados viven aqui. Sin volumen se perderian en cada
+      # reconstruccion y Caddy volveria a pedirlos, hasta chocar con el limite
+      # de emisiones de Let's Encrypt.
+      - caddy_datos:/data
+      - caddy_config:/config
     depends_on:
       - backend
 
 volumes:
   datos_mysql:
   pdfs:
+  caddy_datos:
+  caddy_config:
