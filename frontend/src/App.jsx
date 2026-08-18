@@ -333,6 +333,19 @@ function Icono({ tipo, className = "h-5 w-5" }) {
         <path d="M12 10.5v5M12 7.5h.01" />
       </>
     ),
+    objetivo: (
+      <>
+        <circle cx="12" cy="12" r="8.5" />
+        <circle cx="12" cy="12" r="4.5" />
+        <circle cx="12" cy="12" r="1" fill="currentColor" stroke="none" />
+      </>
+    ),
+    idea: (
+      <>
+        <path d="M9 18h6M10 21h4" />
+        <path d="M8.5 14.5a6 6 0 1 1 7 0c-.8.6-1.3 1.5-1.5 2.5h-5c-.2-1-.7-1.9-1.5-2.5Z" />
+      </>
+    ),
   };
 
   return (
@@ -348,6 +361,25 @@ function Icono({ tipo, className = "h-5 w-5" }) {
     >
       {trazos[tipo] || trazos.info}
     </svg>
+  );
+}
+
+function EtiquetaCampo({ children, ayuda, ayudaId }) {
+  return (
+    <>
+      <span className="text-sm font-medium text-tinta">{children}</span>
+      {ayuda && (
+        <p
+          id={ayudaId}
+          className="mt-1 flex items-start gap-1.5 text-xs leading-relaxed text-tinta-suave"
+        >
+          <span className="mt-0.5 shrink-0 text-acento" aria-hidden="true">
+            <Icono tipo="info" className="h-3.5 w-3.5" />
+          </span>
+          <span>{ayuda}</span>
+        </p>
+      )}
+    </>
   );
 }
 
@@ -647,6 +679,16 @@ function CrearProyecto({ goBack }) {
       title="Nuevo proyecto"
       subtitle="El objetivo es el campo que más influye en el resultado: orienta qué fragmentos de cada artículo se entregan al modelo."
     >
+      <div className="mb-6 flex justify-end">
+        <div className="inline-flex items-center gap-2 rounded-full border border-acento-borde bg-acento-claro px-3 py-1.5 text-xs text-acento">
+          <span className="h-1.5 w-1.5 rounded-full bg-acento" aria-hidden="true" />
+          <span className="font-medium">Paso 1 de 2</span>
+          <span className="text-acento-fuerte/80">· Define tu proyecto</span>
+        </div>
+      </div>
+
+      <div className="mb-6 h-px bg-borde" aria-hidden="true" />
+
       <form
         onSubmit={async (e) => {
           e.preventDefault();
@@ -667,54 +709,114 @@ function CrearProyecto({ goBack }) {
             setErr(e2);
           }
         }}
-        className="grid grid-cols-1 md:grid-cols-2 gap-6"
+        className="space-y-6"
       >
-        <label className="block">
-          <span className="text-sm">Tema principal</span>
-          <input
-            name="tema_principal"
-            className="mt-1 w-full rounded border px-3 py-2"
-            required
-            placeholder="Ej: IA generativa en educación"
-          />
-        </label>
-        <label className="block">
-          <span className="text-sm">Metodología</span>
-          <input
-            name="metodologia_txt"
-            className="mt-1 w-full rounded border px-3 py-2"
-            placeholder="PRISMA / DSRM / Mixta"
-          />
-        </label>
-        <label className="block md:col-span-2">
-          <span className="text-sm">Objetivo de investigación</span>
+        <section aria-labelledby="datos-proyecto-titulo">
+          <div className="flex items-start gap-3">
+            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-acento-claro text-acento">
+              <Icono tipo="documento" className="h-5 w-5" />
+            </span>
+            <div>
+              <h2 id="datos-proyecto-titulo" className="text-base font-semibold text-tinta">
+                Datos del proyecto
+              </h2>
+              <p className="mt-0.5 text-sm text-tinta-suave">
+                Define el contexto que guiará la búsqueda y el análisis.
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-5 grid grid-cols-1 gap-5 md:grid-cols-2">
+            <label className="block">
+              <EtiquetaCampo ayuda="Delimita el tema que analizarás" ayudaId="ayuda-tema">
+                Tema principal
+              </EtiquetaCampo>
+              <input
+                name="tema_principal"
+                aria-describedby="ayuda-tema"
+                className="mt-3 w-full rounded-lg border border-borde bg-lienzo px-3 py-2.5 text-sm text-tinta placeholder:text-tinta-suave focus:border-acento focus:outline-none focus:ring-2 focus:ring-acento/20"
+                required
+                placeholder="Ej: IA generativa en educación"
+              />
+            </label>
+
+            <label className="block">
+              <EtiquetaCampo ayuda="Indica cómo organizarás la revisión" ayudaId="ayuda-metodologia">
+                Metodología
+              </EtiquetaCampo>
+              <input
+                name="metodologia_txt"
+                aria-describedby="ayuda-metodologia"
+                className="mt-3 w-full rounded-lg border border-borde bg-lienzo px-3 py-2.5 text-sm text-tinta placeholder:text-tinta-suave focus:border-acento focus:outline-none focus:ring-2 focus:ring-acento/20"
+                placeholder="PRISMA / DSRM / Mixta"
+              />
+            </label>
+          </div>
+        </section>
+
+        <section className="rounded-xl border border-acento-borde bg-acento-claro/45 p-5 md:p-6" aria-labelledby="objetivo-proyecto-titulo">
+          <div className="flex items-start gap-3">
+            <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-superficie text-acento shadow-[var(--sombra-1)]">
+              <Icono tipo="objetivo" className="h-5 w-5" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <h2 id="objetivo-proyecto-titulo" className="text-base font-semibold text-tinta">
+                Objetivo de investigación
+              </h2>
+              <p className="mt-0.5 text-sm text-tinta-suave">
+                Explica qué quieres conocer o demostrar.
+              </p>
+            </div>
+          </div>
+
           <textarea
             name="objetivo"
             rows={4}
-            className="mt-1 w-full rounded border px-3 py-2"
-            placeholder="Describa el objetivo principal…"
+            aria-label="Objetivo de investigación"
+            className="mt-4 w-full resize-y rounded-lg border border-borde bg-lienzo px-3 py-2.5 text-sm text-tinta placeholder:text-tinta-suave focus:border-acento focus:outline-none focus:ring-2 focus:ring-acento/20"
+            placeholder="Describe el objetivo principal…"
           />
-        </label>
-        <label className="block">
-          <span className="text-sm">Sector de investigación</span>
-          <input
-            name="sector_txt"
-            className="mt-1 w-full rounded border px-3 py-2"
-            placeholder="Educación / Salud / Industria"
-          />
-        </label>
-        <label className="block">
-          <span className="text-sm">Número de artículos (5–10)</span>
-          <input
-            name="n_articulos"
-            type="number"
-            min={5}
-            max={10}
-            defaultValue={5}
-            className="mt-1 w-full rounded border px-3 py-2"
-          />
-        </label>
-        <div className="md:col-span-2 flex justify-between">
+
+          <div className="mt-4 flex items-start gap-2 rounded-lg border border-oro-borde bg-oro-claro px-3 py-2.5 text-xs leading-relaxed text-tinta-media">
+            <span className="mt-0.5 shrink-0 text-oro-fuerte" aria-hidden="true">
+              <Icono tipo="idea" className="h-4 w-4" />
+            </span>
+            <p>
+              <span className="font-medium text-tinta">Consejo:</span> escribe un objetivo concreto; orientará la búsqueda de evidencia y la detección de brechas.
+            </p>
+          </div>
+        </section>
+
+        <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
+          <label className="block">
+            <EtiquetaCampo ayuda="Ayuda a contextualizar los artículos" ayudaId="ayuda-sector">
+              Sector de investigación
+            </EtiquetaCampo>
+            <input
+              name="sector_txt"
+              aria-describedby="ayuda-sector"
+              className="mt-3 w-full rounded-lg border border-borde bg-lienzo px-3 py-2.5 text-sm text-tinta placeholder:text-tinta-suave focus:border-acento focus:outline-none focus:ring-2 focus:ring-acento/20"
+              placeholder="Educación / Salud / Industria"
+            />
+          </label>
+
+          <label className="block">
+            <EtiquetaCampo ayuda="Define cuántos estudios esperas incorporar" ayudaId="ayuda-articulos">
+              Número de artículos (5–10)
+            </EtiquetaCampo>
+            <input
+              name="n_articulos"
+              type="number"
+              min={5}
+              max={10}
+              defaultValue={5}
+              aria-describedby="ayuda-articulos"
+              className="mt-3 w-full rounded-lg border border-borde bg-lienzo px-3 py-2.5 text-sm text-tinta placeholder:text-tinta-suave focus:border-acento focus:outline-none focus:ring-2 focus:ring-acento/20"
+            />
+          </label>
+        </div>
+
+        <div className="flex items-center justify-between border-t border-borde pt-5">
           <Btn kind="gray" type="button" onClick={goBack}>
             Volver
           </Btn>
