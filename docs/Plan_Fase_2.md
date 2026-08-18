@@ -6,7 +6,8 @@ plan que se acordó, no como una descripción del estado actual.
 **Fecha:** 13 de agosto de 2026
 **Punto de partida:** Fase 1 cerrada — esquema gobernado por Alembic, README que
 instala desde cero, CI en verde sobre 201 pruebas. *(Esa cifra es la de aquel
-día; hoy son 317. Se deja sin actualizar a propósito: es el punto de partida.)*
+día y se deja sin actualizar a propósito: describe el punto de partida, no el
+estado actual. La cuenta vigente está en el README.)*
 
 ---
 

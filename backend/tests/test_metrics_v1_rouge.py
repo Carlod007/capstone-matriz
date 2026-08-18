@@ -207,6 +207,43 @@ class TestPromedios:
         # Y por tanto la dimension que la usa tampoco se queda en cero.
         assert (r.get("dimensiones", {}).get("Síntesis y claridad") or 0) > 0
 
+    def test_la_densidad_no_necesita_abstract(self, db, proyecto_con_resumen):
+        """Un articulo sin abstract extraible tiene resumen igual.
+
+        Es el mismo error que el del idioma, una condicion mas arriba: la
+        densidad estaba detras del `if not ref`, que existe porque ROUGE
+        compara dos textos y sin referencia no hay nada que comparar. La
+        densidad no compara nada, le basta el resumen. Y el caso no es raro:
+        hay PDFs de los que no se consigue extraer el abstract.
+        """
+        from app.services import metrics
+
+        proyecto_con_resumen["poner_resumen"](RESUMEN_ES, "", densidad=0.55)
+
+        p = (metrics.project_indicators(db, proyecto_con_resumen["proyecto"])
+             or {}).get("promedios", {})
+
+        assert p.get("avg_lexical_density") == pytest.approx(0.55), (
+            "sin abstract sigue habiendo resumen que medir, salio %r"
+            % p.get("avg_lexical_density"))
+        assert p.get("densidad_resumenes_medidos") == 1
+        # ROUGE si queda sin valor: no hay contra que comparar.
+        assert p.get("avg_rouge1_f1") is None
+        assert p.get("rouge_pares_comparados") == 0
+
+    def test_sin_resumen_no_hay_densidad_que_medir(self, db, proyecto_con_resumen):
+        """El limite del arreglo anterior: sin resumen no hay texto, y una
+        densidad ahi seria un dato inventado, no uno rescatado."""
+        from app.services import metrics
+
+        proyecto_con_resumen["poner_resumen"]("", ABSTRACT_EN, densidad=0.55)
+
+        p = (metrics.project_indicators(db, proyecto_con_resumen["proyecto"])
+             or {}).get("promedios", {})
+
+        assert p.get("avg_lexical_density") is None
+        assert p.get("densidad_resumenes_medidos") == 0
+
     def test_sin_densidad_medida_tampoco_da_cero(self, db, proyecto_con_resumen):
         """Hay resumen, pero nadie le calculo la densidad.
 

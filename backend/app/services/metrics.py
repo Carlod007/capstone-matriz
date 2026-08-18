@@ -375,12 +375,33 @@ def project_indicators(db: Session, proyecto_id: str) -> Dict[str, Dict]:
             for rr in res_rows:
                 ref = getattr(rr, "resumen_referencia", "") or ""
                 hyp = getattr(rr, "resumen_generado", "") or ""
+
+                # Cada métrica pide solo lo que de verdad necesita.
+                #
+                # La densidad léxica mide la proporción de palabras con
+                # contenido dentro de un solo texto. No compara nada con la
+                # referencia, así que le basta el resumen: ni el idioma del
+                # abstract ni su ausencia la afectan. Estuvo dos veces detrás
+                # de una condición que no era suya —primero la del idioma,
+                # luego la de la referencia—, y las dos veces el efecto fue el
+                # mismo: descontar del promedio resúmenes perfectamente
+                # medidos, y de paso hundir la dimensión de síntesis que se
+                # calcula con ella.
+                if hyp:
+                    ld = getattr(rr, "lexical_density", None)
+                    if ld is not None:
+                        try:
+                            lexs.append(float(ld))
+                        except Exception:
+                            pass
+
+                # ROUGE sí necesita los dos textos: compara uno contra otro.
                 if not ref or not hyp:
                     continue
 
-                # ROUGE cuenta palabras compartidas: entre un resumen en
-                # español y un abstract en inglés da un valor cercano a cero
-                # por construcción, por fiel que sea el resumen.
+                # Y además cuenta palabras compartidas, así que entre un
+                # resumen en español y un abstract en inglés da un valor
+                # cercano a cero por construcción, por fiel que sea el resumen.
                 #
                 # La capa v2 ya lo tenía en cuenta, pero este camino —el que
                 # alimenta /metrics/resumen y el PDF del panel— seguía
@@ -393,20 +414,6 @@ def project_indicators(db: Session, proyecto_id: str) -> Dict[str, Dict]:
                 # idioma sea reconocido y no solo que coincida: con textos
                 # cortos el detector responde "indeterminado" para los dos, y
                 # comparar entonces sería volver a promediar ceros sin saberlo.
-                # La densidad léxica se recoge ANTES del filtro de idioma, y no
-                # es un detalle de orden. Mide la proporción de palabras con
-                # contenido dentro de un solo texto: no compara el resumen con
-                # la referencia, así que el idioma del abstract no le afecta.
-                # Dejarla debajo del `continue` excluía del promedio justo a
-                # los resúmenes en español —la mayoría— por un motivo que solo
-                # vale para ROUGE.
-                ld = getattr(rr, "lexical_density", None)
-                if ld is not None:
-                    try:
-                        lexs.append(float(ld))
-                    except Exception:
-                        pass
-
                 idioma_ref, idioma_hyp = T.idioma(ref), T.idioma(hyp)
                 if idioma_ref != idioma_hyp or idioma_ref not in ("es", "en"):
                     descartados_idioma += 1

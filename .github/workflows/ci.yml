@@ -2,8 +2,13 @@
 #
 # Comprueba lo mismo que se comprueba a mano antes de un commit, pero sin
 # depender de que alguien se acuerde: que el esquema se crea desde cero con
-# Alembic, que las 201 pruebas pasan contra una base real, y que el frontend
+# Alembic, que la suite entera pasa contra una base real, y que el frontend
 # compila sin errores de lint.
+#
+# Aquí no va el número de pruebas a propósito: es un dato que cambia con cada
+# commit y que nadie se acuerda de actualizar, así que a los pocos días miente.
+# El número vive en el README y en docs/CONTEXTO.md, que es donde alguien lo
+# busca; ahí sí hay que mantenerlo al día.
 #
 # La base de datos no se "prepara": se levanta vacía y se construye con
 # `alembic upgrade head`. Si una migración está mal escrita, aquí se rompe;
