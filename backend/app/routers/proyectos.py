@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.dependencias import proyecto_propio, usuario_actual
 from app.models.articulo import Articulo
+from app.models.estado_arte import EstadoDelArte
 from app.models.proyecto import Proyecto
 from app.models.resultado_brecha import ResultadoBrecha
 from app.models.run import Run
@@ -74,12 +75,23 @@ def listar_proyectos(
           .all()
     )
 
+    # De la tabla, no de `proyecto.estado_arte_generado`: esa columna se
+    # escribe `False` al crear el proyecto y nadie la actualiza cuando la
+    # síntesis se genera, así que es siempre falsa. La pantalla lo resolvía
+    # pidiendo /estado_arte/latest de cada proyecto y mirando si respondía.
+    con_estado_arte = {
+        r[0] for r in db.query(EstadoDelArte.proyecto_id)
+                        .filter(EstadoDelArte.proyecto_id.in_(ids))
+                        .distinct()
+    }
+
     return [
         ProyectoOut(
             id=p.id,
             tema_principal=p.tema_principal,
             n_articulos_objetivo=p.n_articulos_objetivo,
             estado_arte_generado=bool(p.estado_arte_generado),
+            tiene_estado_arte=p.id in con_estado_arte,
             n_articulos=articulos.get(p.id, 0),
             n_brechas=brechas.get(p.id, 0),
         )

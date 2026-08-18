@@ -98,6 +98,36 @@ class TestRecuentos:
             "solo dos articulos dejaron brecha; el tercero se analizo sin "
             "resultado y no debe contarse")
 
+    def test_dice_si_hay_estado_del_arte(self, db, cliente,
+                                         proyecto_analizado):
+        """Se deriva de la tabla, no de `proyecto.estado_arte_generado`.
+
+        Esa columna se escribe False al crear el proyecto y nadie la actualiza
+        cuando la sintesis se genera de verdad, asi que es siempre falsa.
+        Fiarse de ella hizo desaparecer el «Generado» y el enlace «ver» de un
+        proyecto que si tenia su estado del arte.
+        """
+        from app.models.estado_arte import EstadoDelArte
+
+        pid = proyecto_analizado["proyecto"]
+        assert _fila(cliente, pid)["tiene_estado_arte"] is False
+
+        eid = str(uuid.uuid4())
+        db.add(EstadoDelArte(id=eid, proyecto_id=pid,
+                             run_id=proyecto_analizado["run"], version=1,
+                             texto="Sintesis de prueba"))
+        db.commit()
+        try:
+            fila = _fila(cliente, pid)
+            assert fila["tiene_estado_arte"] is True
+            # Y la columna sigue mintiendo, que es justamente el motivo de que
+            # no se use: si algun dia se mantuviera, esta prueba lo diria.
+            assert fila["estado_arte_generado"] is False
+        finally:
+            db.rollback()
+            db.query(EstadoDelArte).filter(EstadoDelArte.id == eid).delete()
+            db.commit()
+
     def test_un_proyecto_vacio_cuenta_cero(self, db, cliente, usuario_prueba):
         """El caso que hacia dudar: sin nada, la cifra es cero, no un guion."""
         from app.models.proyecto import Proyecto

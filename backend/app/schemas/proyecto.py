@@ -12,7 +12,18 @@ class ProyectoOut(BaseModel):
     id: str
     tema_principal: str
     n_articulos_objetivo: int
+
+    # OJO: esta columna no la mantiene nadie. Se escribe `False` al crear el
+    # proyecto y no vuelve a tocarse ni cuando la síntesis se genera de verdad,
+    # así que es siempre falsa. Se conserva porque está en el esquema desde el
+    # principio, pero no sirve para saber si hay estado del arte: para eso está
+    # `tiene_estado_arte`, que se deriva de la tabla `estado_arte`.
     estado_arte_generado: bool
+
+    # Si existe alguna versión del estado del arte, mirando la tabla en vez de
+    # un indicador que hay que acordarse de actualizar. Dos fuentes para el
+    # mismo hecho es exactamente lo que dejó la columna de arriba mintiendo.
+    tiene_estado_arte: bool = False
 
     # Resumen para la tarjeta del listado. Se calcula en el servidor con una
     # consulta agrupada por proyecto; antes la pantalla pedía los artículos y

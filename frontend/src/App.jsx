@@ -459,7 +459,11 @@ function Lista({ goCreate, goProyecto }) {
           ...p,
           articulos_count: p.n_articulos ?? 0,
           brechas_count: p.n_brechas ?? 0,
-          tiene_sota: !!p.estado_arte_generado,
+          // `tiene_estado_arte` y no `estado_arte_generado`: esa columna del
+          // proyecto no la actualiza nadie y es siempre falsa. Usarla hizo
+          // desaparecer el «Generado» y el enlace «ver» de un proyecto que sí
+          // tenía su síntesis.
+          tiene_sota: !!p.tiene_estado_arte,
         }))
       );
     } catch (e) {
