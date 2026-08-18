@@ -84,7 +84,7 @@ function Btn({ children, kind = "ghost", ...props }) {
 }
 
 /* Modal general (ancho grande + scroll interno) */
-function Modal({ open, onClose, title, children, footer }) {
+function Modal({ open, onClose, title, children, footer, ancho = "max-w-5xl" }) {
   if (!open) return null;
   return (
     <div
@@ -92,7 +92,10 @@ function Modal({ open, onClose, title, children, footer }) {
       onClick={onClose}
     >
       <div
-        className="w-full max-w-5xl rounded-2xl bg-lienzo border border-borde overflow-hidden"
+        role="dialog"
+        aria-modal="true"
+        aria-label={title}
+        className={`w-full ${ancho} rounded-2xl bg-lienzo border border-borde overflow-hidden`}
         style={{ boxShadow: "var(--sombra-3)" }}
         onClick={(e) => e.stopPropagation()}
       >
@@ -859,6 +862,7 @@ function SubirArticulos({ proyecto, goBack }) {
   // El id del artículo que se está quitando, no un booleano: así el botón que
   // espera es solo el de esa fila y las demás siguen disponibles.
   const [quitando, setQuitando] = useState(null);
+  const [confirmarQuitar, setConfirmarQuitar] = useState(null);
   const [fase, setFase] = useState(null); // { etapa, hecho, total, detalle }
   const [err, setErr] = useState(null);
   const avisar = useAviso();
@@ -920,6 +924,9 @@ function SubirArticulos({ proyecto, goBack }) {
     setBusy(true);
     let ok = 0;
     let repetidos = 0;
+    // Se actualiza durante el lote: `arts` es el estado de la última carga y
+    // no cambia entre dos archivos seleccionados en la misma operación.
+    const articulosConocidos = new Set(arts.map((a) => a.id));
     try {
       for (let i = 0; i < archivos.length; i++) {
         const f = archivos[i];
@@ -945,10 +952,11 @@ function SubirArticulos({ proyecto, goBack }) {
         const cuerpo = await r.json();
         // El backend deduplica por hash: el mismo PDF dos veces no crea dos
         // artículos, y conviene decirlo en lugar de fingir que se subió.
-        if (cuerpo?.archivo_id && arts.some((a) => a.id === cuerpo.articulo_id)) {
+        if (cuerpo?.articulo_id && articulosConocidos.has(cuerpo.articulo_id)) {
           repetidos++;
         } else {
           ok++;
+          if (cuerpo?.articulo_id) articulosConocidos.add(cuerpo.articulo_id);
         }
       }
       await load();
@@ -964,21 +972,11 @@ function SubirArticulos({ proyecto, goBack }) {
   /**
    * Quita un artículo del proyecto.
    *
-   * Se confirma antes porque no hay papelera: el PDF se borra del servidor y
-   * con él lo que se hubiera analizado. El aviso dice qué desaparece en lugar
-   * de un «¿estás seguro?», que no informa de nada.
+   * La confirmación se muestra como un modal del propio sistema para explicar
+   * el alcance del borrado sin bloquear la página con `window.confirm`.
    */
   async function quitarArticulo(a) {
-    const nombre = a.titulo || "este artículo";
-    if (
-      !window.confirm(
-        `¿Quitar «${nombre}» del proyecto?\n\n` +
-          "Se borra el PDF del servidor junto con su análisis, si lo tuviera. " +
-          "No se puede deshacer: habría que volver a subirlo."
-      )
-    )
-      return;
-
+    if (!a) return;
     setQuitando(a.id);
     try {
       const r = await api(`${API_BASE}/proyectos/${proyecto.id}/articulos/${a.id}`, {
@@ -1001,6 +999,13 @@ function SubirArticulos({ proyecto, goBack }) {
       setErr(e);
     } finally {
       setQuitando(null);
+      // La confirmación se cierra pase lo que pase, y no solo al acertar.
+      // Al pasar de `window.confirm` al modal propio dejó de cerrarse: tras
+      // borrar con éxito seguía en pantalla, describiendo un artículo que ya
+      // no existe y ofreciendo quitarlo otra vez —lo que daría un 404—. En el
+      // 409 tampoco servía dejarla abierta: el aviso ya explica que hay un
+      // análisis en marcha, y reintentar daría el mismo 409.
+      setConfirmarQuitar(null);
     }
   }
 
@@ -1172,7 +1177,7 @@ function SubirArticulos({ proyecto, goBack }) {
                     <Btn
                       kind="gray"
                       disabled={busy || quitando === a.id}
-                      onClick={() => quitarArticulo(a)}
+                      onClick={() => setConfirmarQuitar(a)}
                     >
                       {quitando === a.id ? "Quitando…" : "Quitar"}
                     </Btn>
@@ -1190,6 +1195,60 @@ function SubirArticulos({ proyecto, goBack }) {
           </p>
         )}
       </Seccion>
+
+      <Modal
+        open={!!confirmarQuitar}
+        onClose={() => {
+          if (!quitando) setConfirmarQuitar(null);
+        }}
+        title="Quitar artículo del proyecto"
+        ancho="max-w-lg"
+        footer={
+          <>
+            <Btn
+              kind="gray"
+              type="button"
+              disabled={!!quitando}
+              onClick={() => setConfirmarQuitar(null)}
+            >
+              Cancelar
+            </Btn>
+            <Btn
+              kind="danger"
+              type="button"
+              disabled={!!quitando}
+              onClick={() => quitarArticulo(confirmarQuitar)}
+            >
+              {quitando ? "Quitando…" : "Quitar artículo"}
+            </Btn>
+          </>
+        }
+      >
+        {confirmarQuitar && (
+          <div className="space-y-4 text-sm">
+            <div className="flex items-start gap-3">
+              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-mal-claro text-mal">
+                <Icono tipo="documento" className="h-5 w-5" />
+              </span>
+              <div className="min-w-0">
+                <p className="font-medium text-tinta">¿Quieres quitar este artículo?</p>
+                <Recorte lineas={3}>{confirmarQuitar.titulo || "(sin título detectado)"}</Recorte>
+              </div>
+            </div>
+
+            <div className="rounded-lg border border-mal-borde bg-mal-claro px-3.5 py-3 leading-relaxed text-tinta-media">
+              <p>
+                Se eliminarán el PDF del servidor y los resultados asociados:
+                análisis, brechas, resúmenes, embeddings y métricas.
+              </p>
+              <p className="mt-2 font-medium text-mal">
+                Esta acción no se puede deshacer. Para recuperarlo tendrás que
+                volver a subir el PDF.
+              </p>
+            </div>
+          </div>
+        )}
+      </Modal>
 
       {/* Progreso real por etapa, en vez de un giro indefinido sin
           información de por dónde va el proceso. */}
