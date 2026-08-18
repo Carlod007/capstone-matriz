@@ -329,27 +329,36 @@ def export_dashboard_pdf(
         "total",
     ]
 
+    def _formatear(v):
+        """Un indicador sin valor es uno que no aplica, no un cero.
+
+        Sin esto la tabla imprimía literalmente «None» —o peor, un 0.000 que
+        se lee como un resultado pésimo— cuando lo que ocurre es que no había
+        nada que medir: ningún resumen todavía, o el resumen y el abstract en
+        idiomas distintos, donde ROUGE daría casi cero por construcción.
+        """
+        if v is None:
+            return "no aplicable"
+        if isinstance(v, bool):
+            return "sí" if v else "no"
+        if isinstance(v, (int, float)):
+            return f"{v:.3f}"
+        return str(v)
+
     data = [["Indicador", "Valor promedio"]]
     if promedios:
         for key in ordered_keys:
             if key not in promedios:
                 continue
             label = pretty_names.get(key, key)
-            v = promedios[key]
-            if isinstance(v, (int, float)):
-                data.append([label, f"{v:.3f}"])
-            else:
-                data.append([label, str(v)])
+            data.append([label, _formatear(promedios[key])])
 
         # otros indicadores no incluidos en ordered_keys
         for k, v in promedios.items():
             if k in ordered_keys:
                 continue
             label = pretty_names.get(k, k)
-            if isinstance(v, (int, float)):
-                data.append([label, f"{v:.3f}"])
-            else:
-                data.append([label, str(v)])
+            data.append([label, _formatear(v)])
     else:
         data.append(["(sin datos)", "—"])
 

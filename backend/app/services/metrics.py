@@ -194,9 +194,15 @@ def project_indicators(db: Session, proyecto_id: str) -> Dict[str, Dict]:
             "pendientes": int,
             "total": int,
             "pct_brechas_aceptadas": float,   # 0..1
-            "avg_rouge1_prec": float,         # 0..1
-            "avg_rouge1_rec": float,          # 0..1
-            "avg_rouge1_f1": float,           # 0..1
+            # None cuando no hubo ningún par comparable: sin resúmenes
+            # todavía, o con el resumen y el abstract en idiomas distintos,
+            # donde ROUGE daría casi cero por construcción. Quien lo consuma
+            # debe mostrar "no aplicable", no 0.000.
+            "avg_rouge1_prec": float | None,
+            "avg_rouge1_rec": float | None,
+            "avg_rouge1_f1": float | None,
+            "rouge_pares_comparados": int,
+            "rouge_descartados_idioma": int,
             "avg_lexical_density": float      # 0..1
         },
         "dimensiones": {
@@ -210,7 +216,7 @@ def project_indicators(db: Session, proyecto_id: str) -> Dict[str, Dict]:
         "avg_val_score": float,             # 0..1
         "avg_entropia_norm": float,         # 0..1
         "pct_brechas_aceptadas": float,     # 0..1
-        "rouge1_f1": float,                 # 0..1 (0 si no hay resúmenes)
+        "rouge1_f1": float | None,          # None si no hubo nada comparable
         "claridad_visualizacion": float,    # 0..1 (proxy)
         "utilidad_sistema": float           # 0..1 (proxy)
       }
@@ -237,9 +243,14 @@ def project_indicators(db: Session, proyecto_id: str) -> Dict[str, Dict]:
                 "pendientes": 0,
                 "total": 0,
                 "pct_brechas_aceptadas": 0.0,
-                "avg_rouge1_prec": 0.0,
-                "avg_rouge1_rec": 0.0,
-                "avg_rouge1_f1": 0.0,
+                # Sin valor y no cero: aquí no se ha medido nada todavía, y un
+                # 0.000 en el panel se lee como "los resúmenes salieron
+                # pésimos" cuando lo que pasa es que no hay ninguno.
+                "avg_rouge1_prec": None,
+                "avg_rouge1_rec": None,
+                "avg_rouge1_f1": None,
+                "rouge_pares_comparados": 0,
+                "rouge_descartados_idioma": 0,
                 "avg_lexical_density": 0.0,
             },
             "dimensiones": {},
@@ -251,7 +262,7 @@ def project_indicators(db: Session, proyecto_id: str) -> Dict[str, Dict]:
                 "avg_val_score": 0.0,
                 "avg_entropia_norm": 0.0,
                 "pct_brechas_aceptadas": 0.0,
-                "rouge1_f1": 0.0,
+                "rouge1_f1": None,
                 "claridad_visualizacion": 0.0,
                 "utilidad_sistema": 0.0,
             }
@@ -280,9 +291,14 @@ def project_indicators(db: Session, proyecto_id: str) -> Dict[str, Dict]:
                 "pendientes": 0,
                 "total": 0,
                 "pct_brechas_aceptadas": 0.0,
-                "avg_rouge1_prec": 0.0,
-                "avg_rouge1_rec": 0.0,
-                "avg_rouge1_f1": 0.0,
+                # Sin valor y no cero: aquí no se ha medido nada todavía, y un
+                # 0.000 en el panel se lee como "los resúmenes salieron
+                # pésimos" cuando lo que pasa es que no hay ninguno.
+                "avg_rouge1_prec": None,
+                "avg_rouge1_rec": None,
+                "avg_rouge1_f1": None,
+                "rouge_pares_comparados": 0,
+                "rouge_descartados_idioma": 0,
                 "avg_lexical_density": 0.0,
             },
             "dimensiones": {},
@@ -293,7 +309,7 @@ def project_indicators(db: Session, proyecto_id: str) -> Dict[str, Dict]:
                 "avg_val_score": 0.0,
                 "avg_entropia_norm": 0.0,
                 "pct_brechas_aceptadas": 0.0,
-                "rouge1_f1": 0.0,
+                "rouge1_f1": None,
                 "claridad_visualizacion": 0.0,
                 "utilidad_sistema": 0.0,
             }
@@ -504,7 +520,7 @@ def project_indicators(db: Session, proyecto_id: str) -> Dict[str, Dict]:
         "avg_val_score": float(avg_vsc),
         "avg_entropia_norm": float(avg_ent_norm),
         "pct_brechas_aceptadas": float(pct_aceptadas),
-        "rouge1_f1": float(avg_rouge_f1),
+        "rouge1_f1": None if not f1s else float(avg_rouge_f1),
         "avg_lexical_density": float(avg_lex_density),
         "claridad_visualizacion": float(claridad_viz),
         "utilidad_sistema": float(utilidad),
