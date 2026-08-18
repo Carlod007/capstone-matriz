@@ -226,9 +226,15 @@ mitad de la RAM de la máquina y no la devuelve. Crea `C:\Users\TU_USUARIO\
 [wsl2]
 memory=5GB
 processors=4
-autoMemoryReclaim=gradual
 swap=2GB
+
+[experimental]
+autoMemoryReclaim=gradual
 ```
+
+`autoMemoryReclaim` va en `[experimental]`: bajo `[wsl2]`, WSL avisa de que la
+clave es desconocida y la ignora, así que el límite se aplica pero la memoria
+sigue sin devolverse.
 
 Luego `wsl --shutdown` para que surta efecto.
 
@@ -270,10 +276,26 @@ vuelca la base comprimida y conserva los últimos siete días:
 Para que corra solo cada noche, con `crontab -e`:
 
 ```bash
-15 3 * * * cd /home/ubuntu/capstone-matriz && ./respaldar.sh >> respaldos/registro.log 2>&1
+15 3 * * * cd /home/ubuntu/capstone-matriz && mkdir -p respaldos && ./respaldar.sh >> respaldos/registro.log 2>&1
 ```
 
+El `mkdir -p` no sobra: la shell abre el fichero de registro **antes** de
+ejecutar el script, así que en una instalación recién hecha la redirección
+falla y la tarea no llega a arrancar — y en el cron, falla en silencio.
+
 Los volcados no se versionan: contienen correos y hashes de contraseña.
+
+**Dos límites que conviene tener presentes.** Los respaldos viven en la misma
+máquina que la base: protegen de un borrado accidental o de una migración que
+salga mal, pero **no de perder la instancia**. Bájalos de vez en cuando:
+
+```bash
+scp -i TU_CLAVE ubuntu@TU_IP:capstone-matriz/respaldos/*.sql.gz .
+```
+
+Y un respaldo que nunca se ha restaurado no es un respaldo, es un archivo del
+que se supone algo. El procedimiento para comprobarlo sobre una base aparte,
+sin tocar la real, está al final de `respaldar.sh`.
 
 ---
 

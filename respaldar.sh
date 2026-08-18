@@ -10,9 +10,24 @@
 #     ./respaldar.sh
 #
 # Programado, todos los dias a las 03:15 (crontab -e):
-#     15 3 * * * cd /home/ubuntu/capstone-matriz && ./respaldar.sh >> respaldos/registro.log 2>&1
+#
+#     15 3 * * * cd /home/ubuntu/capstone-matriz && mkdir -p respaldos && ./respaldar.sh >> respaldos/registro.log 2>&1
+#
+# El `mkdir -p` de esa linea no sobra: la shell abre el fichero de registro
+# ANTES de ejecutar el script, asi que en una instalacion recien hecha, donde
+# la carpeta todavia no existe, la redireccion falla y la tarea no llega a
+# arrancar. Y al fallar en el cron, falla en silencio.
 #
 # Los volcados van fuera del repositorio y no se versionan.
+#
+# AVISO: estos respaldos viven en la misma maquina que la base. Protegen de un
+# borrado accidental o de una migracion que salga mal, pero NO de perder la
+# instancia. Para eso hay que bajarlos de vez en cuando, desde tu equipo:
+#
+#     scp -i TU_CLAVE ubuntu@TU_IP:capstone-matriz/respaldos/*.sql.gz .
+#
+# Y un respaldo que nunca se ha restaurado no es un respaldo: ver al final de
+# este archivo como comprobarlo.
 
 set -euo pipefail
 
@@ -69,3 +84,27 @@ if [ "$borrados" -gt 0 ]; then
 fi
 
 echo "Respaldos guardados: $(find "$DESTINO" -name 'capstone_*.sql.gz' | wc -l)"
+
+# ---------------------------------------------------------------------------
+# COMO COMPROBAR QUE UN RESPALDO SIRVE
+#
+# Un volcado que nunca se ha restaurado no es un respaldo: es un archivo del
+# que se supone algo. La comprobacion no toca la base real, levanta una aparte:
+#
+#   docker compose exec -T mysql mysql -uroot -p"$MYSQL_PASSWORD" \
+#       -e "CREATE DATABASE IF NOT EXISTS prueba_restauracion"
+#
+#   gunzip -c respaldos/capstone_FECHA.sql.gz \
+#     | sed 's/`capstone`/`prueba_restauracion`/g' \
+#     | docker compose exec -T mysql mysql -uroot -p"$MYSQL_PASSWORD"
+#
+#   docker compose exec -T mysql mysql -uroot -p"$MYSQL_PASSWORD" \
+#       -e "SELECT COUNT(*) AS proyectos FROM prueba_restauracion.proyecto;
+#           SELECT COUNT(*) AS brechas FROM prueba_restauracion.resultado_brecha"
+#
+# Si esos recuentos coinciden con los de la base real, el respaldo vale. Y al
+# terminar:
+#
+#   docker compose exec -T mysql mysql -uroot -p"$MYSQL_PASSWORD" \
+#       -e "DROP DATABASE prueba_restauracion"
+# ---------------------------------------------------------------------------

@@ -10,6 +10,7 @@ from app.models.resultado_brecha import ResultadoBrecha
 from app.models.articulo import Articulo
 from app.models.run import Run  # ← para unir por proyecto
 from app.services.embedding_service import _embed_texts  # helper existente
+from app.services.metricas import texto as T  # detección de idioma
 from app.services.text_cleaning import normalize_basic
 
 # Importar ResultadoResumen (resumen_generado, resumen_referencia, lexical_density, rouge1_*)
@@ -329,6 +330,15 @@ def project_indicators(db: Session, proyecto_id: str) -> Dict[str, Dict]:
     avg_rouge_f1 = 0.0
     avg_lex_density = 0.0
 
+    # Se declaran aquí y no dentro del `if`: más abajo se consultan para decidir
+    # si hubo algún par comparable, y sin proyecto o sin resúmenes ese bloque no
+    # llega a ejecutarse.
+    precs: list[float] = []
+    recs: list[float] = []
+    f1s: list[float] = []
+    lexs: list[float] = []
+    descartados_idioma = 0
+
     if ResultadoResumen is not None and articulo_ids:
         try:
             res_rows = (
@@ -340,16 +350,32 @@ def project_indicators(db: Session, proyecto_id: str) -> Dict[str, Dict]:
             res_rows = []
 
         if res_rows:
-            precs: list[float] = []
-            recs: list[float] = []
-            f1s: list[float] = []
-            lexs: list[float] = []
-
             for rr in res_rows:
                 ref = getattr(rr, "resumen_referencia", "") or ""
                 hyp = getattr(rr, "resumen_generado", "") or ""
                 if not ref or not hyp:
                     continue
+
+                # ROUGE cuenta palabras compartidas: entre un resumen en
+                # español y un abstract en inglés da un valor cercano a cero
+                # por construcción, por fiel que sea el resumen.
+                #
+                # La capa v2 ya lo tenía en cuenta, pero este camino —el que
+                # alimenta /metrics/resumen y el PDF del panel— seguía
+                # promediando esos ceros con los valores buenos y sacando una
+                # media engañosa. Corregirlo en un sitio y no en el otro es
+                # peor que no corregirlo: deja dos cifras distintas para lo
+                # mismo sin decir cuál vale.
+                #
+                # La condición es idéntica a la de v2, y por eso exige que el
+                # idioma sea reconocido y no solo que coincida: con textos
+                # cortos el detector responde "indeterminado" para los dos, y
+                # comparar entonces sería volver a promediar ceros sin saberlo.
+                idioma_ref, idioma_hyp = T.idioma(ref), T.idioma(hyp)
+                if idioma_ref != idioma_hyp or idioma_ref not in ("es", "en"):
+                    descartados_idioma += 1
+                    continue
+
                 p, r, f1 = rouge1_prf(ref, hyp)
                 precs.append(p)
                 recs.append(r)
@@ -388,9 +414,14 @@ def project_indicators(db: Session, proyecto_id: str) -> Dict[str, Dict]:
         "pendientes": pendientes,
         "total": total,
         "pct_brechas_aceptadas": float(pct_aceptadas),
-        "avg_rouge1_prec": float(avg_rouge_prec),
-        "avg_rouge1_rec": float(avg_rouge_rec),
-        "avg_rouge1_f1": float(avg_rouge_f1),
+        # None y no 0.0 cuando no hubo ningún par comparable: un cero se lee
+        # como "los resúmenes no se parecen en nada" y lo que ocurre es que la
+        # métrica no aplica. Quien consuma esto debe mostrar "no aplicable".
+        "avg_rouge1_prec": None if not precs else float(avg_rouge_prec),
+        "avg_rouge1_rec": None if not recs else float(avg_rouge_rec),
+        "avg_rouge1_f1": None if not f1s else float(avg_rouge_f1),
+        "rouge_pares_comparados": len(f1s),
+        "rouge_descartados_idioma": descartados_idioma,
         "avg_lexical_density": float(avg_lex_density),
     }
 

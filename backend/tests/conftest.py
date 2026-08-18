@@ -159,11 +159,22 @@ def contexto_ajeno() -> dict:
 # --------------------------------------------------------------- base de datos
 @pytest.fixture(scope="session")
 def db():
-    """Sesión contra MySQL. Las pruebas que la usan van marcadas con `bd`."""
+    """Sesión contra MySQL. Las pruebas que la usan van marcadas con `bd`.
+
+    La consulta de prueba no es decorativa. Antes aquí había
+    `s.execute.__self__`, con un comentario que aseguraba que forzaba la
+    conexión; no lo hacía. Acceder a un atributo de un método no abre ningún
+    socket, y las sesiones de SQLAlchemy son perezosas: la conexión no existe
+    hasta que se ejecuta algo. Con MySQL apagado, el `skip` no llegaba a
+    saltar y las pruebas fallaban más tarde con un error de red ilegible en
+    vez de saltarse limpiamente.
+    """
+    from sqlalchemy import text
+
     try:
         from app.database import SessionLocal
         s = SessionLocal()
-        s.execute.__self__  # fuerza que la conexión exista
+        s.execute(text("SELECT 1")).scalar()
     except Exception as e:  # pragma: no cover
         pytest.skip("Sin conexión a MySQL: %s" % e)
     try:
