@@ -856,6 +856,9 @@ function SubirArticulos({ proyecto, goBack }) {
   const [arts, setArts] = useState([]);
   const [busy, setBusy] = useState(false);
   const [subiendo, setSubiendo] = useState(null); // { hecho, total, nombre }
+  // El id del artículo que se está quitando, no un booleano: así el botón que
+  // espera es solo el de esa fila y las demás siguen disponibles.
+  const [quitando, setQuitando] = useState(null);
   const [fase, setFase] = useState(null); // { etapa, hecho, total, detalle }
   const [err, setErr] = useState(null);
   const avisar = useAviso();
@@ -955,6 +958,49 @@ function SubirArticulos({ proyecto, goBack }) {
     } finally {
       setSubiendo(null);
       setBusy(false);
+    }
+  }
+
+  /**
+   * Quita un artículo del proyecto.
+   *
+   * Se confirma antes porque no hay papelera: el PDF se borra del servidor y
+   * con él lo que se hubiera analizado. El aviso dice qué desaparece en lugar
+   * de un «¿estás seguro?», que no informa de nada.
+   */
+  async function quitarArticulo(a) {
+    const nombre = a.titulo || "este artículo";
+    if (
+      !window.confirm(
+        `¿Quitar «${nombre}» del proyecto?\n\n` +
+          "Se borra el PDF del servidor junto con su análisis, si lo tuviera. " +
+          "No se puede deshacer: habría que volver a subirlo."
+      )
+    )
+      return;
+
+    setQuitando(a.id);
+    try {
+      const r = await api(`${API_BASE}/proyectos/${proyecto.id}/articulos/${a.id}`, {
+        method: "DELETE",
+      });
+      if (!r.ok) {
+        const detail = await leerDetalle(r);
+        // El 409 es el caso previsto —el artículo está en un análisis en
+        // marcha—, y el servidor ya explica por qué. Repetirlo con palabras
+        // propias solo serviría para que las dos versiones se separen.
+        const motivo =
+          (detail && (detail.detail || detail.message)) ||
+          `No se pudo quitar (error ${r.status})`;
+        avisar(motivo, r.status === 409 ? "aviso" : "mal");
+        return;
+      }
+      await load();
+      avisar("Artículo quitado", "bien");
+    } catch (e) {
+      setErr(e);
+    } finally {
+      setQuitando(null);
     }
   }
 
@@ -1105,6 +1151,9 @@ function SubirArticulos({ proyecto, goBack }) {
                 <Th>Artículo</Th>
                 <Th ancho="15rem">DOI</Th>
                 <Th ancho="8rem">Estado</Th>
+                <Th ancho="7rem" className="text-right">
+                  <span className="sr-only">Acciones</span>
+                </Th>
               </tr>
             </thead>
             <tbody>
@@ -1118,6 +1167,15 @@ function SubirArticulos({ proyecto, goBack }) {
                   </Td>
                   <Td>
                     <Estado tono="bien">Cargado</Estado>
+                  </Td>
+                  <Td className="text-right">
+                    <Btn
+                      kind="gray"
+                      disabled={busy || quitando === a.id}
+                      onClick={() => quitarArticulo(a)}
+                    >
+                      {quitando === a.id ? "Quitando…" : "Quitar"}
+                    </Btn>
                   </Td>
                 </Fila>
               ))}
