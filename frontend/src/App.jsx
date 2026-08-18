@@ -1227,7 +1227,16 @@ function SubirArticulos({ proyecto, goBack }) {
         {confirmarQuitar && (
           <div className="space-y-4 text-sm">
             <div className="flex items-start gap-3">
-              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-mal-claro text-mal">
+              {/* El icono acompaña al aviso: en rojo solo cuando de verdad se
+                  pierde algo. Un proyecto sin analizar no merece la señal de
+                  alarma. */}
+              <span
+                className={`grid h-9 w-9 shrink-0 place-items-center rounded-lg ${
+                  confirmarQuitar.tiene_analisis
+                    ? "bg-mal-claro text-mal"
+                    : "bg-hundido text-tinta-suave"
+                }`}
+              >
                 <Icono tipo="documento" className="h-5 w-5" />
               </span>
               <div className="min-w-0">
@@ -1236,16 +1245,36 @@ function SubirArticulos({ proyecto, goBack }) {
               </div>
             </div>
 
-            <div className="rounded-lg border border-mal-borde bg-mal-claro px-3.5 py-3 leading-relaxed text-tinta-media">
-              <p>
-                Se eliminarán el PDF del servidor y los resultados asociados:
-                análisis, brechas, resúmenes, embeddings y métricas.
-              </p>
-              <p className="mt-2 font-medium text-mal">
-                Esta acción no se puede deshacer. Para recuperarlo tendrás que
-                volver a subir el PDF.
-              </p>
-            </div>
+            {/* El aviso se ajusta a lo que hay. Antes enumeraba «análisis,
+                brechas, resúmenes, embeddings y métricas» siempre, también en
+                un proyecto recién cargado donde nada de eso existe todavía:
+                asustaba con la pérdida de algo que no había, justo en la
+                pantalla donde lo normal es quitar un PDF equivocado antes de
+                analizar. Una advertencia que exagera se acaba ignorando, y
+                entonces no avisa el día que sí importa. */}
+            {confirmarQuitar.tiene_analisis ? (
+              <div className="rounded-lg border border-mal-borde bg-mal-claro px-3.5 py-3 leading-relaxed text-tinta-media">
+                <p>
+                  Este artículo ya se analizó. Se eliminarán el PDF del servidor
+                  y todo lo obtenido de él: sus brechas, su resumen y sus
+                  métricas.
+                </p>
+                <p className="mt-2 font-medium text-mal">
+                  No se puede deshacer, y volver a subir el PDF no recupera el
+                  análisis: habría que analizarlo de nuevo, gastando cuota.
+                </p>
+              </div>
+            ) : (
+              <div className="rounded-lg border border-borde bg-hundido px-3.5 py-3 leading-relaxed text-tinta-media">
+                <p>
+                  Todavía no se ha analizado, así que no se pierde ningún
+                  resultado. Solo se elimina el PDF del servidor.
+                </p>
+                <p className="mt-2 text-tinta-suave">
+                  Puedes volver a subirlo cuando quieras.
+                </p>
+              </div>
+            )}
           </div>
         )}
       </Modal>

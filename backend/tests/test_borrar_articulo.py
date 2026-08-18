@@ -159,6 +159,64 @@ class TestBorradoCompleto:
         assert db.query(Proyecto).filter(Proyecto.id == proyecto).count() == 1
 
 
+class TestSaberSiHayAnalisis:
+    """El listado dice si el articulo tiene resultados guardados.
+
+    La confirmacion de borrado enumeraba «analisis, brechas, resumenes,
+    embeddings y metricas» para cualquier articulo, tambien en un proyecto
+    recien cargado donde nada de eso existe. Una advertencia que exagera se
+    acaba ignorando, y entonces no avisa el dia que si importa.
+
+    El dato tiene que ser cierto en los dos sentidos: si dijera que no hay
+    analisis cuando lo hay, el error seria mucho peor.
+    """
+
+    def test_recien_subido_no_tiene_analisis(self, db, cliente, proyecto):
+        from app.models.articulo import Articulo
+
+        aid = str(uuid.uuid4())
+        db.add(Articulo(id=aid, proyecto_id=proyecto, doi=None, titulo="Nuevo"))
+        db.commit()
+
+        r = cliente.get(f"/proyectos/{proyecto}/articulos")
+        assert r.status_code == 200, r.text
+        fila = next(a for a in r.json() if a["id"] == aid)
+        assert fila["tiene_analisis"] is False
+
+    def test_con_brechas_si_tiene_analisis(self, cliente, proyecto,
+                                           articulo_completo):
+        r = cliente.get(f"/proyectos/{proyecto}/articulos")
+        fila = next(a for a in r.json()
+                    if a["id"] == articulo_completo["articulo"])
+        assert fila["tiene_analisis"] is True
+
+    def test_encolado_sin_terminar_no_cuenta(self, db, cliente, proyecto,
+                                             usuario_prueba):
+        """Intentarlo no es tenerlo.
+
+        Un articulo que entro en la cola y nunca termino tiene run_item pero no
+        deja nada que perder al borrarlo. Contarlo como analizado seria el mismo
+        exceso que se esta corrigiendo, solo que mas dificil de ver.
+        """
+        from app.models.articulo import Articulo
+        from app.models.run import EstadoRun, Run
+        from app.models.run_item import EstadoRunItem, RunItem
+
+        aid, rid = str(uuid.uuid4()), str(uuid.uuid4())
+        db.add(Articulo(id=aid, proyecto_id=proyecto, doi=None, titulo="A medias"))
+        db.add(Run(id=rid, proyecto_id=proyecto, estado=EstadoRun.en_progreso,
+                   n_items_total=1, n_items_ok=0))
+        db.flush()
+        db.add(RunItem(id=str(uuid.uuid4()), run_id=rid, articulo_id=aid,
+                       estado=EstadoRunItem.fallido))
+        db.commit()
+
+        r = cliente.get(f"/proyectos/{proyecto}/articulos")
+        fila = next(a for a in r.json() if a["id"] == aid)
+        assert fila["tiene_analisis"] is False, (
+            "un intento fallido no deja resultados que perder")
+
+
 class TestCuandoNoSeDebeBorrar:
     def test_un_analisis_en_marcha_lo_impide(self, db, cliente, proyecto,
                                              articulo_completo):

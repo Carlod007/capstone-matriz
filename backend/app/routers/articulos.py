@@ -7,6 +7,7 @@ from app.models.articulo import Articulo
 from app.models.metrica import Metrica
 from app.models.proyecto import Proyecto
 from app.models.resultado_brecha import ResultadoBrecha
+from app.models.resultado_resumen import ResultadoResumen
 from app.models.run_item import EstadoRunItem, RunItem
 from app.schemas.articulo import ArticuloOut
 from app.services import almacenamiento
@@ -25,10 +26,37 @@ def listar_articulos(
 ):
     # La dependencia ya resolvió el proyecto y comprobó el dueño; si no fuera
     # suyo, la petición no habría llegado hasta aquí.
-    return (db.query(Articulo)
+    arts = (db.query(Articulo)
               .filter(Articulo.proyecto_id == proyecto.id)
               .order_by(Articulo.creado_en.asc())
               .all())
+    if not arts:
+        return []
+
+    ids = [a.id for a in arts]
+
+    # Qué cuenta como «tiene análisis»: que haya resultados guardados, no que
+    # se haya intentado. Un artículo encolado y nunca terminado tiene run_item
+    # pero no deja nada que perder al borrarlo, y decir lo contrario sería el
+    # mismo exceso que se está corrigiendo.
+    #
+    # Dos consultas para todos los artículos, no una por cada uno: la lista se
+    # pide en cada recarga de la pantalla.
+    con_brechas = {r[0] for r in
+                   db.query(RunItem.articulo_id)
+                     .join(ResultadoBrecha,
+                           ResultadoBrecha.run_item_id == RunItem.id)
+                     .filter(RunItem.articulo_id.in_(ids))
+                     .distinct()}
+    con_resumen = {r[0] for r in
+                   db.query(ResultadoResumen.articulo_id)
+                     .filter(ResultadoResumen.articulo_id.in_(ids))
+                     .distinct()}
+    con_resultados = con_brechas | con_resumen
+
+    return [ArticuloOut(id=a.id, titulo=a.titulo, doi=a.doi,
+                        tiene_analisis=a.id in con_resultados)
+            for a in arts]
 
 
 @router.delete("/{proyecto_id}/articulos/{articulo_id}")
