@@ -299,6 +299,88 @@ function WelcomeScreen({ onStart, onList }) {
   );
 }
 
+/* Iconos mínimos de la lista de proyectos. Son decorativos: la información
+   importante también aparece como texto para no depender del color o del dibujo. */
+function Icono({ tipo, className = "h-5 w-5" }) {
+  const trazos = {
+    documento: (
+      <>
+        <path d="M6 3.75h8l4 4V20.25H6z" />
+        <path d="M14 3.75v4h4M9 12h6M9 15.5h6" />
+      </>
+    ),
+    brecha: (
+      <>
+        <circle cx="12" cy="12" r="3.2" />
+        <path d="M12 3v4M12 17v4M3 12h4M17 12h4M5.7 5.7l2.8 2.8M15.5 15.5l2.8 2.8M18.3 5.7l-2.8 2.8M8.5 15.5l-2.8 2.8" />
+      </>
+    ),
+    analisis: (
+      <>
+        <path d="M5 19.5V10M12 19.5V5M19 19.5v-7" />
+        <path d="M3.5 19.5h17" />
+      </>
+    ),
+    libro: (
+      <>
+        <path d="M4.5 5.5A2.5 2.5 0 0 1 7 3h5v16H7a2.5 2.5 0 0 0-2.5 2z" />
+        <path d="M19.5 5.5A2.5 2.5 0 0 0 17 3h-5v16h5a2.5 2.5 0 0 1 2.5 2z" />
+      </>
+    ),
+    info: (
+      <>
+        <circle cx="12" cy="12" r="9" />
+        <path d="M12 10.5v5M12 7.5h.01" />
+      </>
+    ),
+  };
+
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className={className}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      {trazos[tipo] || trazos.info}
+    </svg>
+  );
+}
+
+function Pista({ children }) {
+  return (
+    <span
+      className="inline-grid h-4 w-4 place-items-center rounded-full border border-acento-borde text-[10px] font-semibold text-acento"
+      title={children}
+      aria-label={children}
+    >
+      i
+    </span>
+  );
+}
+
+function IndicadorProyecto({ tipo, label, valor, apoyo, ayuda }) {
+  return (
+    <div className="min-w-0">
+      <div className="flex items-center gap-2 text-sm text-tinta-media">
+        <span className="text-acento">
+          <Icono tipo={tipo} className="h-5 w-5" />
+        </span>
+        <span>{label}</span>
+        {ayuda && <Pista>{ayuda}</Pista>}
+      </div>
+      <p className="mt-2 text-2xl font-semibold tracking-tight text-tinta tabular-nums">
+        {valor}
+      </p>
+      <p className="mt-1 text-xs leading-relaxed text-tinta-suave">{apoyo}</p>
+    </div>
+  );
+}
+
 /* ================ 1) LISTA ================ */
 function Lista({ goCreate, goProyecto }) {
   const [rows, setRows] = useState([]);
@@ -360,7 +442,10 @@ function Lista({ goCreate, goProyecto }) {
   }
 
   return (
-    <Page title="Proyectos" subtitle="Cada proyecto reúne un tema, sus artículos y el estado del arte generado a partir de ellos.">
+    <Page
+      title="Proyectos"
+      subtitle="Organiza tus artículos, brechas y estado del arte en un solo lugar."
+    >
       <Seccion
         acciones={
           <>
@@ -374,6 +459,17 @@ function Lista({ goCreate, goProyecto }) {
           </>
         }
       >
+        <div className="mb-6 flex items-start gap-3 rounded-xl border border-acento-borde bg-acento-claro px-4 py-3 text-sm text-acento-fuerte">
+          <span className="mt-0.5 shrink-0 text-acento">
+            <Icono tipo="info" className="h-5 w-5" />
+          </span>
+          <p className="leading-relaxed">
+            El consumo de API es compartido por tus proyectos y se renueva
+            automáticamente. Los indicadores te ayudan a entender qué está
+            listo y qué falta revisar.
+          </p>
+        </div>
+
         {loading ? (
           <div className="rounded-xl border border-borde bg-superficie px-4 py-10 text-center text-sm text-tinta-suave">
             Cargando…
@@ -391,53 +487,112 @@ function Lista({ goCreate, goProyecto }) {
             ahí subes los artículos y el sistema detecta las brechas.
           </Vacio>
         ) : (
-          <Tabla>
-            <thead>
-              <tr>
-                <Th>Tema</Th>
-                <Th ancho="7rem">Artículos</Th>
-                <Th ancho="11rem">Estado del arte</Th>
-                <Th ancho="9rem" className="text-right">
-                  <span className="sr-only">Acciones</span>
-                </Th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((p) => (
-                <Fila key={p.id}>
-                  <Td>
-                    <div className="text-tinta font-medium leading-snug">
-                      <Recorte>{p.tema_principal || "(Sin tema)"}</Recorte>
+          <div>
+            <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-tinta-media">
+              Tus proyectos
+            </h2>
+            <div className="space-y-4">
+              {rows.map((p) => {
+                const articulos = p.articulos_count ?? 0;
+                const objetivo = p.n_articulos_objetivo ?? "—";
+                const listo = p.tiene_sota;
+
+                return (
+                  <article
+                    key={p.id}
+                    className="overflow-hidden rounded-2xl border border-borde bg-superficie transition-[border-color,box-shadow] hover:border-borde-fuerte"
+                    style={{ boxShadow: "var(--sombra-1)" }}
+                  >
+                    <div className="p-5 md:p-6">
+                      <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+                        <div className="flex min-w-0 items-start gap-4">
+                          <span className="grid h-14 w-14 shrink-0 place-items-center rounded-full bg-acento-claro text-acento">
+                            <Icono tipo="documento" className="h-7 w-7" />
+                          </span>
+                          <div className="min-w-0">
+                            <h3 className="text-xl font-semibold leading-tight tracking-tight text-tinta">
+                              <Recorte lineas={2}>
+                                {p.tema_principal || "(Sin tema)"}
+                              </Recorte>
+                            </h3>
+                            <div className="mt-3 flex flex-wrap items-center gap-2 text-sm">
+                              <span className="inline-flex items-center gap-2 rounded-lg bg-hundido px-3 py-1.5 text-tinta-media">
+                                <Icono tipo="documento" className="h-4 w-4" />
+                                {articulos} {articulos === 1 ? "artículo" : "artículos"} incorporados
+                              </span>
+                              <span className="hidden h-5 w-px bg-borde sm:block" />
+                              {listo ? (
+                                <button
+                                  type="button"
+                                  onClick={() => verSOTA(p.id)}
+                                  className="rounded-lg bg-bien-claro px-3 py-1.5 text-left text-bien transition-colors hover:bg-bien-borde"
+                                  title="Ver el estado del arte generado"
+                                >
+                                  <Estado tono="bien">Estado del arte listo · ver</Estado>
+                                </button>
+                              ) : (
+                                <span className="rounded-lg bg-hundido px-3 py-1.5">
+                                  <Estado tono="neutro">Estado del arte pendiente</Estado>
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="mt-6 grid gap-6 border-t border-borde pt-5 md:grid-cols-3 md:gap-0">
+                        <IndicadorProyecto
+                          tipo="documento"
+                          label="Artículos"
+                          valor={
+                            <>
+                              {articulos} <span className="text-base font-normal text-tinta-suave">/ {objetivo}</span>
+                            </>
+                          }
+                          apoyo="Estudios incorporados al proyecto"
+                          ayuda="Cantidad de artículos que has agregado frente al objetivo inicial."
+                        />
+                        <div className="border-b border-borde pb-6 md:border-b-0 md:border-l md:px-6 md:pb-0">
+                          <IndicadorProyecto
+                            tipo="brecha"
+                            label="Brechas detectadas"
+                            valor="—"
+                            apoyo={listo ? "Consulta la matriz dentro del proyecto" : "Se calculan al ejecutar el análisis"}
+                            ayuda="Son vacíos o problemas identificados al comparar los artículos."
+                          />
+                        </div>
+                        <div className="md:border-l md:px-6">
+                          <IndicadorProyecto
+                            tipo="analisis"
+                            label="Estado del análisis"
+                            valor={listo ? "Generado" : "Pendiente"}
+                            apoyo={listo ? "Síntesis del estado del arte disponible" : "Aún falta analizar los artículos"}
+                            ayuda="Indica si ya puedes revisar la síntesis y sus resultados."
+                          />
+                        </div>
+                      </div>
+
+                      <div className="mt-6 flex flex-col gap-4 border-t border-borde pt-5 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="flex items-start gap-3 text-sm text-tinta-media">
+                          <span className="mt-0.5 shrink-0 text-bien">
+                            <Icono tipo="libro" className="h-5 w-5" />
+                          </span>
+                          <p className="leading-relaxed">
+                            {listo
+                              ? "Puedes revisar la matriz de brechas y la síntesis generada."
+                              : "Sube tus artículos para comenzar a construir la matriz de brechas."}
+                          </p>
+                        </div>
+                        <Btn kind="yellow" onClick={() => goProyecto(p)}>
+                          Abrir proyecto <span aria-hidden="true" className="ml-1 text-lg leading-none">›</span>
+                        </Btn>
+                      </div>
                     </div>
-                  </Td>
-                  <Td className="text-tinta-media tabular-nums">
-                    {p.articulos_count ?? 0}
-                    <span className="text-tinta-suave">
-                      {" "}
-                      / {p.n_articulos_objetivo ?? "—"}
-                    </span>
-                  </Td>
-                  <Td>
-                    {p.tiene_sota ? (
-                      <button
-                        onClick={() => verSOTA(p.id)}
-                        className="text-left"
-                      >
-                        <Estado tono="bien">Generado · ver</Estado>
-                      </button>
-                    ) : (
-                      <Estado tono="neutro">Sin generar</Estado>
-                    )}
-                  </Td>
-                  <Td className="text-right">
-                    <Btn kind="blue" onClick={() => goProyecto(p)}>
-                      Abrir
-                    </Btn>
-                  </Td>
-                </Fila>
-              ))}
-            </tbody>
-          </Tabla>
+                  </article>
+                );
+              })}
+            </div>
+          </div>
         )}
       </Seccion>
 
