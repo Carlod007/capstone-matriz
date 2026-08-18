@@ -192,6 +192,27 @@ class TestRecuentos:
             db.query(Run).filter(Run.id == rid2).delete()
             db.commit()
 
+    def test_el_proyecto_suelto_da_los_mismos_numeros(self, cliente,
+                                                      proyecto_analizado):
+        """GET /proyectos/{id} devolvia los valores por defecto.
+
+        Comparte esquema con el listado, asi que respondia cero articulos, cero
+        brechas y sin estado del arte para proyectos que si los tenian: el
+        mismo contrato decia la verdad o no segun por que puerta se pidiera.
+        """
+        pid = proyecto_analizado["proyecto"]
+        del_listado = _fila(cliente, pid)
+
+        r = cliente.get(f"/proyectos/{pid}")
+        assert r.status_code == 200, r.text
+        suelto = r.json()
+
+        for campo in ("n_articulos", "n_brechas", "tiene_estado_arte"):
+            assert suelto[campo] == del_listado[campo], (
+                "%s difiere entre el listado y el proyecto suelto: %r vs %r"
+                % (campo, del_listado[campo], suelto[campo]))
+        assert suelto["n_articulos"] == 3
+
     def test_no_cuenta_lo_de_otras_cuentas(self, db, cliente, usuario_prueba,
                                            proyecto_analizado):
         """Los recuentos van por proyecto; el listado ya filtra por dueno, pero

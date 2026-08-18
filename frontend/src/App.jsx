@@ -602,11 +602,18 @@ function Lista({ goCreate, goProyecto }) {
                           {/* El valor era un guion fijo: nunca llegó a
                               conectarse con el dato. Y un guion en una columna
                               de resultados no se lee como «no consultado», se
-                              lee como «no se detectó ninguna». */}
+                              lee como «no se detectó ninguna».
+
+                              Por eso ahora sale el número también cuando es
+                              cero, incluso sin artículos: mantener el guion
+                              para ese caso reintroducía la misma ambigüedad
+                              que se estaba quitando, y hacía que la pantalla
+                              dijera una cosa y la API otra. El contexto lo da
+                              la línea de apoyo, que sí distingue los casos. */}
                           <IndicadorProyecto
                             tipo="brecha"
                             label="Brechas detectadas"
-                            valor={articulos === 0 ? "—" : brechas}
+                            valor={brechas}
                             apoyo={
                               articulos === 0
                                 ? "Primero sube artículos"

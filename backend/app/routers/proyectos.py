@@ -36,25 +36,23 @@ def crear_proyecto(
     db.refresh(nuevo)
     return nuevo
 
-@router.get("", response_model=list[ProyectoOut])
-def listar_proyectos(
-    usuario: Usuario = Depends(usuario_actual),
-    db: Session = Depends(get_db),
-):
-    # El filtro por dueño va en la consulta. Un proyecto sin dueño —de antes
-    # de que existieran las cuentas— tampoco aparece aquí: no es de nadie.
-    proyectos = (db.query(Proyecto)
-                   .filter(Proyecto.usuario_id == usuario.id)
-                   .order_by(Proyecto.creado_en.desc())
-                   .all())
+def _resumen(db: Session, proyectos: list[Proyecto]) -> list[ProyectoOut]:
+    """Añade a cada proyecto sus recuentos, con consultas agrupadas.
+
+    Está fuera de los endpoints para que la lista y el proyecto suelto den la
+    misma respuesta. Cuando esto vivía dentro del listado, `GET /proyectos/{id}`
+    devolvía los valores por defecto —cero artículos, cero brechas y sin estado
+    del arte— para proyectos que sí los tenían: el mismo esquema mentía o no
+    según por qué puerta se pidiera.
+    """
     if not proyectos:
         return []
 
     ids = [p.id for p in proyectos]
 
-    # Dos consultas agrupadas para toda la lista. La pantalla pedía antes los
-    # artículos de cada proyecto uno por uno, y con varios proyectos eso son
-    # tantas peticiones como tarjetas cada vez que se abre la pantalla.
+    # Agrupadas y no una por proyecto: la pantalla del listado pedía antes los
+    # artículos y el estado del arte de cada uno por separado, tantas
+    # peticiones como tarjetas cada vez que se abría.
     articulos = dict(
         db.query(Articulo.proyecto_id, func.count(Articulo.id))
           .filter(Articulo.proyecto_id.in_(ids))
@@ -64,7 +62,13 @@ def listar_proyectos(
 
     # Artículos con brecha, no brechas en bruto: cada análisis añade una nueva
     # y conserva las anteriores, así que la suma directa crecería al reanalizar
-    # sin que la matriz tuviera una fila más.
+    # aunque el proyecto siguiera teniendo los mismos artículos.
+    #
+    # Ojo al leer esta cifra: NO es el número de filas de la matriz exportada.
+    # Esa devuelve hoy una fila por cada brecha histórica, así que un proyecto
+    # reanalizado tiene más filas que artículos con brecha. Son dos preguntas
+    # distintas —cuántos artículos han dado brecha, y cuántos análisis se han
+    # acumulado— y conviene no confundirlas.
     brechas = dict(
         db.query(Run.proyecto_id,
                  func.count(distinct(RunItem.articulo_id)))
@@ -99,12 +103,28 @@ def listar_proyectos(
     ]
 
 
+@router.get("", response_model=list[ProyectoOut])
+def listar_proyectos(
+    usuario: Usuario = Depends(usuario_actual),
+    db: Session = Depends(get_db),
+):
+    # El filtro por dueño va en la consulta. Un proyecto sin dueño —de antes
+    # de que existieran las cuentas— tampoco aparece aquí: no es de nadie.
+    return _resumen(db, (db.query(Proyecto)
+                           .filter(Proyecto.usuario_id == usuario.id)
+                           .order_by(Proyecto.creado_en.desc())
+                           .all()))
+
+
 @router.get("/{proyecto_id}", response_model=ProyectoOut)
-def obtener_proyecto(proyecto: Proyecto = Depends(proyecto_propio)):
+def obtener_proyecto(
+    proyecto: Proyecto = Depends(proyecto_propio),
+    db: Session = Depends(get_db),
+):
     """Un proyecto suelto, para que el frontend pueda entrar por su URL.
 
     Hasta ahora la única forma de conocer un proyecto era listarlos todos;
     con rutas propias en el frontend hace falta poder pedir uno por su
     identificador.
     """
-    return proyecto
+    return _resumen(db, [proyecto])[0]

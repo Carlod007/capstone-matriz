@@ -34,10 +34,15 @@ class ProyectoOut(BaseModel):
     # Valores por defecto porque `crear_proyecto` y `obtener_proyecto`
     # devuelven el modelo tal cual, sin este recuento.
     n_articulos: int = 0
-    # Articulos con al menos una brecha: es el numero de filas de la matriz.
-    # Contar las brechas en bruto sumaria el historico —cada analisis genera
-    # una nueva y se conservan las anteriores— y la cifra creceria al
-    # reanalizar sin que la matriz tuviera una fila mas.
+    # Articulos con al menos una brecha. No son las brechas en bruto: cada
+    # analisis genera una nueva y se conservan las anteriores, asi que la suma
+    # directa creceria al reanalizar aunque el proyecto siguiera teniendo los
+    # mismos articulos.
+    #
+    # Tampoco es el numero de filas de la matriz exportada, que hoy devuelve
+    # una fila por brecha historica. Son dos preguntas distintas y no deben
+    # confundirse: cuantos articulos han dado brecha, y cuantos analisis se
+    # han acumulado.
     n_brechas: int = 0
 
     class Config:
