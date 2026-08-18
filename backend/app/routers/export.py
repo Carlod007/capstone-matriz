@@ -43,6 +43,47 @@ def _proj_or_404(db: Session, proyecto_id: str) -> Proyecto:
         raise HTTPException(status_code=404, detail="Proyecto no encontrado")
     return pr
 
+
+def _brechas_vigentes(db: Session, proyecto_id: str) -> dict[str, str]:
+    """La brecha vigente de cada artículo: {articulo_id: brecha_id}.
+
+    Cada análisis genera una brecha nueva y conserva las anteriores. La
+    pantalla de detalle ya decide esa pregunta —destaca la última y pliega el
+    resto como «análisis anteriores»—, pero las exportaciones no lo hacían: la
+    matriz repetía el artículo una vez por análisis, y el PDF acababa
+    contradiciendo a la interfaz sobre los mismos datos.
+
+    Los tres formatos llaman aquí. Si cada uno resolviera «cuál es la vigente»
+    por su cuenta, bastaría con que uno ordenara distinto para que la matriz y
+    el CSV señalaran brechas diferentes, y nadie lo notaría hasta compararlos.
+
+    El desempate es determinista: primero la fecha, y a igualdad de fecha el
+    identificador. Dos brechas guardadas en el mismo instante son posibles
+    —el trabajador escribe varias seguidas— y sin el segundo criterio la
+    elegida dependería del orden en que la base devolviera las filas, que no
+    está garantizado.
+    """
+    filas = (
+        db.query(ResultadoBrecha.id, RunItem.articulo_id,
+                 ResultadoBrecha.created_at)
+          .join(RunItem, RunItem.id == ResultadoBrecha.run_item_id)
+          .join(Run, Run.id == RunItem.run_id)
+          .filter(Run.proyecto_id == proyecto_id)
+          .all()
+    )
+
+    # `created_at` es opcional en el modelo; una fila sin fecha no puede ganarle
+    # a una fechada, así que se ordena por debajo de cualquier fecha real.
+    sin_fecha = datetime.min
+    mejor: dict[str, tuple[tuple, str]] = {}
+    for brecha_id, articulo_id, creado in filas:
+        clave = (creado or sin_fecha, brecha_id)
+        actual = mejor.get(articulo_id)
+        if actual is None or clave > actual[0]:
+            mejor[articulo_id] = (clave, brecha_id)
+
+    return {articulo_id: v[1] for articulo_id, v in mejor.items()}
+
 # ----------------------------------------
 # Exportar brechas a CSV
 # ----------------------------------------
@@ -65,6 +106,14 @@ def export_brechas_csv(
     if not rows:
         raise HTTPException(status_code=404, detail="Sin brechas para exportar")
 
+    # El CSV conserva el histórico completo, a diferencia de la matriz. No es
+    # un documento sino un conjunto de datos: quitar las brechas anteriores
+    # destruiría el material con el que se compara cómo cambió un análisis
+    # entre dos ejecuciones. Lo que faltaba era poder distinguirlas, y para eso
+    # se añade `vigente` —la misma que sale en la matriz—: se filtra en una
+    # hoja de cálculo con un clic y no se pierde nada.
+    vigentes = set(_brechas_vigentes(db, proyecto_id).values())
+
     buf = io.StringIO()
     w = csv.writer(buf)
     w.writerow(
@@ -73,6 +122,7 @@ def export_brechas_csv(
             "proyecto_id",
             "articulo_id",
             "run_item_id",
+            "vigente",
             "tipo_brecha",
             "brecha",
             "oportunidad",
@@ -99,6 +149,7 @@ def export_brechas_csv(
                 proyecto_id,
                 ri.articulo_id,
                 rb.run_item_id,
+                "sí" if rb.id in vigentes else "no",
                 rb.tipo_brecha,
                 brecha,
                 oportunidad,
@@ -534,14 +585,25 @@ def _matrix_rows(db: Session, proyecto_id: str):
     """
     Devuelve filas con (titulo, doi, brecha, oportunidad) del proyecto.
     Une ResultadoBrecha -> RunItem -> Run (filtro por proyecto) -> Articulo.
+
+    Una fila por artículo, con su brecha vigente. Antes devolvía una por cada
+    brecha histórica, así que un proyecto reanalizado sacaba el mismo artículo
+    repetido con dos brechas distintas y sin decir cuál valía. La matriz es un
+    documento para leer: su unidad es el artículo. El histórico completo sigue
+    en `brechas.csv`, que sí es un conjunto de datos.
     """
+    vigentes = set(_brechas_vigentes(db, proyecto_id).values())
+    if not vigentes:
+        return []
+
     q = (
         db.query(ResultadoBrecha, RunItem, Articulo)
         .join(RunItem, RunItem.id == ResultadoBrecha.run_item_id)
         .join(Run, Run.id == RunItem.run_id)
         .join(Articulo, Articulo.id == RunItem.articulo_id)
-        .filter(Run.proyecto_id == proyecto_id)
-        .order_by(Articulo.titulo.asc(), ResultadoBrecha.created_at.asc())
+        .filter(Run.proyecto_id == proyecto_id,
+                ResultadoBrecha.id.in_(vigentes))
+        .order_by(Articulo.titulo.asc())
     )
     rows = q.all()
     result = []
@@ -555,6 +617,23 @@ def _matrix_rows(db: Session, proyecto_id: str):
             }
         )
     return result
+
+
+def _analisis_anteriores(db: Session, proyecto_id: str) -> int:
+    """Cuántas brechas quedan fuera de la matriz por no ser las vigentes.
+
+    Se nombra al pie del PDF. Omitirlas sin decirlo dejaría un documento que
+    parece contener todo lo que hay, y quien comparase con el CSV encontraría
+    filas de más sin explicación.
+    """
+    total = (
+        db.query(ResultadoBrecha.id)
+          .join(RunItem, RunItem.id == ResultadoBrecha.run_item_id)
+          .join(Run, Run.id == RunItem.run_id)
+          .filter(Run.proyecto_id == proyecto_id)
+          .count()
+    )
+    return max(0, total - len(_brechas_vigentes(db, proyecto_id)))
 
 @router.get("/proyectos/{proyecto_id}/matriz.json")
 def export_matriz_json(
@@ -679,6 +758,23 @@ def export_matriz_pdf(
 
     elements.append(table)
     elements.append(Spacer(1, 10))
+
+    # Se dice cuántas quedaron fuera. Recortar en silencio dejaría un documento
+    # que parece contenerlo todo, y quien lo comparase con brechas.csv se
+    # encontraría filas de más sin explicación.
+    anteriores = _analisis_anteriores(db, proyecto_id)
+    if anteriores:
+        elements.append(
+            Paragraph(
+                f"Se muestra la brecha vigente de cada artículo. Hay "
+                f"{anteriores} de análisis anteriores que no se incluyen; "
+                f"están en la exportación brechas.csv, con la columna "
+                f"«vigente» para distinguirlas.",
+                styles["Italic"],
+            )
+        )
+        elements.append(Spacer(1, 6))
+
     elements.append(
         Paragraph(
             f"Generado el {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')}",
