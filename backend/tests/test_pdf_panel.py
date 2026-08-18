@@ -108,3 +108,73 @@ class TestGraficoDeIndicadores:
 
         assert b["Similitud"] == pytest.approx(1.0)
         assert b["Val. Score"] == pytest.approx(0.0)
+
+
+class TestNotaDeRouge:
+    """La nota explica POR QUE no hay numero, y esa explicacion debe ser cierta.
+
+    Durante varios commits afirmo que todos los descartes eran por idiomas
+    distintos, cuando el contador que leia sumaba tambien los indeterminados.
+    Nadie lo vio porque la frase se construia dentro de la funcion que arma el
+    PDF: no habia forma de leerla sin generar el documento entero.
+    """
+
+    @pytest.fixture
+    def nota(self):
+        from app.routers.export import _nota_rouge
+
+        return _nota_rouge
+
+    def test_con_valor_lo_dice_y_cuenta_los_pares(self, nota):
+        t = nota({"avg_rouge1_rec": 0.4321, "rouge_pares_comparados": 3})
+
+        assert "0.432" in t
+        assert "3 pares comparables" in t
+        assert "No aplicable" not in t
+
+    def test_solo_idiomas_distintos(self, nota):
+        t = nota({"avg_rouge1_rec": None,
+                  "rouge_descartados_idioma": 4,
+                  "rouge_descartados_idioma_distinto": 4,
+                  "rouge_descartados_idioma_indeterminado": 0})
+
+        assert "4 por estar el resumen y el abstract en idiomas distintos" in t
+        assert "no se pudo determinar el idioma" not in t
+
+    def test_solo_indeterminados_no_se_llaman_idiomas_distintos(self, nota):
+        """El caso que estaba mal: dos descartes, ninguno por idiomas distintos.
+
+        El texto anterior leia el total y decia "se descartaron 2 por estar en
+        idiomas distintos", que es sencillamente falso.
+        """
+        t = nota({"avg_rouge1_rec": None,
+                  "rouge_descartados_idioma": 2,
+                  "rouge_descartados_idioma_distinto": 0,
+                  "rouge_descartados_idioma_indeterminado": 2})
+
+        assert "idiomas distintos" not in t, (
+            "ninguno de los descartes fue por idiomas distintos: %r" % t)
+        assert "2 porque no se pudo determinar el idioma" in t
+
+    def test_los_dos_motivos_se_separan(self, nota):
+        t = nota({"avg_rouge1_rec": None,
+                  "rouge_descartados_idioma": 5,
+                  "rouge_descartados_idioma_distinto": 3,
+                  "rouge_descartados_idioma_indeterminado": 2})
+
+        assert "3 por estar el resumen y el abstract en idiomas distintos" in t
+        assert "2 porque no se pudo determinar el idioma" in t
+        # Y el total no aparece atribuido a un solo motivo.
+        assert "5 por estar" not in t
+
+    def test_sin_descartes_dice_que_aun_no_hay_resumenes(self, nota):
+        t = nota({"avg_rouge1_rec": None,
+                  "rouge_descartados_idioma": 0,
+                  "rouge_descartados_idioma_distinto": 0,
+                  "rouge_descartados_idioma_indeterminado": 0})
+
+        assert "todavía no hay resúmenes" in t
+        assert "descartaron" not in t
+
+    def test_sin_el_indicador_no_hay_nota(self, nota):
+        assert nota({}) is None

@@ -202,7 +202,13 @@ def project_indicators(db: Session, proyecto_id: str) -> Dict[str, Dict]:
             "avg_rouge1_rec": float | None,
             "avg_rouge1_f1": float | None,
             "rouge_pares_comparados": int,
+            # El total, y su desglose por motivo. No son intercambiables:
+            # "idiomas distintos" es un par que existe y no se puede
+            # comparar; "indeterminado" es que el detector no se pronuncio
+            # y no se sabe si el par era comparable.
             "rouge_descartados_idioma": int,
+            "rouge_descartados_idioma_distinto": int,
+            "rouge_descartados_idioma_indeterminado": int,
             # También None si no se midió ninguna: mide palabras con contenido
             # dentro de un texto, así que —a diferencia de ROUGE— no le afecta
             # el idioma de la referencia y se calcula siempre que haya resumen.
@@ -255,6 +261,8 @@ def project_indicators(db: Session, proyecto_id: str) -> Dict[str, Dict]:
                 "avg_rouge1_f1": None,
                 "rouge_pares_comparados": 0,
                 "rouge_descartados_idioma": 0,
+                "rouge_descartados_idioma_distinto": 0,
+                "rouge_descartados_idioma_indeterminado": 0,
                 "avg_lexical_density": None,
                 "densidad_resumenes_medidos": 0,
             },
@@ -304,6 +312,8 @@ def project_indicators(db: Session, proyecto_id: str) -> Dict[str, Dict]:
                 "avg_rouge1_f1": None,
                 "rouge_pares_comparados": 0,
                 "rouge_descartados_idioma": 0,
+                "rouge_descartados_idioma_distinto": 0,
+                "rouge_descartados_idioma_indeterminado": 0,
                 "avg_lexical_density": None,
                 "densidad_resumenes_medidos": 0,
             },
@@ -359,7 +369,8 @@ def project_indicators(db: Session, proyecto_id: str) -> Dict[str, Dict]:
     recs: list[float] = []
     f1s: list[float] = []
     lexs: list[float] = []
-    descartados_idioma = 0
+    descartados_distinto = 0
+    descartados_indeterminado = 0
 
     if ResultadoResumen is not None and articulo_ids:
         try:
@@ -414,9 +425,19 @@ def project_indicators(db: Session, proyecto_id: str) -> Dict[str, Dict]:
                 # idioma sea reconocido y no solo que coincida: con textos
                 # cortos el detector responde "indeterminado" para los dos, y
                 # comparar entonces sería volver a promediar ceros sin saberlo.
+                # Los dos motivos se cuentan por separado porque no son la
+                # misma noticia. "Están en idiomas distintos" señala un par que
+                # existe y no es comparable; "no se reconoce el idioma" señala
+                # que el detector no se pronunció —textos demasiado cortos, o
+                # un idioma fuera de es/en— y ahí ni siquiera se sabe si el par
+                # era comparable. Sumarlos obliga a describirlos con una frase
+                # que solo es cierta para la mitad.
                 idioma_ref, idioma_hyp = T.idioma(ref), T.idioma(hyp)
-                if idioma_ref != idioma_hyp or idioma_ref not in ("es", "en"):
-                    descartados_idioma += 1
+                if idioma_ref not in ("es", "en") or idioma_hyp not in ("es", "en"):
+                    descartados_indeterminado += 1
+                    continue
+                if idioma_ref != idioma_hyp:
+                    descartados_distinto += 1
                     continue
 
                 p, r, f1 = rouge1_prf(ref, hyp)
@@ -457,7 +478,13 @@ def project_indicators(db: Session, proyecto_id: str) -> Dict[str, Dict]:
         "avg_rouge1_rec": None if not recs else float(avg_rouge_rec),
         "avg_rouge1_f1": None if not f1s else float(avg_rouge_f1),
         "rouge_pares_comparados": len(f1s),
-        "rouge_descartados_idioma": descartados_idioma,
+        # El total se conserva por compatibilidad, pero quien redacte un texto
+        # a partir de él debe usar el desglose: decir "descartados por estar en
+        # idiomas distintos" sobre la suma es falso en cuanto hay uno solo
+        # indeterminado.
+        "rouge_descartados_idioma": descartados_distinto + descartados_indeterminado,
+        "rouge_descartados_idioma_distinto": descartados_distinto,
+        "rouge_descartados_idioma_indeterminado": descartados_indeterminado,
         # Mismo criterio que arriba, por el mismo motivo: sin ningún resumen
         # medido, un 0.0 se lee como "los resúmenes no tienen ni una palabra
         # con contenido", que es un juicio, no una ausencia de datos.

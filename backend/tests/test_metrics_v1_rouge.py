@@ -164,6 +164,30 @@ class TestPromedios:
             % p.get("avg_rouge1_f1"))
         assert p.get("rouge_descartados_idioma") == 1
         assert p.get("rouge_pares_comparados") == 0
+        # Y el motivo consta, no solo el total: es lo unico que permite
+        # redactar despues una explicacion que sea cierta.
+        assert p.get("rouge_descartados_idioma_distinto") == 1
+        assert p.get("rouge_descartados_idioma_indeterminado") == 0
+
+    def test_un_texto_corto_cuenta_como_indeterminado(self, db,
+                                                      proyecto_con_resumen):
+        """No es lo mismo "estan en idiomas distintos" que "no se sabe".
+
+        Lo primero describe un par que existe y no se puede comparar; lo
+        segundo, que el detector no se pronuncio y ni siquiera se sabe si el
+        par era comparable. El contador los sumaba, y con la suma no hay forma
+        de explicar el descarte sin afirmar de mas.
+        """
+        from app.services import metrics
+
+        proyecto_con_resumen["poner_resumen"]("El modelo.", ABSTRACT_EN)
+
+        p = (metrics.project_indicators(db, proyecto_con_resumen["proyecto"])
+             or {}).get("promedios", {})
+
+        assert p.get("rouge_descartados_idioma") == 1
+        assert p.get("rouge_descartados_idioma_indeterminado") == 1
+        assert p.get("rouge_descartados_idioma_distinto") == 0
 
     def test_en_el_mismo_idioma_si_da_numero(self, db, proyecto_con_resumen):
         """El contraste: sin esta, devolver siempre None pasaria la anterior."""

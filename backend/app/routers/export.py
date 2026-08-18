@@ -253,6 +253,60 @@ def _chart_indicadores_0_1(promedios: dict, width=500, height=240):
         )
     return drawing
 
+def _nota_rouge(promedios: dict) -> str | None:
+    """Redacta la nota de ROUGE-1 recall, o None si no procede ninguna.
+
+    Está fuera del endpoint para poder comprobar el texto. La versión anterior
+    se construía a mano dentro de la función que arma el PDF, y por eso pudo
+    afirmar durante varios commits que todos los descartes eran por idiomas
+    distintos: no había forma de leer la frase sin generar el documento entero.
+    """
+    if "avg_rouge1_rec" not in promedios:
+        return None
+
+    base = ("Nota: ROUGE-1 recall mide qué porcentaje del contenido de "
+            "referencia es cubierto por los resúmenes generados. ")
+    v = promedios["avg_rouge1_rec"]
+
+    if v is not None:
+        try:
+            valor = float(v)
+        except (TypeError, ValueError):
+            return None
+        comparados = promedios.get("rouge_pares_comparados")
+        sufijo = f" sobre {comparados} pares comparables" if comparados else ""
+        return base + f"Valor promedio: {valor:.3f} (0–1){sufijo}."
+
+    # Sin valor. Antes esto lanzaba una excepción y la nota desaparecía sin
+    # más; un lector no distingue una nota ausente de una que nunca existió.
+    #
+    # Y los descartes se explican por su motivo, nunca por el total: ese
+    # contador suma dos cosas distintas, y atribuirlas todas a "idiomas
+    # distintos" es falso en cuanto hay un solo caso indeterminado. Una
+    # explicación equivocada del porqué es peor que no dar ninguna, porque el
+    # lector se queda convencido de algo que no es.
+    distintos = promedios.get("rouge_descartados_idioma_distinto") or 0
+    indet = promedios.get("rouge_descartados_idioma_indeterminado") or 0
+
+    motivos = []
+    if distintos:
+        motivos.append(
+            f"{distintos} por estar el resumen y el abstract en idiomas "
+            "distintos, donde ROUGE daría casi cero por construcción"
+        )
+    if indet:
+        motivos.append(
+            f"{indet} porque no se pudo determinar el idioma con seguridad, "
+            "normalmente por ser los textos demasiado cortos"
+        )
+
+    if motivos:
+        return (base + "No aplicable en este proyecto: no hubo ningún par "
+                "comparable. Se descartaron " + " y ".join(motivos) + ".")
+    return (base + "No aplicable en este proyecto: todavía no hay resúmenes "
+            "con abstract de referencia.")
+
+
 # ----------------------------------------
 # Exportar dashboard unificado a PDF (robusto ante faltantes)
 # ----------------------------------------
@@ -390,37 +444,10 @@ def export_dashboard_pdf(
     elements.append(t)
 
     # Nota centrada en ROUGE-1 recall
-    if "avg_rouge1_rec" in promedios:
-        base = ("Nota: ROUGE-1 recall mide qué porcentaje del contenido de "
-                "referencia es cubierto por los resúmenes generados. ")
-        v = promedios["avg_rouge1_rec"]
-        if v is None:
-            # Antes esto lanzaba una excepción y la nota desaparecía sin más.
-            # Un lector no distingue una nota ausente de una que nunca existió;
-            # conviene decirle por qué no hay número.
-            descartados = promedios.get("rouge_descartados_idioma") or 0
-            cola = (
-                "No aplicable en este proyecto: no hubo ningún par comparable. "
-                + (f"Se descartaron {descartados} por estar el resumen y el "
-                   "abstract en idiomas distintos, donde ROUGE daría casi cero "
-                   "por construcción." if descartados else
-                   "Todavía no hay resúmenes con abstract de referencia.")
-            )
-            elements.append(Spacer(1, 6))
-            elements.append(Paragraph(base + cola, styles["Italic"]))
-        else:
-            try:
-                comparados = promedios.get("rouge_pares_comparados")
-                sufijo = f" sobre {comparados} pares comparables" if comparados else ""
-                elements.append(Spacer(1, 6))
-                elements.append(
-                    Paragraph(
-                        base + f"Valor promedio: {float(v):.3f} (0–1){sufijo}.",
-                        styles["Italic"],
-                    )
-                )
-            except Exception:
-                pass
+    nota = _nota_rouge(promedios)
+    if nota:
+        elements.append(Spacer(1, 6))
+        elements.append(Paragraph(nota, styles["Italic"]))
 
     elements.append(Spacer(1, 12))
 
