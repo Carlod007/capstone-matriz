@@ -191,9 +191,15 @@ def _registrar_metricas(db, art, rb, res, texto, recuperados, ruta_pdf) -> None:
             # revista, con lo que ROUGE medía el solape con la carátula (M-02).
             resumen_referencia=(abstract or ""),
             lexical_density=m4.densidad_lexica,
-            rouge1_prec=str(m4.rouge1_prec) if m4.referencia_valida else None,
-            rouge1_rec=str(m4.rouge1_rec) if m4.referencia_valida else None,
-            rouge1_f1=str(m4.rouge1_f1) if m4.referencia_valida else None,
+            # La condición es `rouge_aplicable`, no `referencia_valida`. Son
+            # distintas: un abstract puede ser perfectamente válido y aun así
+            # estar en otro idioma que el resumen, y entonces ROUGE vale 0.0
+            # por construcción. Con la condición anterior ese 0.0 se guardaba
+            # como si fuera una medición. La tabla `metrica` ya lo trataba
+            # bien; esta se quedó atrás.
+            rouge1_prec=str(m4.rouge1_prec) if m4.rouge_aplicable else None,
+            rouge1_rec=str(m4.rouge1_rec) if m4.rouge_aplicable else None,
+            rouge1_f1=str(m4.rouge1_f1) if m4.rouge_aplicable else None,
         ))
 
 

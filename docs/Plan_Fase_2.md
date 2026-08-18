@@ -1,9 +1,12 @@
 # Plan de Fase 2 — De herramienta local a servicio accesible
 
-**Estado:** propuesta, pendiente de acuerdo
+**Estado:** ejecutada y cerrada el 17 de agosto de 2026. El servicio está en
+producción en Oracle Always Free con HTTPS. Este documento se conserva como el
+plan que se acordó, no como una descripción del estado actual.
 **Fecha:** 13 de agosto de 2026
 **Punto de partida:** Fase 1 cerrada — esquema gobernado por Alembic, README que
-instala desde cero, CI en verde sobre 201 pruebas.
+instala desde cero, CI en verde sobre 201 pruebas. *(Esa cifra es la de aquel
+día; hoy son 317. Se deja sin actualizar a propósito: es el punto de partida.)*
 
 ---
 

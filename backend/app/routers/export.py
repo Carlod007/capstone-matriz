@@ -176,26 +176,36 @@ def _chart_indicadores_0_1(promedios: dict, width=500, height=240):
     if not _HAS_GRAPHICS or not promedios:
         return None
 
-    def get_float(key: str) -> float:
+    def get_float(key: str):
+        """Devuelve None si el indicador no aplica, en vez de convertirlo en 0.
+
+        Antes esta función hacía `float(... or 0.0)`, y con eso un indicador
+        sin valor se dibujaba como una barra a ras de suelo: exactamente la
+        lectura falsa que el resto del arreglo elimina, pero en el sitio más
+        visible del informe. Una barra en cero se entiende de un vistazo y no
+        admite matices; es peor que no dibujar nada.
+        """
+        v = promedios.get(key)
+        if v is None:
+            return None
         try:
-            return float(promedios.get(key, 0.0) or 0.0)
+            return max(0.0, min(1.0, float(v)))
         except Exception:
-            return 0.0
+            return None
 
-    # Valores en bruto desde el diccionario de promedios
-    sim = get_float("avg_sim_promedio")
-    vsc = get_float("avg_val_score")
-    ent = get_float("avg_entropia_norm")
-    rouge_rec = get_float("avg_rouge1_rec")          # <-- recall
-    lex = get_float("avg_lexical_density")
-
-    # clamp 0..1
-    clamp = lambda x: max(0.0, min(1.0, x))
-    sim = clamp(sim)
-    vsc = clamp(vsc)
-    ent = clamp(ent)
-    rouge_rec = clamp(rouge_rec)
-    lex = clamp(lex)
+    candidatos = [
+        ("Similitud", get_float("avg_sim_promedio")),
+        ("Val. Score", get_float("avg_val_score")),
+        ("Entropía (norm)", get_float("avg_entropia_norm")),
+        ("ROUGE-1 recall", get_float("avg_rouge1_rec")),
+        ("Densidad léxica", get_float("avg_lexical_density")),
+    ]
+    # Las barras que no aplican se omiten y se nombran al pie, para que la
+    # ausencia se vea como ausencia y no como un mal resultado.
+    barras = [(n, v) for n, v in candidatos if v is not None]
+    omitidos = [n for n, v in candidatos if v is None]
+    if not barras:
+        return None
 
     drawing = Drawing(width, height)
 
@@ -205,19 +215,13 @@ def _chart_indicadores_0_1(promedios: dict, width=500, height=240):
     chart.height = height - 60
     chart.width = width - 80
 
-    # Una sola serie con 5 barras
-    chart.data = [[sim, vsc, ent, rouge_rec, lex]]
+    # Una sola serie, solo con los indicadores que sí aplican
+    chart.data = [[v for _, v in barras]]
 
     chart.valueAxis.valueMin = 0.0
     chart.valueAxis.valueMax = 1.0
     chart.valueAxis.valueStep = 0.1
-    chart.categoryAxis.categoryNames = [
-        "Similitud",
-        "Val. Score",
-        "Entropía (norm)",
-        "ROUGE-1 recall",
-        "Densidad léxica",
-    ]
+    chart.categoryAxis.categoryNames = [n for n, _ in barras]
 
     chart.barWidth = 20
     chart.groupSpacing = 10
@@ -237,6 +241,16 @@ def _chart_indicadores_0_1(promedios: dict, width=500, height=240):
             fontSize=9,
         )
     )
+    if omitidos:
+        drawing.add(
+            String(
+                40,
+                8,
+                "No aplicable en este proyecto: " + ", ".join(omitidos),
+                fontName="Helvetica-Oblique",
+                fontSize=7,
+            )
+        )
     return drawing
 
 # ----------------------------------------
@@ -377,19 +391,36 @@ def export_dashboard_pdf(
 
     # Nota centrada en ROUGE-1 recall
     if "avg_rouge1_rec" in promedios:
-        try:
-            rouge_rec_val = float(promedios["avg_rouge1_rec"])
-            elements.append(Spacer(1, 6))
-            elements.append(
-                Paragraph(
-                    "Nota: ROUGE-1 recall mide qué porcentaje del contenido de referencia "
-                    "es cubierto por los resúmenes generados. "
-                    f"Valor promedio: {rouge_rec_val:.3f} (0–1).",
-                    styles["Italic"],
-                )
+        base = ("Nota: ROUGE-1 recall mide qué porcentaje del contenido de "
+                "referencia es cubierto por los resúmenes generados. ")
+        v = promedios["avg_rouge1_rec"]
+        if v is None:
+            # Antes esto lanzaba una excepción y la nota desaparecía sin más.
+            # Un lector no distingue una nota ausente de una que nunca existió;
+            # conviene decirle por qué no hay número.
+            descartados = promedios.get("rouge_descartados_idioma") or 0
+            cola = (
+                "No aplicable en este proyecto: no hubo ningún par comparable. "
+                + (f"Se descartaron {descartados} por estar el resumen y el "
+                   "abstract en idiomas distintos, donde ROUGE daría casi cero "
+                   "por construcción." if descartados else
+                   "Todavía no hay resúmenes con abstract de referencia.")
             )
-        except Exception:
-            pass
+            elements.append(Spacer(1, 6))
+            elements.append(Paragraph(base + cola, styles["Italic"]))
+        else:
+            try:
+                comparados = promedios.get("rouge_pares_comparados")
+                sufijo = f" sobre {comparados} pares comparables" if comparados else ""
+                elements.append(Spacer(1, 6))
+                elements.append(
+                    Paragraph(
+                        base + f"Valor promedio: {float(v):.3f} (0–1){sufijo}.",
+                        styles["Italic"],
+                    )
+                )
+            except Exception:
+                pass
 
     elements.append(Spacer(1, 12))
 

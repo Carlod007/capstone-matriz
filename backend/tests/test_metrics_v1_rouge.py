@@ -123,10 +123,11 @@ def proyecto_con_resumen(db, usuario_prueba):
                            oportunidad="una oportunidad", rag_hits=[]))
     db.commit()
 
-    def poner_resumen(generado, referencia):
+    def poner_resumen(generado, referencia, densidad=None):
         db.add(ResultadoResumen(id=str(uuid.uuid4()), articulo_id=aid,
                                 resumen_generado=generado,
-                                resumen_referencia=referencia))
+                                resumen_referencia=referencia,
+                                lexical_density=densidad))
         db.commit()
 
     try:
@@ -178,6 +179,54 @@ class TestPromedios:
         assert p.get("rouge_pares_comparados") == 1
         assert p.get("rouge_descartados_idioma") == 0
 
+    def test_la_densidad_lexica_sobrevive_al_filtro_de_idioma(
+            self, db, proyecto_con_resumen):
+        """El filtro es de ROUGE, no de todo lo demas.
+
+        La densidad lexica mide la proporcion de palabras con contenido dentro
+        de un solo texto: no compara nada con la referencia, asi que el idioma
+        del abstract le da igual. Recogerla despues del `continue` la excluia
+        del promedio justo para los resumenes en espanol, que son la mayoria, y
+        de paso hundia la dimension de sintesis que se calcula con ella.
+        """
+        from app.services import metrics
+
+        proyecto_con_resumen["poner_resumen"](RESUMEN_ES, ABSTRACT_EN,
+                                              densidad=0.62)
+
+        r = metrics.project_indicators(db, proyecto_con_resumen["proyecto"]) or {}
+        p = r.get("promedios", {})
+
+        # ROUGE si se descarta: ese par no es comparable.
+        assert p.get("avg_rouge1_f1") is None
+        # La densidad no.
+        assert p.get("avg_lexical_density") == pytest.approx(0.62), (
+            "la densidad lexica no depende del idioma de la referencia, salio %r"
+            % p.get("avg_lexical_density"))
+        assert r.get("avg_lexical_density") == pytest.approx(0.62)
+        # Y por tanto la dimension que la usa tampoco se queda en cero.
+        assert (r.get("dimensiones", {}).get("Síntesis y claridad") or 0) > 0
+
+    def test_sin_densidad_medida_tampoco_da_cero(self, db, proyecto_con_resumen):
+        """Hay resumen, pero nadie le calculo la densidad.
+
+        Un 0.0 aqui afirmaria que el resumen no tiene ni una palabra con
+        contenido. Eso es un juicio sobre el texto, no la ausencia de dato que
+        realmente hay.
+        """
+        from app.services import metrics
+
+        proyecto_con_resumen["poner_resumen"](RESUMEN_EN, ABSTRACT_EN,
+                                              densidad=None)
+
+        r = metrics.project_indicators(db, proyecto_con_resumen["proyecto"]) or {}
+        p = r.get("promedios", {})
+
+        assert p.get("avg_lexical_density") is None
+        assert p.get("densidad_resumenes_medidos") == 0
+        # ROUGE si se midio: los dos textos estan en ingles.
+        assert p.get("avg_rouge1_f1") is not None
+
     def test_un_proyecto_sin_analizar_tampoco_da_cero(self, db, usuario_prueba):
         """El atajo de "sin ejecuciones" devolvia 0.0 en las tres ROUGE, que es
         el mismo cero enganoso por otra puerta."""
@@ -198,6 +247,8 @@ class TestPromedios:
             assert p.get("avg_rouge1_f1") is None
             assert p.get("avg_rouge1_prec") is None
             assert r.get("rouge1_f1") is None
+            assert p.get("avg_lexical_density") is None
+            assert r.get("avg_lexical_density") is None
         finally:
             db.rollback()
             db.query(Proyecto).filter(Proyecto.id == pid).delete()

@@ -203,7 +203,11 @@ def project_indicators(db: Session, proyecto_id: str) -> Dict[str, Dict]:
             "avg_rouge1_f1": float | None,
             "rouge_pares_comparados": int,
             "rouge_descartados_idioma": int,
-            "avg_lexical_density": float      # 0..1
+            # También None si no se midió ninguna: mide palabras con contenido
+            # dentro de un texto, así que —a diferencia de ROUGE— no le afecta
+            # el idioma de la referencia y se calcula siempre que haya resumen.
+            "avg_lexical_density": float | None,
+            "densidad_resumenes_medidos": int
         },
         "dimensiones": {
             "Identificación de brechas": float (%),
@@ -251,7 +255,8 @@ def project_indicators(db: Session, proyecto_id: str) -> Dict[str, Dict]:
                 "avg_rouge1_f1": None,
                 "rouge_pares_comparados": 0,
                 "rouge_descartados_idioma": 0,
-                "avg_lexical_density": 0.0,
+                "avg_lexical_density": None,
+                "densidad_resumenes_medidos": 0,
             },
             "dimensiones": {},
         }
@@ -299,7 +304,8 @@ def project_indicators(db: Session, proyecto_id: str) -> Dict[str, Dict]:
                 "avg_rouge1_f1": None,
                 "rouge_pares_comparados": 0,
                 "rouge_descartados_idioma": 0,
-                "avg_lexical_density": 0.0,
+                "avg_lexical_density": None,
+                "densidad_resumenes_medidos": 0,
             },
             "dimensiones": {},
         }
@@ -387,6 +393,20 @@ def project_indicators(db: Session, proyecto_id: str) -> Dict[str, Dict]:
                 # idioma sea reconocido y no solo que coincida: con textos
                 # cortos el detector responde "indeterminado" para los dos, y
                 # comparar entonces sería volver a promediar ceros sin saberlo.
+                # La densidad léxica se recoge ANTES del filtro de idioma, y no
+                # es un detalle de orden. Mide la proporción de palabras con
+                # contenido dentro de un solo texto: no compara el resumen con
+                # la referencia, así que el idioma del abstract no le afecta.
+                # Dejarla debajo del `continue` excluía del promedio justo a
+                # los resúmenes en español —la mayoría— por un motivo que solo
+                # vale para ROUGE.
+                ld = getattr(rr, "lexical_density", None)
+                if ld is not None:
+                    try:
+                        lexs.append(float(ld))
+                    except Exception:
+                        pass
+
                 idioma_ref, idioma_hyp = T.idioma(ref), T.idioma(hyp)
                 if idioma_ref != idioma_hyp or idioma_ref not in ("es", "en"):
                     descartados_idioma += 1
@@ -396,13 +416,6 @@ def project_indicators(db: Session, proyecto_id: str) -> Dict[str, Dict]:
                 precs.append(p)
                 recs.append(r)
                 f1s.append(f1)
-
-                ld = getattr(rr, "lexical_density", None)
-                if ld is not None:
-                    try:
-                        lexs.append(float(ld))
-                    except Exception:
-                        pass
 
             avg_rouge_prec = _safe_avg(precs)
             avg_rouge_rec = _safe_avg(recs)
@@ -438,7 +451,11 @@ def project_indicators(db: Session, proyecto_id: str) -> Dict[str, Dict]:
         "avg_rouge1_f1": None if not f1s else float(avg_rouge_f1),
         "rouge_pares_comparados": len(f1s),
         "rouge_descartados_idioma": descartados_idioma,
-        "avg_lexical_density": float(avg_lex_density),
+        # Mismo criterio que arriba, por el mismo motivo: sin ningún resumen
+        # medido, un 0.0 se lee como "los resúmenes no tienen ni una palabra
+        # con contenido", que es un juicio, no una ausencia de datos.
+        "avg_lexical_density": None if not lexs else float(avg_lex_density),
+        "densidad_resumenes_medidos": len(lexs),
     }
 
     # 5) Dimensiones (normalizadas a %)
@@ -521,7 +538,7 @@ def project_indicators(db: Session, proyecto_id: str) -> Dict[str, Dict]:
         "avg_entropia_norm": float(avg_ent_norm),
         "pct_brechas_aceptadas": float(pct_aceptadas),
         "rouge1_f1": None if not f1s else float(avg_rouge_f1),
-        "avg_lexical_density": float(avg_lex_density),
+        "avg_lexical_density": None if not lexs else float(avg_lex_density),
         "claridad_visualizacion": float(claridad_viz),
         "utilidad_sistema": float(utilidad),
     }
