@@ -449,33 +449,19 @@ function Lista({ goCreate, goProyecto }) {
     setLoading(true);
     setErr(null);
     try {
+      // El listado ya trae los recuentos. Antes esta pantalla pedía, por cada
+      // proyecto, sus artículos y su estado del arte: tantas peticiones como
+      // tarjetas, cada vez que se abría. Y las brechas no las pedía en
+      // absoluto, así que su indicador no podía mostrar nada.
       const proyectos = await jget(`${API_BASE}/proyectos`);
-      const enr = await Promise.all(
-        proyectos.map(async (p) => {
-          let articulos = [];
-          let estadoArte = null;
-          try {
-            articulos = await jget(`${API_BASE}/proyectos/${p.id}/articulos`);
-          } catch {
-            // Un proyecto sin artículos aún, o que falla al listarlos, no
-            // debe impedir que se vea el resto de la lista: queda en cero.
-          }
-          try {
-            estadoArte = await jget(
-              `${API_BASE}/proyectos/${p.id}/estado_arte/latest`
-            );
-          } catch {
-            // Lo normal es que todavía no exista; el 404 es la respuesta
-            // esperada, no un error que reportar.
-          }
-          return {
-            ...p,
-            articulos_count: Array.isArray(articulos) ? articulos.length : 0,
-            tiene_sota: !!estadoArte,
-          };
-        })
+      setRows(
+        proyectos.map((p) => ({
+          ...p,
+          articulos_count: p.n_articulos ?? 0,
+          brechas_count: p.n_brechas ?? 0,
+          tiene_sota: !!p.estado_arte_generado,
+        }))
       );
-      setRows(enr);
     } catch (e) {
       setRows([]);
       setErr(e);
@@ -551,6 +537,7 @@ function Lista({ goCreate, goProyecto }) {
                 const articulos = p.articulos_count ?? 0;
                 const objetivo = p.n_articulos_objetivo ?? "—";
                 const listo = p.tiene_sota;
+                const brechas = p.brechas_count ?? 0;
 
                 return (
                   <article
@@ -608,11 +595,23 @@ function Lista({ goCreate, goProyecto }) {
                           ayuda="Cantidad de artículos que has agregado frente al objetivo inicial."
                         />
                         <div className="border-b border-borde pb-6 md:border-b-0 md:border-l md:px-6 md:pb-0">
+                          {/* El valor era un guion fijo: nunca llegó a
+                              conectarse con el dato. Y un guion en una columna
+                              de resultados no se lee como «no consultado», se
+                              lee como «no se detectó ninguna». */}
                           <IndicadorProyecto
                             tipo="brecha"
                             label="Brechas detectadas"
-                            valor="—"
-                            apoyo={listo ? "Consulta la matriz dentro del proyecto" : "Se calculan al ejecutar el análisis"}
+                            valor={articulos === 0 ? "—" : brechas}
+                            apoyo={
+                              articulos === 0
+                                ? "Primero sube artículos"
+                                : brechas === 0
+                                  ? "Se calculan al ejecutar el análisis"
+                                  : brechas === articulos
+                                    ? "Una por cada artículo analizado"
+                                    : `De ${articulos} artículos del proyecto`
+                            }
                             ayuda="Son vacíos o problemas identificados al comparar los artículos."
                           />
                         </div>
