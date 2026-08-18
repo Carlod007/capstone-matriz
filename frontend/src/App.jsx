@@ -160,17 +160,43 @@ function ErrorModal({ error, onClose }) {
 }
 
 /* -------------- API helpers -------------- */
+
+/**
+ * Lee el cuerpo de una respuesta fallida sin romperse por el camino.
+ *
+ * El patrón anterior era `try { await r.json() } catch { await r.text() }`, y
+ * tiene un defecto que solo aparece cuando el servidor no devuelve JSON: el
+ * cuerpo de una respuesta se puede leer UNA sola vez. Cuando `r.json()` falla
+ * ya ha consumido el flujo, así que el `r.text()` del catch lanza «body stream
+ * already read».
+ *
+ * Y esa excepción salía por encima del código que avisaba del error, de modo
+ * que la pantalla se quedaba muda justo cuando más falta hacía el mensaje: un
+ * 500 con una traza HTML —el caso exacto que lo destapó— se veía como si no
+ * hubiera pasado nada.
+ *
+ * Se lee texto una vez y se intenta interpretar después.
+ */
+async function leerDetalle(r) {
+  let txt;
+  try {
+    txt = await r.text();
+  } catch {
+    return null;
+  }
+  if (!txt) return null;
+  try {
+    return JSON.parse(txt);
+  } catch {
+    return txt;
+  }
+}
+
 async function jget(url) {
   const r = await api(url);
   if (!r.ok) {
-    let detail;
-    try {
-      detail = await r.json();
-    } catch {
-      detail = await r.text();
-    }
     const err = new Error(`GET ${url} → ${r.status}`);
-    err.detail = detail;
+    err.detail = await leerDetalle(r);
     throw err;
   }
   return r.json();
@@ -198,14 +224,8 @@ async function jpost(url, body) {
 async function downloadFile(url, filename) {
   const r = await api(url);
   if (!r.ok) {
-    let detail;
-    try {
-      detail = await r.json();
-    } catch {
-      detail = await r.text();
-    }
     const err = new Error(`DOWNLOAD ${url} → ${r.status}`);
-    err.detail = detail;
+    err.detail = await leerDetalle(r);
     throw err;
   }
   const blob = await r.blob();
@@ -910,14 +930,13 @@ function SubirArticulos({ proyecto, goBack }) {
           body: fd,
         });
         if (!r.ok) {
-          let detail;
-          try {
-            detail = await r.json();
-          } catch {
-            detail = await r.text();
-          }
-          avisar(`No se pudo subir «${f.name}»`, "mal");
-          console.error(detail);
+          // El detalle se lee con el ayudante, no a mano: la versión anterior
+          // reventaba al leer el cuerpo dos veces y la excepción se llevaba
+          // por delante el `avisar` de abajo, así que un fallo del servidor se
+          // veía como si no hubiera pasado nada.
+          const detail = await leerDetalle(r);
+          avisar(`No se pudo subir «${f.name}» (error ${r.status})`, "mal");
+          console.error("Fallo al subir", f.name, r.status, detail);
           continue;
         }
         const cuerpo = await r.json();

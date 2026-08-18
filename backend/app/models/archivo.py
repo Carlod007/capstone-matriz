@@ -42,9 +42,22 @@ class Archivo(Base):
         DateTime, server_default=func.current_timestamp(), nullable=True)
 
     __table_args__ = (
-        # Deduplicacion por contenido: el mismo PDF subido dos veces no crea
-        # dos archivos.
-        UniqueConstraint("hash_sha256", name="uq_archivo_hash"),
+        # Deduplicacion por contenido, acotada al proyecto: el mismo PDF subido
+        # dos veces al mismo proyecto no crea dos archivos.
+        #
+        # El alcance importa. La restriccion era global sobre el hash, y eso
+        # significaba que un PDF solo podia existir una vez en todo el sistema:
+        # subir a un proyecto nuevo un articulo que ya estaba en otro fallaba
+        # con un 500, y entre cuentas distintas era ademas una fuga —el error
+        # delataba que alguien mas habia subido ese mismo articulo—.
+        #
+        # `archivos.py` ya deduplicaba por proyecto, pero la base seguia
+        # exigiendo unicidad global. La consulta previa no encontraba nada y el
+        # INSERT chocaba contra el indice: la correccion estaba aplicada en el
+        # codigo y no en el esquema, que es la unica forma de que un mismo
+        # arreglo pase las pruebas y rompa en produccion.
+        UniqueConstraint("proyecto_id", "hash_sha256",
+                         name="uq_archivo_proyecto_hash"),
         Index("idx_archivo_proyecto", "proyecto_id"),
         Index("idx_archivo_estado", "estado"),
     )
