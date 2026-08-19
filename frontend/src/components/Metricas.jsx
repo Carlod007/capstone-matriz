@@ -133,7 +133,7 @@ function limitar(valor, minimo, maximo) {
  * catálogo solo declara una unidad —por ejemplo, anclajes por 100 palabras—
  * se usa el mínimo y máximo observados y se rotula como tal.
  */
-function EscalaMetrica({ metrica }) {
+function EscalaMetrica({ metrica, integrada = false }) {
   const { mediana, p25, p75, minimo, maximo, rango, mejor } = metrica;
   const escalaTeorica = rango === "0 a 1" || rango === "0 o 1";
   const inicio = escalaTeorica ? 0 : Number(minimo);
@@ -158,7 +158,7 @@ function EscalaMetrica({ metrica }) {
         : "Esta métrica es descriptiva: no hay un valor mejor por sí solo.";
 
   return (
-    <div className="mt-5 border-t border-borde pt-4">
+    <div className={integrada ? "" : "mt-5 border-t border-borde pt-4"}>
       <div className="flex items-start justify-between gap-3 text-[11px]">
         <span className="font-semibold uppercase tracking-[0.12em] text-tinta-suave">
           Escala del resultado
@@ -776,47 +776,379 @@ export function PanelMetricas({ proyectoId }) {
   );
 }
 
-export function TablaDistribuciones({ metricas }) {
+const GRUPOS_METRICAS = [
+  ["N1", "Recuperación"],
+  ["N2", "Fidelidad"],
+  ["N3", "Especificidad"],
+  ["N4", "Resumen"],
+  ["N5", "Síntesis y tipificación"],
+];
+
+function grupoDeMetrica(codigo = "") {
+  return GRUPOS_METRICAS.find(([prefijo]) => codigo.startsWith(prefijo))?.[0] || "OTRO";
+}
+
+function estadoMetrica(metrica) {
+  if (!metrica || metrica.n === 0) {
+    return {
+      clave: "sin-datos",
+      texto: "Sin datos",
+      punto: "bg-tinta-suave",
+      etiqueta: "bg-hundido text-tinta-media border-borde",
+    };
+  }
+  if (metrica.n < 5) {
+    return {
+      clave: "muestra-limitada",
+      texto: "Muestra limitada",
+      punto: "bg-aviso",
+      etiqueta: "bg-aviso-claro text-aviso border-aviso-borde",
+    };
+  }
+  if (metrica.discrimina) {
+    return {
+      clave: "variacion-util",
+      texto: "Variación útil",
+      punto: "bg-bien",
+      etiqueta: "bg-bien-claro text-bien border-bien-borde",
+    };
+  }
+  return {
+    clave: "poca-variacion",
+    texto: "Poca variación",
+    punto: "bg-aviso",
+    etiqueta: "bg-aviso-claro text-aviso border-aviso-borde",
+  };
+}
+
+function textoAmbito(ambito) {
+  return {
+    run: "análisis completo",
+    brecha: "cada brecha",
+    articulo: "cada artículo",
+    proyecto: "proyecto completo",
+  }[ambito] || ambito || "—";
+}
+
+function textoDireccion(mejor) {
+  return {
+    alto: "un valor mayor es más favorable",
+    bajo: "un valor menor es más favorable",
+    neutro: "es descriptiva; no existe un valor mejor por sí solo",
+  }[mejor] || "sin dirección definida";
+}
+
+function DatoTecnico({ etiqueta, valor }) {
   return (
-    <div className="overflow-x-auto border border-borde rounded-xl bg-superficie">
-      <table className="min-w-full text-sm">
-        <thead className="bg-hundido text-left text-tinta-media">
-          <tr>
-            <th className="px-3 py-2">Métrica</th>
-            <th className="px-3 py-2 w-20">Mediana</th>
-            <th className="px-3 py-2 w-20">P25</th>
-            <th className="px-3 py-2 w-20">P75</th>
-            <th className="px-3 py-2 w-20">IQR</th>
-            <th className="px-3 py-2 w-14">n</th>
-            <th className="px-3 py-2">Lectura</th>
-          </tr>
-        </thead>
-        <tbody>
-          {metricas.map((m) => (
-            <tr key={m.codigo} className="border-t border-borde align-top">
-              <td className="px-3 py-2">
-                <div className="font-medium">{m.nombre}</div>
-                <div className="text-[11px] text-tinta-suave">
-                  {m.codigo} · {m.nivel} · mejor {m.mejor}
-                </div>
-                <div className="text-[11px] text-tinta-media mt-1 max-w-md">
-                  {m.descripcion}
-                </div>
-              </td>
-              <td className="px-3 py-2 font-medium">{fmt(m.mediana)}</td>
-              <td className="px-3 py-2 text-tinta-media">{fmt(m.p25)}</td>
-              <td className="px-3 py-2 text-tinta-media">{fmt(m.p75)}</td>
-              <td className="px-3 py-2 text-tinta-media">{fmt(m.iqr)}</td>
-              <td className="px-3 py-2 text-tinta-media">{m.n}</td>
-              <td className="px-3 py-2">
-                <Etiqueta tono={m.discrimina ? "verde" : "ambar"}>
-                  {m.veredicto}
-                </Etiqueta>
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
+    <div className="rounded-lg border border-borde bg-superficie px-3 py-2.5">
+      <div className="text-[10px] font-semibold uppercase tracking-[0.12em] text-tinta-suave">
+        {etiqueta}
+      </div>
+      <div className="mt-1 text-sm font-medium text-tinta tabular-nums">{valor}</div>
+    </div>
+  );
+}
+
+function DetalleMetrica({ metrica }) {
+  const [tecnicoAbierto, setTecnicoAbierto] = useState(false);
+
+  if (!metrica) {
+    return (
+      <div className="grid min-h-96 place-items-center p-8 text-sm text-tinta-suave">
+        Selecciona una métrica para consultar su explicación.
+      </div>
+    );
+  }
+
+  const estado = estadoMetrica(metrica);
+  const sinDatos = metrica.n === 0;
+  const unidad = {
+    run: metrica.n === 1 ? "análisis" : "análisis",
+    brecha: metrica.n === 1 ? "brecha" : "brechas",
+    articulo: metrica.n === 1 ? "artículo" : "artículos",
+    proyecto: metrica.n === 1 ? "proyecto" : "proyectos",
+  }[metrica.ambito] || "mediciones";
+
+  return (
+    <section className="min-w-0 p-5 sm:p-7">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h3 className="text-2xl font-semibold tracking-tight text-tinta">
+            {metrica.nombre}
+          </h3>
+          <p className="mt-1 text-sm text-tinta-suave">
+            {metrica.codigo} · {metrica.nivel}
+          </p>
+        </div>
+        <span
+          className={`inline-flex w-fit items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium ${estado.etiqueta}`}
+        >
+          <span className={`h-2 w-2 rounded-full ${estado.punto}`} aria-hidden="true" />
+          {estado.texto}
+          {!sinDatos && ` · IQR ${fmt(metrica.iqr)}`}
+        </span>
+      </div>
+
+      <div className="mt-7">
+        <h4 className="text-sm font-semibold text-tinta">Qué mide</h4>
+        <p className="mt-2 max-w-3xl text-sm leading-relaxed text-tinta-media">
+          {metrica.descripcion}
+        </p>
+      </div>
+
+      {sinDatos ? (
+        <div className="mt-6 rounded-xl border border-borde bg-hundido px-5 py-6">
+          <div className="text-xl font-semibold text-tinta">Sin mediciones aplicables</div>
+          <p className="mt-2 text-sm leading-relaxed text-tinta-media">
+            Esta métrica no produjo valores en el análisis actual. La ausencia de
+            datos no equivale a un resultado de cero.
+          </p>
+        </div>
+      ) : (
+        <>
+          <div className="mt-6 grid gap-5 rounded-xl border border-borde bg-superficie p-5 md:grid-cols-[12rem_minmax(0,1fr)] md:items-center">
+            <div className="border-b border-borde pb-4 md:border-b-0 md:border-r md:pb-0 md:pr-5">
+              <div className="text-xs font-medium text-tinta-suave">Mediana actual</div>
+              <div className="mt-2 text-5xl font-semibold tracking-tight text-acento tabular-nums">
+                {fmt(metrica.mediana)}
+              </div>
+            </div>
+            <EscalaMetrica metrica={metrica} integrada />
+          </div>
+
+          <div className="mt-4 grid gap-4 sm:grid-cols-2">
+            <div className="rounded-xl border border-borde bg-superficie px-4 py-4 text-center">
+              <div className="text-sm text-tinta-suave">IQR</div>
+              <div className="mt-1 text-2xl font-semibold text-aviso tabular-nums">
+                {fmt(metrica.iqr)}
+              </div>
+              <p className="mt-1 text-[11px] text-tinta-suave">
+                amplitud del 50 % central
+              </p>
+            </div>
+            <div className="rounded-xl border border-borde bg-superficie px-4 py-4 text-center">
+              <div className="text-sm text-tinta-suave">Muestra</div>
+              <div className="mt-1 text-2xl font-semibold text-bien tabular-nums">
+                {metrica.n} {unidad}
+              </div>
+              <p className="mt-1 text-[11px] text-tinta-suave">
+                mediciones incluidas en el resumen
+              </p>
+            </div>
+          </div>
+        </>
+      )}
+
+      <div className="mt-5 space-y-3">
+        <div className="rounded-xl border border-acento-borde bg-acento-claro px-4 py-3.5">
+          <h4 className="text-sm font-semibold text-acento-fuerte">Cómo leerlo</h4>
+          <p className="mt-1 text-sm leading-relaxed text-tinta-media">
+            {sinDatos
+              ? "No debe interpretarse como cero ni compararse con las demás métricas."
+              : `${textoDireccion(metrica.mejor)}. Este resultado describe un aspecto del análisis; no es una nota global del proyecto.`}
+          </p>
+        </div>
+
+        <div className="rounded-xl border border-borde bg-superficie px-4 py-3.5">
+          <h4 className="text-sm font-semibold text-tinta">Por qué importa</h4>
+          <p className="mt-1 text-sm leading-relaxed text-tinta-media">
+            {metrica.interpretacion}
+          </p>
+        </div>
+
+        <p className="rounded-lg bg-hundido px-3 py-2.5 text-xs leading-relaxed text-tinta-suave">
+          La variación describe diferencias entre mediciones; no decide si la
+          investigación es buena o mala.
+        </p>
+      </div>
+
+      <div className="mt-5 border-t border-borde pt-4">
+        <button
+          type="button"
+          onClick={() => setTecnicoAbierto((valor) => !valor)}
+          className="text-sm font-medium text-acento hover:underline"
+          aria-expanded={tecnicoAbierto}
+        >
+          {tecnicoAbierto ? "Ocultar" : "Ver"} detalle técnico
+        </button>
+
+        {tecnicoAbierto && (
+          <div className="mt-4 rounded-xl border border-borde bg-hundido p-4">
+            <p className="text-xs leading-relaxed text-tinta-media">
+              Datos estadísticos entregados por el sistema; no se añade ninguna
+              fórmula ni clasificación nueva.
+            </p>
+            <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+              <DatoTecnico etiqueta="Código" valor={metrica.codigo} />
+              <DatoTecnico etiqueta="Ámbito" valor={textoAmbito(metrica.ambito)} />
+              <DatoTecnico etiqueta="Dirección" valor={textoDireccion(metrica.mejor)} />
+              <DatoTecnico etiqueta="Escala declarada" valor={metrica.rango || "—"} />
+              {!sinDatos && (
+                <>
+                  <DatoTecnico etiqueta="Mínimo" valor={fmt(metrica.minimo)} />
+                  <DatoTecnico etiqueta="P25" valor={fmt(metrica.p25)} />
+                  <DatoTecnico etiqueta="Mediana" valor={fmt(metrica.mediana)} />
+                  <DatoTecnico etiqueta="Media" valor={fmt(metrica.media)} />
+                  <DatoTecnico etiqueta="P75" valor={fmt(metrica.p75)} />
+                  <DatoTecnico etiqueta="Máximo" valor={fmt(metrica.maximo)} />
+                  <DatoTecnico etiqueta="IQR" valor={fmt(metrica.iqr)} />
+                  <DatoTecnico etiqueta="Muestra" valor={`n=${metrica.n}`} />
+                </>
+              )}
+            </div>
+            <p className="mt-3 text-xs leading-relaxed text-tinta-suave">
+              <strong className="font-semibold text-tinta-media">Lectura técnica:</strong>{" "}
+              {metrica.veredicto}
+            </p>
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+export function TablaDistribuciones({ metricas }) {
+  const inicial = metricas.find((m) => m.codigo === "N2.1") || metricas[0] || null;
+  const [seleccion, setSeleccion] = useState(inicial?.codigo || null);
+  const [busqueda, setBusqueda] = useState("");
+  const [filtro, setFiltro] = useState("todas");
+  const [gruposAbiertos, setGruposAbiertos] = useState(
+    () => new Set([grupoDeMetrica(inicial?.codigo)]),
+  );
+
+  const normalizada = busqueda.trim().toLocaleLowerCase("es");
+  const visibles = metricas.filter((metrica) => {
+    const coincideTexto =
+      !normalizada ||
+      `${metrica.nombre} ${metrica.codigo} ${metrica.descripcion}`
+        .toLocaleLowerCase("es")
+        .includes(normalizada);
+    const coincideFiltro = filtro === "todas" || estadoMetrica(metrica).clave === filtro;
+    return coincideTexto && coincideFiltro;
+  });
+  const seleccionada = metricas.find((m) => m.codigo === seleccion) || inicial;
+
+  function alternarGrupo(clave) {
+    setGruposAbiertos((actuales) => {
+      const siguientes = new Set(actuales);
+      if (siguientes.has(clave)) siguientes.delete(clave);
+      else siguientes.add(clave);
+      return siguientes;
+    });
+  }
+
+  function elegirMetrica(metrica) {
+    setSeleccion(metrica.codigo);
+    setGruposAbiertos((actuales) => new Set([...actuales, grupoDeMetrica(metrica.codigo)]));
+  }
+
+  return (
+    <div className="overflow-hidden rounded-xl border border-borde bg-superficie shadow-[var(--sombra-1)]">
+      <div className="flex flex-col gap-3 border-b border-borde px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h2 className="text-lg font-semibold text-tinta">
+            Explorar las {metricas.length} métricas
+          </h2>
+          <p className="mt-1 text-xs text-tinta-suave">
+            Selecciona una para entender qué mide y cómo se interpreta.
+          </p>
+        </div>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <label className="relative min-w-0 sm:w-64">
+            <span className="sr-only">Buscar una métrica</span>
+            <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-tinta-suave" aria-hidden="true">
+              ⌕
+            </span>
+            <input
+              value={busqueda}
+              onChange={(evento) => setBusqueda(evento.target.value)}
+              placeholder="Buscar una métrica…"
+              className="w-full rounded-lg border border-borde bg-superficie py-2 pl-9 pr-3 text-sm text-tinta outline-none transition-colors placeholder:text-tinta-suave focus:border-acento"
+            />
+          </label>
+          <label>
+            <span className="sr-only">Filtrar métricas</span>
+            <select
+              value={filtro}
+              onChange={(evento) => setFiltro(evento.target.value)}
+              className="h-full min-h-9 rounded-lg border border-borde bg-superficie px-3 py-2 text-sm text-tinta outline-none focus:border-acento"
+            >
+              <option value="todas">Todas</option>
+              <option value="variacion-util">Variación útil</option>
+              <option value="poca-variacion">Poca variación</option>
+              <option value="muestra-limitada">Muestra limitada</option>
+              <option value="sin-datos">Sin datos</option>
+            </select>
+          </label>
+        </div>
+      </div>
+
+      <div className="grid lg:grid-cols-[19rem_minmax(0,1fr)]">
+        <nav className="border-b border-borde bg-hundido/30 lg:border-b-0 lg:border-r" aria-label="Métricas por dimensión">
+          {GRUPOS_METRICAS.map(([clave, nombre]) => {
+            const delGrupo = visibles.filter((m) => grupoDeMetrica(m.codigo) === clave);
+            const totalGrupo = metricas.filter((m) => grupoDeMetrica(m.codigo) === clave).length;
+            if (totalGrupo === 0 || delGrupo.length === 0) return null;
+            const abierto = gruposAbiertos.has(clave) || Boolean(normalizada) || filtro !== "todas";
+            return (
+              <div key={clave} className="border-b border-borde last:border-b-0">
+                <button
+                  type="button"
+                  onClick={() => alternarGrupo(clave)}
+                  className="flex w-full items-center gap-2 px-4 py-3 text-left hover:bg-superficie"
+                  aria-expanded={abierto}
+                >
+                  <span className="text-xs font-semibold uppercase tracking-[0.1em] text-tinta-media">
+                    {clave} {nombre}
+                  </span>
+                  <span className="ml-auto rounded-full border border-borde bg-superficie px-2 py-0.5 text-xs text-tinta-suave">
+                    {totalGrupo}
+                  </span>
+                  <span className="text-xs text-tinta-suave" aria-hidden="true">
+                    {abierto ? "⌃" : "⌄"}
+                  </span>
+                </button>
+
+                {abierto && (
+                  <div className="pb-2">
+                    {delGrupo.map((metrica) => {
+                      const estado = estadoMetrica(metrica);
+                      const activa = seleccionada?.codigo === metrica.codigo;
+                      return (
+                        <button
+                          key={metrica.codigo}
+                          type="button"
+                          onClick={() => elegirMetrica(metrica)}
+                          className={`flex w-full items-center gap-3 border-l-2 px-4 py-2.5 text-left text-sm transition-colors ${
+                            activa
+                              ? "border-acento bg-acento-claro font-medium text-acento-fuerte"
+                              : "border-transparent text-tinta hover:bg-superficie"
+                          }`}
+                        >
+                          <span className="min-w-0 flex-1 truncate">{metrica.nombre}</span>
+                          <span
+                            className={`h-2.5 w-2.5 shrink-0 rounded-full ${estado.punto}`}
+                            title={estado.texto}
+                            aria-label={estado.texto}
+                          />
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+
+          {visibles.length === 0 && (
+            <p className="px-4 py-8 text-center text-sm text-tinta-suave">
+              No hay métricas que coincidan con la búsqueda.
+            </p>
+          )}
+        </nav>
+
+        <DetalleMetrica key={seleccionada?.codigo} metrica={seleccionada} />
+      </div>
     </div>
   );
 }
