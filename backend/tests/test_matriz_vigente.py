@@ -17,6 +17,7 @@ analisis entre dos ejecuciones. Lo que le faltaba era poder distinguirlas.
 import csv
 import io
 import os
+import re
 import uuid
 from datetime import datetime, timedelta
 
@@ -137,7 +138,14 @@ class TestLaMatrizNoRepiteArticulos:
             texto = "\n".join(p.get_text() for p in d)
 
         assert "vigente" in texto
-        assert "2 de análisis anteriores" in texto or "2 de analisis" in texto
+        # Lo que se cuenta son brechas, no analisis: un reanalisis de dos
+        # articulos deja dos brechas fuera, no dos analisis.
+        assert "2 brechas de análisis anteriores" in texto, texto[-400:]
+        # El numero pegado a «de» es la version rota: «Hay 2 de análisis
+        # anteriores», sin sustantivo. Se busca ese patron y no la frase
+        # entera, que tambien aparece dentro de la version correcta.
+        assert not re.search(r"\d+\s+de análisis anteriores", texto), (
+            "la frase se quedo sin sustantivo")
 
 
 class TestElCsvConservaTodo:
@@ -183,6 +191,74 @@ class TestElCsvConservaTodo:
                    if f["vigente"] == "sí"}
 
         assert en_matriz == del_csv
+
+
+class TestLaPantallaSenalaLaMisma:
+    """La interfaz destaca la primera brecha que le llega y pliega el resto.
+
+    Si su orden no coincide con el de la exportacion, en un empate de fecha la
+    pantalla puede destacar una brecha y la matriz otra. Nadie lo notaria hasta
+    compararlas, que es justo cuando mas dano hace: al revisar el PDF de la
+    tesis contra lo que se vio en pantalla.
+    """
+
+    def test_la_primera_de_la_lista_es_la_vigente(self, cliente,
+                                                  proyecto_reanalizado):
+        from app.routers.export import _brechas_vigentes
+
+        for aid in proyecto_reanalizado["articulos"]:
+            r = cliente.get(f"/articulos/{aid}/brechas")
+            assert r.status_code == 200, r.text
+            filas = r.json()
+            assert len(filas) == 2, "deberian estar las dos, la vieja plegada"
+            assert filas[0]["id"] == proyecto_reanalizado["vigentes"][aid]
+
+    def test_con_fechas_empatadas_coinciden(self, db, cliente, usuario_prueba):
+        """El caso raro que motiva el desempate por identificador."""
+        from app.models.articulo import Articulo
+        from app.models.proyecto import Proyecto
+        from app.models.resultado_brecha import ResultadoBrecha
+        from app.models.run import EstadoRun, Run
+        from app.models.run_item import EstadoRunItem, RunItem
+        from app.routers.export import _brechas_vigentes
+
+        pid, aid, rid, iid = (str(uuid.uuid4()) for _ in range(4))
+        instante = datetime.now()
+        db.add(Proyecto(id=pid, usuario_id=usuario_prueba["id"],
+                        tema_principal="Empate en pantalla",
+                        objetivo="Que la interfaz y la matriz coincidan",
+                        n_articulos_objetivo=1, estado_arte_generado=False))
+        db.flush()
+        db.add(Articulo(id=aid, proyecto_id=pid, doi=None, titulo="A"))
+        db.add(Run(id=rid, proyecto_id=pid, estado=EstadoRun.completado,
+                   n_items_total=1, n_items_ok=1))
+        db.flush()
+        db.add(RunItem(id=iid, run_id=rid, articulo_id=aid,
+                       estado=EstadoRunItem.analizado))
+        db.flush()
+        ids = [str(uuid.uuid4()) for _ in range(4)]
+        for bid in ids:
+            db.add(ResultadoBrecha(id=bid, run_item_id=iid, tipo_brecha="otra",
+                                   brecha="b", oportunidad="o", rag_hits=[],
+                                   created_at=instante))
+        db.commit()
+
+        try:
+            en_pantalla = cliente.get(f"/articulos/{aid}/brechas").json()[0]["id"]
+            en_matriz = _brechas_vigentes(db, pid)[aid]
+            assert en_pantalla == en_matriz, (
+                "la pantalla destaca %s y la exportacion %s"
+                % (en_pantalla, en_matriz))
+        finally:
+            db.rollback()
+            db.query(ResultadoBrecha).filter(
+                ResultadoBrecha.run_item_id == iid).delete(
+                synchronize_session=False)
+            db.query(RunItem).filter(RunItem.id == iid).delete()
+            db.query(Run).filter(Run.id == rid).delete()
+            db.query(Articulo).filter(Articulo.id == aid).delete()
+            db.query(Proyecto).filter(Proyecto.id == pid).delete()
+            db.commit()
 
 
 class TestElDesempate:

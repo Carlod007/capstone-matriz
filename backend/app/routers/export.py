@@ -764,12 +764,17 @@ def export_matriz_pdf(
     # encontraría filas de más sin explicación.
     anteriores = _analisis_anteriores(db, proyecto_id)
     if anteriores:
+        # Lo que se cuenta son brechas, no análisis: un solo reanálisis de
+        # cinco artículos deja cinco brechas fuera. Decir «5 análisis
+        # anteriores» seria falso, y decir «5 de análisis anteriores» —como
+        # estaba— deja la frase sin sustantivo.
+        cuantas = ("1 brecha de un análisis anterior" if anteriores == 1
+                   else f"{anteriores} brechas de análisis anteriores")
         elements.append(
             Paragraph(
                 f"Se muestra la brecha vigente de cada artículo. Hay "
-                f"{anteriores} de análisis anteriores que no se incluyen; "
-                f"están en la exportación brechas.csv, con la columna "
-                f"«vigente» para distinguirlas.",
+                f"{cuantas} que no se incluyen aquí; están en la exportación "
+                f"brechas.csv, con la columna «vigente» para distinguirlas.",
                 styles["Italic"],
             )
         )

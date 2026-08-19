@@ -26,10 +26,16 @@ def listar_brechas(
     apoyó el análisis.
     """
     run_items = db.query(RunItem.id).filter(RunItem.articulo_id == articulo.id).subquery()
+    # El mismo desempate que `export._brechas_vigentes`: fecha y, a igualdad de
+    # fecha, identificador. La pantalla destaca la primera de esta lista como
+    # la vigente, así que ordenar solo por fecha bastaba para que en un empate
+    # —posible: el trabajador guarda varias seguidas— la interfaz señalara una
+    # brecha y la matriz exportada otra, sin que nadie lo notara hasta
+    # compararlas.
     rows = (
         db.query(ResultadoBrecha)
         .filter(ResultadoBrecha.run_item_id.in_(run_items.select()))
-        .order_by(ResultadoBrecha.created_at.desc())
+        .order_by(ResultadoBrecha.created_at.desc(), ResultadoBrecha.id.desc())
         .all()
     )
     if not rows:
