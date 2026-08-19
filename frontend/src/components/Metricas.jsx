@@ -30,6 +30,32 @@ function fmt(v, decimales = 3) {
 /** Métricas destacadas en las tarjetas superiores, por orden de interés. */
 const DESTACADAS = ["N3.1", "N1.2", "N3.2", "N4.2"];
 
+/**
+ * Preguntas de lectura para las cuatro métricas que resumen el recorrido.
+ *
+ * No cambian ni clasifican el dato: traducen la descripción del catálogo a la
+ * pregunta que se hace un investigador al leer el panel. Mediana, IQR, n y el
+ * veredicto siguen llegando del servidor.
+ */
+const GUIA_DESTACADAS = {
+  "N3.1": {
+    pregunta: "¿Las brechas cambian entre artículos?",
+    lectura: "Más alto = brechas más distintas",
+  },
+  "N1.2": {
+    pregunta: "¿Cuánto del artículo llegó al modelo?",
+    lectura: "Más alto = más secciones sustantivas consideradas",
+  },
+  "N3.2": {
+    pregunta: "¿La brecha usa cifras, nombres y métodos concretos?",
+    lectura: "Unidad: anclajes por cada 100 palabras",
+  },
+  "N4.2": {
+    pregunta: "¿El resumen conserva el significado del abstract?",
+    lectura: "Más alto = mayor cercanía semántica",
+  },
+};
+
 /** Segundos a "3h 21m 47s", omitiendo las unidades que no aportan. */
 function duracion(seg) {
   const s = Math.max(0, Math.floor(seg));
@@ -98,19 +124,99 @@ function Etiqueta({ children, tono = "gris" }) {
 
 function Tarjeta({ metrica }) {
   if (!metrica) return null;
-  const { nombre, mediana, iqr, discrimina, descripcion, rango, n } = metrica;
+  const {
+    codigo,
+    nombre,
+    mediana,
+    iqr,
+    discrimina,
+    descripcion,
+    rango,
+    n,
+    nivel,
+    ambito,
+    veredicto,
+  } = metrica;
+  const guia = GUIA_DESTACADAS[codigo] || {};
+  const alcance = {
+    run: "Métrica de lote",
+    brecha: "Entre brechas",
+    articulo: "Entre artículos",
+    proyecto: "Proyecto completo",
+  }[ambito] || ambito;
+  const lecturaMuestra =
+    n < 5 ? "muestra limitada" : discrimina ? "variación útil" : "poca variación";
+
   return (
-    <div className="border border-borde rounded-lg p-3 bg-superficie" title={descripcion}>
-      <div className="flex items-start justify-between gap-2">
-        <div className="text-tinta-media text-sm leading-tight">{nombre}</div>
-        <Etiqueta tono={discrimina ? "verde" : "ambar"}>
-          {discrimina ? "discrimina" : "poca variación"}
-        </Etiqueta>
+    <article
+      className="rounded-xl border border-borde bg-superficie p-5 shadow-[var(--sombra-1)]"
+      title={descripcion}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-tinta-suave">
+            Resultado
+          </div>
+          <h3 className="mt-2 text-base font-semibold leading-tight text-tinta">
+            {nombre}
+          </h3>
+        </div>
+        <Etiqueta tono="azul">{nivel?.replace(/^N\d+\s*/, "") || codigo}</Etiqueta>
       </div>
-      <div className="text-2xl font-semibold mt-1">{fmt(mediana)}</div>
-      <div className="text-[11px] text-tinta-suave mt-1">
-        mediana · IQR {fmt(iqr)} · n={n} · {rango}
+
+      <div className="mt-5 grid gap-5 sm:grid-cols-[minmax(0,1fr)_13rem]">
+        <div className="min-w-0">
+          <div className="text-4xl font-semibold tracking-tight text-acento tabular-nums">
+            {fmt(mediana)}
+          </div>
+          <p className="mt-2 text-sm font-medium leading-snug text-tinta">
+            {guia.pregunta || descripcion}
+          </p>
+          <p className="mt-2 text-xs leading-relaxed text-tinta-media">
+            {guia.lectura || metrica.interpretacion}
+          </p>
+        </div>
+
+        <div className="border-t border-borde pt-4 sm:border-l sm:border-t-0 sm:pl-5 sm:pt-0">
+          <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-tinta-suave">
+            Calidad de la medición
+          </div>
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <div className="rounded-lg bg-hundido px-2.5 py-2">
+              <div className="text-[10px] uppercase tracking-wide text-tinta-suave">IQR</div>
+              <div className="mt-0.5 font-semibold tabular-nums text-tinta">{fmt(iqr)}</div>
+            </div>
+            <div className="rounded-lg bg-hundido px-2.5 py-2">
+              <div className="text-[10px] uppercase tracking-wide text-tinta-suave">Muestra</div>
+              <div className="mt-0.5 font-semibold tabular-nums text-tinta">n={n}</div>
+            </div>
+          </div>
+          <div className="mt-3">
+            <Etiqueta tono={discrimina ? "verde" : "ambar"}>
+              {lecturaMuestra}
+            </Etiqueta>
+          </div>
+          <p className="mt-2 text-[11px] leading-relaxed text-tinta-suave" title={veredicto}>
+            {alcance} · {rango}
+          </p>
+        </div>
       </div>
+    </article>
+  );
+}
+
+function DatoResumen({ valor, etiqueta, tono = "acento" }) {
+  const colores = {
+    acento: "text-acento",
+    bien: "text-bien",
+    neutro: "text-tinta",
+  };
+  return (
+    <div className="min-w-0 px-4 py-3.5">
+      <div className={`text-lg font-semibold tabular-nums ${colores[tono] || colores.acento}`}>
+        {valor}
+      </div>
+      <div className="mt-0.5 text-xs leading-snug text-tinta-suave">{etiqueta}</div>
     </div>
   );
 }
@@ -475,37 +581,65 @@ export function PanelMetricas({ proyectoId }) {
   const discriminan = datos.metricas.filter((m) => m.discrimina);
 
   return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+    <div className="space-y-5">
+      <div className="grid overflow-hidden rounded-xl border border-borde bg-superficie shadow-[var(--sombra-1)] sm:grid-cols-2 lg:grid-cols-4 sm:[&>*:nth-child(even)]:border-l lg:[&>*+*]:border-l">
+        <DatoResumen
+          valor={datos.conteos.articulos}
+          etiqueta="artículos analizados"
+        />
+        <DatoResumen valor={datos.conteos.brechas} etiqueta="brechas vigentes" />
+        <DatoResumen
+          valor={datos.estado_arte ? `v${datos.estado_arte.version}` : "Pendiente"}
+          etiqueta="estado del arte"
+          tono={datos.estado_arte ? "bien" : "neutro"}
+        />
+        <DatoResumen
+          valor={(datos.run.tokens_in + datos.run.tokens_out).toLocaleString("es")}
+          etiqueta="tokens utilizados"
+          tono="neutro"
+        />
+      </div>
+
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h2 className="text-lg font-semibold tracking-tight text-tinta">
+            Lectura rápida del proyecto
+          </h2>
+          <p className="mt-1 text-sm leading-relaxed text-tinta-media">
+            Estos indicadores describen el análisis; no forman una nota global.
+          </p>
+        </div>
+        <Etiqueta tono="azul">Mediana + variación de la muestra</Etiqueta>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {DESTACADAS.map((c) => (
           <Tarjeta key={c} metrica={porCodigo[c]} />
         ))}
       </div>
 
-      <div className="flex flex-wrap items-center gap-2 text-xs text-tinta-media">
-        <Etiqueta tono="azul">{datos.conteos.brechas} brechas</Etiqueta>
-        <Etiqueta tono="azul">{datos.conteos.articulos} artículos</Etiqueta>
-        <Etiqueta>
-          {discriminan.length} de {datos.metricas.length} métricas discriminan
-        </Etiqueta>
-        <Etiqueta>
-          {(datos.run.tokens_in + datos.run.tokens_out).toLocaleString("es")} tokens
-        </Etiqueta>
-        {datos.estado_arte && (
-          <Etiqueta tono="verde">
-            estado del arte v{datos.estado_arte.version}
-          </Etiqueta>
-        )}
+      <div className="flex flex-col gap-3 rounded-xl border border-acento-borde bg-acento-claro px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-center gap-2 text-sm font-medium text-acento-fuerte">
+          <span
+            className="grid h-6 w-6 place-items-center rounded-full border border-acento-borde text-xs text-acento"
+            aria-hidden="true"
+          >
+            i
+          </span>
+          <span>
+            {discriminan.length} de {datos.metricas.length} métricas muestran
+            variación útil
+          </span>
+        </div>
+        <button
+          onClick={() => setAbierto((v) => !v)}
+          className="shrink-0 rounded-lg border border-acento-borde bg-superficie px-3 py-2 text-sm font-medium text-acento-fuerte transition-colors hover:border-acento"
+        >
+          {abierto ? "Ocultar" : "Ver"} las {datos.metricas.length} métricas técnicas
+        </button>
       </div>
 
       {!datos.validacion_calibrada && <AvisoValidacion />}
-
-      <button
-        onClick={() => setAbierto((v) => !v)}
-        className="text-sm text-acento hover:underline"
-      >
-        {abierto ? "Ocultar" : "Ver"} las {datos.metricas.length} métricas en detalle
-      </button>
 
       {abierto && <TablaDistribuciones metricas={datos.metricas} />}
     </div>

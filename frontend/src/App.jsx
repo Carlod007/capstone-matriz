@@ -33,10 +33,10 @@ import { alExpirar, api, cerrarSesion, leerSesion } from "./sesion";
 const API_BASE = import.meta.env.VITE_API_BASE || "http://127.0.0.1:8000";
 
 /* ---------------- UI core ---------------- */
-function Page({ title, subtitle, children }) {
+function Page({ title, subtitle, children, ancho = "max-w-6xl" }) {
   return (
     <div className="min-h-screen bg-papel">
-      <div className="max-w-6xl mx-auto px-4 py-10">
+      <div className={`${ancho} mx-auto px-4 py-10`}>
         <h1 className="text-3xl font-semibold mb-1 text-tinta tracking-tight">
           {title}
         </h1>
@@ -65,6 +65,9 @@ function Btn({ children, kind = "ghost", ...props }) {
       "hover:border-acento",
     green:
       `${base} border border-bien-borde bg-bien-claro text-bien hover:border-bien`,
+    primary:
+      `${base} border border-acento bg-acento text-white font-medium ` +
+      "hover:bg-acento-fuerte hover:border-acento-fuerte active:scale-[0.985]",
     // Dorado: reservado a la acción principal de cada pantalla, para que el
     // usuario sepa siempre cuál es sin tener que leerlas todas.
     yellow:
@@ -1485,60 +1488,78 @@ function BrechasProyecto({ proyecto, goBack }) {
   }
 
   return (
-    <Page title="Resultados" subtitle={proyecto.tema_principal}>
-      <Seccion
-        titulo="Indicadores del proyecto"
-        acciones={
-          <>
-            {/* Verificar cuesta la mitad que reanalizar y no sustituye unos
-                resultados que ya estaban bien, asi que va primero. */}
-            <Btn
-              kind="blue"
-              onClick={() => verificarFidelidad(false)}
-              disabled={ocupado}
-              title="Verifica solo las brechas que aún no lo estén"
-            >
-              {ocupado === "verificar" ? "Verificando…" : "Verificar fidelidad"}
-            </Btn>
+    <Page
+      title="Resultados"
+      subtitle={proyecto.tema_principal}
+      ancho="max-w-[92rem]"
+    >
+      <section className="mb-10">
+        <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_19rem]">
+          <div className="min-w-0">
+            <PanelMetricas key={recarga} proyectoId={proyecto.id} />
+          </div>
 
-            {/* Rehacer una verificación ya pagada solo tiene sentido cuando el
-                verificador ha mejorado, así que va aparte y avisando del coste.
-                Sin este botón no había forma de aprovechar una mejora: el
-                camino normal ve que están hechas y no toca nada. */}
-            <Btn
-              kind="ghost"
-              onClick={() => {
-                const n = arts.length || 0;
-                const aviso =
-                  `Se volverán a verificar todas las brechas desde cero.\n\n` +
-                  `Cuesta aproximadamente ${n || "una"} ${
-                    n === 1 ? "generación" : "generaciones"
-                  } de tu cuota diaria.\n\n` +
-                  "Tiene sentido si el verificador ha cambiado; si no, el " +
-                  "resultado será el mismo y habrás gastado cuota.";
-                if (window.confirm(aviso)) verificarFidelidad(true);
-              }}
-              disabled={ocupado}
-              title="Rehace la verificación aunque ya esté hecha. Consume cuota."
-            >
-              {ocupado === "rehacer" ? "Rehaciendo…" : "Volver a verificar"}
-            </Btn>
+          <aside className="flex flex-col gap-4 xl:sticky xl:top-5">
+            <Panel className="p-4">
+              <h2 className="text-base font-semibold text-tinta">
+                Revisión de resultados
+              </h2>
+              <p className="mt-1.5 text-xs leading-relaxed text-tinta-media">
+                Comprueba si las afirmaciones están respaldadas por fragmentos
+                de los artículos.
+              </p>
 
-            <Btn kind="ghost" onClick={reanalizar} disabled={ocupado}>
-              {ocupado === "analizar" ? "Analizando…" : "Volver a analizar"}
-            </Btn>
-          </>
-        }
-      >
-        <div className="grid lg:grid-cols-[1fr_15rem] gap-5 items-start">
-          <PanelMetricas key={recarga} proyectoId={proyecto.id} />
-          <div className="flex flex-col gap-3">
-            <IndicadorConsumo key={recarga} proyectoId={proyecto.id} />
-            <Panel className="p-3">
-              <div className="text-[11px] font-semibold uppercase tracking-wider text-tinta-suave mb-2">
-                Exportar
+              <div className="mt-4 flex flex-col gap-2">
+                {/* Es la operación ordinaria: solo verifica las brechas que aún
+                    no lo estén y conserva las ya comprobadas. */}
+                <Btn
+                  kind="primary"
+                  onClick={() => verificarFidelidad(false)}
+                  disabled={ocupado}
+                  title="Verifica solo las brechas que aún no lo estén"
+                >
+                  {ocupado === "verificar"
+                    ? "Verificando…"
+                    : "Verificar fidelidad"}
+                </Btn>
+
+                {/* Rehacer una verificación ya pagada conserva exactamente su
+                    confirmación y su cálculo de coste; solo cambia de lugar. */}
+                <Btn
+                  kind="ghost"
+                  onClick={() => {
+                    const n = arts.length || 0;
+                    const aviso =
+                      `Se volverán a verificar todas las brechas desde cero.\n\n` +
+                      `Cuesta aproximadamente ${n || "una"} ${
+                        n === 1 ? "generación" : "generaciones"
+                      } de tu cuota diaria.\n\n` +
+                      "Tiene sentido si el verificador ha cambiado; si no, el " +
+                      "resultado será el mismo y habrás gastado cuota.";
+                    if (window.confirm(aviso)) verificarFidelidad(true);
+                  }}
+                  disabled={ocupado}
+                  title="Rehace la verificación aunque ya esté hecha. Consume cuota."
+                >
+                  {ocupado === "rehacer" ? "Rehaciendo…" : "Volver a verificar"}
+                </Btn>
+
+                <Btn kind="ghost" onClick={reanalizar} disabled={ocupado}>
+                  {ocupado === "analizar" ? "Analizando…" : "Volver a analizar"}
+                </Btn>
               </div>
-              <div className="flex flex-col gap-2">
+            </Panel>
+
+            <IndicadorConsumo key={recarga} proyectoId={proyecto.id} />
+
+            <Panel className="p-4">
+              <h2 className="text-base font-semibold text-tinta">
+                Exportar resultados
+              </h2>
+              <p className="mt-1.5 text-xs leading-relaxed text-tinta-media">
+                Revisa la matriz o descarga los formatos disponibles.
+              </p>
+              <div className="mt-4 flex flex-col gap-2">
                 <Btn kind="ghost" onClick={abrirMatriz}>
                   Ver matriz
                 </Btn>
@@ -1574,9 +1595,9 @@ function BrechasProyecto({ proyecto, goBack }) {
                 </Btn>
               </div>
             </Panel>
-          </div>
+          </aside>
         </div>
-      </Seccion>
+      </section>
 
       <Seccion
         titulo={`Artículos analizados (${arts.length})`}
@@ -1611,7 +1632,7 @@ function BrechasProyecto({ proyecto, goBack }) {
                   </Td>
                   <Td className="text-right">
                     <Btn kind="blue" onClick={() => verBrechas(a)}>
-                      Ver brecha
+                      Revisar brecha
                     </Btn>
                   </Td>
                 </Fila>
