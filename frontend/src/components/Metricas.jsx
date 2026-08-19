@@ -122,6 +122,127 @@ function Etiqueta({ children, tono = "gris" }) {
   );
 }
 
+function limitar(valor, minimo, maximo) {
+  return Math.min(maximo, Math.max(minimo, valor));
+}
+
+/**
+ * Sitúa la distribución sin inventar umbrales de calidad.
+ *
+ * Las métricas acotadas usan su escala teórica completa (0 a 1). Cuando el
+ * catálogo solo declara una unidad —por ejemplo, anclajes por 100 palabras—
+ * se usa el mínimo y máximo observados y se rotula como tal.
+ */
+function EscalaMetrica({ metrica }) {
+  const { mediana, p25, p75, minimo, maximo, rango, mejor } = metrica;
+  const escalaTeorica = rango === "0 a 1" || rango === "0 o 1";
+  const inicio = escalaTeorica ? 0 : Number(minimo);
+  const fin = escalaTeorica ? 1 : Number(maximo);
+  const amplitud = fin - inicio;
+  const posicion = (valor) => {
+    if (!Number.isFinite(Number(valor)) || !Number.isFinite(amplitud) || amplitud <= 0) {
+      return 50;
+    }
+    return limitar(((Number(valor) - inicio) / amplitud) * 100, 0, 100);
+  };
+  const posP25 = posicion(p25);
+  const posP75 = posicion(p75);
+  const posMediana = posicion(mediana);
+  const inicioIqr = Math.min(posP25, 98);
+  const anchoIqr = Math.min(100 - inicioIqr, Math.max(2, posP75 - posP25));
+  const direccion =
+    mejor === "alto"
+      ? "En esta métrica, un valor mayor es más favorable."
+      : mejor === "bajo"
+        ? "En esta métrica, un valor menor es más favorable."
+        : "Esta métrica es descriptiva: no hay un valor mejor por sí solo.";
+
+  return (
+    <div className="mt-5 border-t border-borde pt-4">
+      <div className="flex items-start justify-between gap-3 text-[11px]">
+        <span className="font-semibold uppercase tracking-[0.12em] text-tinta-suave">
+          Escala del resultado
+        </span>
+        <span className="text-right text-tinta-media">{direccion}</span>
+      </div>
+
+      <div className="relative mt-4 py-2" aria-label={`Mediana ${fmt(mediana)} en escala ${rango}`}>
+        <div className="h-2 rounded-full bg-hundido ring-1 ring-inset ring-borde">
+          <div
+            className="absolute top-2 h-2 rounded-full bg-acento-claro ring-1 ring-inset ring-acento-borde"
+            style={{ left: `${inicioIqr}%`, width: `${anchoIqr}%` }}
+            title={`Mitad central: ${fmt(p25)} a ${fmt(p75)}`}
+          />
+        </div>
+        <div
+          className="absolute top-0 -translate-x-1/2"
+          style={{ left: `${posMediana}%` }}
+          title={`Resultado central: ${fmt(mediana)}`}
+        >
+          <div className="mx-auto h-6 w-0.5 rounded-full bg-acento-fuerte" />
+          <div className="mx-auto -mt-4 h-2.5 w-2.5 rounded-full border-2 border-superficie bg-acento shadow-sm" />
+        </div>
+      </div>
+
+      <div className="mt-1 flex justify-between gap-4 text-[11px] text-tinta-suave tabular-nums">
+        <span>
+          {fmt(inicio)} · {escalaTeorica ? "menor valor posible" : "menor observado"}
+        </span>
+        <span className="text-right">
+          {fmt(fin)} · {escalaTeorica ? "mayor valor posible" : "mayor observado"}
+        </span>
+      </div>
+      <p className="mt-2 text-[11px] leading-relaxed text-tinta-media">
+        La línea marca la mediana ({fmt(mediana)}); la franja azul cubre el 50 %
+        central, de {fmt(p25)} a {fmt(p75)}.
+      </p>
+    </div>
+  );
+}
+
+function GuiaLecturaMetricas() {
+  const conceptos = [
+    {
+      titulo: "Mediana",
+      texto: "El resultado central: la mitad de las mediciones queda por debajo y la otra mitad por encima.",
+    },
+    {
+      titulo: "IQR",
+      texto: "Cuánto se separa el 50 % central. Un IQR mayor indica más variación, no necesariamente mejor calidad.",
+    },
+    {
+      titulo: "Muestra (n)",
+      texto: "Cantidad real de brechas, artículos o análisis que aportaron valores a esa métrica.",
+    },
+  ];
+
+  return (
+    <div className="rounded-xl border border-borde bg-hundido/40 px-4 py-3.5">
+      <div className="grid gap-3 md:grid-cols-3">
+        {conceptos.map((concepto) => (
+          <div key={concepto.titulo} className="flex gap-2.5">
+            <span
+              className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full border border-acento-borde bg-acento-claro text-[10px] font-semibold text-acento"
+              aria-hidden="true"
+            >
+              i
+            </span>
+            <p className="text-xs leading-relaxed text-tinta-media">
+              <strong className="font-semibold text-tinta">{concepto.titulo}:</strong>{" "}
+              {concepto.texto}
+            </p>
+          </div>
+        ))}
+      </div>
+      <p className="mt-3 border-t border-borde pt-3 text-[11px] leading-relaxed text-tinta-suave">
+        La barra ayuda a ubicar el resultado de menor a mayor. No muestra zonas
+        «malas» o «buenas» porque todavía no existen umbrales académicos calibrados
+        para clasificarlas.
+      </p>
+    </div>
+  );
+}
+
 function Tarjeta({ metrica }) {
   if (!metrica) return null;
   const {
@@ -131,7 +252,6 @@ function Tarjeta({ metrica }) {
     iqr,
     discrimina,
     descripcion,
-    rango,
     n,
     nivel,
     ambito,
@@ -139,11 +259,17 @@ function Tarjeta({ metrica }) {
   } = metrica;
   const guia = GUIA_DESTACADAS[codigo] || {};
   const alcance = {
-    run: "Métrica de lote",
-    brecha: "Entre brechas",
-    articulo: "Entre artículos",
-    proyecto: "Proyecto completo",
+    run: "Se calcula una vez por análisis completo",
+    brecha: "Se calcula en cada brecha",
+    articulo: "Se calcula en cada artículo",
+    proyecto: "Se calcula para el proyecto completo",
   }[ambito] || ambito;
+  const unidadMuestra = {
+    run: n === 1 ? "análisis medido" : "análisis medidos",
+    brecha: n === 1 ? "brecha medida" : "brechas medidas",
+    articulo: n === 1 ? "artículo medido" : "artículos medidos",
+    proyecto: n === 1 ? "proyecto medido" : "proyectos medidos",
+  }[ambito] || "mediciones";
   const lecturaMuestra =
     n < 5 ? "muestra limitada" : discrimina ? "variación útil" : "poca variación";
 
@@ -197,10 +323,12 @@ function Tarjeta({ metrica }) {
             </Etiqueta>
           </div>
           <p className="mt-2 text-[11px] leading-relaxed text-tinta-suave" title={veredicto}>
-            {alcance} · {rango}
+            {n} {unidadMuestra}. {alcance}.
           </p>
         </div>
       </div>
+
+      <EscalaMetrica metrica={metrica} />
     </article>
   );
 }
@@ -611,6 +739,8 @@ export function PanelMetricas({ proyectoId }) {
         </div>
         <Etiqueta tono="azul">Mediana + variación de la muestra</Etiqueta>
       </div>
+
+      <GuiaLecturaMetricas />
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {DESTACADAS.map((c) => (
