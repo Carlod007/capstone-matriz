@@ -27,7 +27,17 @@ function fmt(v, decimales = 3) {
   return Number(v).toFixed(decimales);
 }
 
-/** Métricas destacadas en las tarjetas superiores, por orden de interés. */
+/**
+ * La métrica de cabecera: ¿está respaldado por el artículo?
+ *
+ * Va sola y a todo lo ancho porque es la pregunta que decide si el resto del
+ * panel merece atención. Faltaba entre las destacadas, aunque el explorador ya
+ * arranca seleccionándola y hay un botón dedicado a calcularla: la lectura
+ * rápida omitía justo lo que el resto del programa trata como principal.
+ */
+const CABECERA = "N2.1";
+
+/** Métricas destacadas en las tarjetas inferiores, por orden de interés. */
 const DESTACADAS = ["N3.1", "N1.2", "N3.2", "N4.2"];
 
 /**
@@ -38,6 +48,10 @@ const DESTACADAS = ["N3.1", "N1.2", "N3.2", "N4.2"];
  * veredicto siguen llegando del servidor.
  */
 const GUIA_DESTACADAS = {
+  "N2.1": {
+    pregunta: "¿Las afirmaciones de las brechas salen del artículo?",
+    lectura: "Más alto = mayor proporción respaldada por fragmentos citables",
+  },
   "N3.1": {
     pregunta: "¿Las brechas cambian entre artículos?",
     lectura: "Más alto = brechas más distintas",
@@ -149,7 +163,14 @@ function EscalaMetrica({ metrica, integrada = false }) {
   const posP75 = posicion(p75);
   const posMediana = posicion(mediana);
   const inicioIqr = Math.min(posP25, 98);
-  const anchoIqr = Math.min(100 - inicioIqr, Math.max(2, posP75 - posP25));
+  // Sin dispersión no se dibuja franja. El ancho tenía un mínimo de 2 % para
+  // que no desapareciera, pero desaparecer es lo correcto: con todas las
+  // mediciones iguales —o con una sola— esa banda afirmaba «aquí está el 50 %
+  // central» sobre unos datos que no se separan en nada.
+  const hayDispersion = Number.isFinite(posP75 - posP25) && posP75 - posP25 > 0.5;
+  const anchoIqr = hayDispersion
+    ? Math.min(100 - inicioIqr, posP75 - posP25)
+    : 0;
   const direccion =
     mejor === "alto"
       ? "En esta métrica, un valor mayor es más favorable."
@@ -168,11 +189,13 @@ function EscalaMetrica({ metrica, integrada = false }) {
 
       <div className="relative mt-4 py-2" aria-label={`Mediana ${fmt(mediana)} en escala ${rango}`}>
         <div className="h-2 rounded-full bg-hundido ring-1 ring-inset ring-borde">
-          <div
-            className="absolute top-2 h-2 rounded-full bg-acento-claro ring-1 ring-inset ring-acento-borde"
-            style={{ left: `${inicioIqr}%`, width: `${anchoIqr}%` }}
-            title={`Mitad central: ${fmt(p25)} a ${fmt(p75)}`}
-          />
+          {hayDispersion && (
+            <div
+              className="absolute top-2 h-2 rounded-full bg-acento-claro ring-1 ring-inset ring-acento-borde"
+              style={{ left: `${inicioIqr}%`, width: `${anchoIqr}%` }}
+              title={`Mitad central: ${fmt(p25)} a ${fmt(p75)}`}
+            />
+          )}
         </div>
         <div
           className="absolute top-0 -translate-x-1/2"
@@ -193,8 +216,18 @@ function EscalaMetrica({ metrica, integrada = false }) {
         </span>
       </div>
       <p className="mt-2 text-[11px] leading-relaxed text-tinta-media">
-        La línea marca la mediana ({fmt(mediana)}); la franja azul cubre el 50 %
-        central, de {fmt(p25)} a {fmt(p75)}.
+        {hayDispersion ? (
+          <>
+            La línea marca la mediana ({fmt(mediana)}); la franja azul cubre el
+            50 % central, de {fmt(p25)} a {fmt(p75)}.
+          </>
+        ) : (
+          <>
+            La línea marca el valor ({fmt(mediana)}). No hay franja porque no
+            hay dispersión que mostrar: todas las mediciones coinciden, o solo
+            hay una.
+          </>
+        )}
       </p>
     </div>
   );
@@ -250,7 +283,6 @@ function Tarjeta({ metrica }) {
     nombre,
     mediana,
     iqr,
-    discrimina,
     descripcion,
     n,
     nivel,
@@ -270,8 +302,9 @@ function Tarjeta({ metrica }) {
     articulo: n === 1 ? "artículo medido" : "artículos medidos",
     proyecto: n === 1 ? "proyecto medido" : "proyectos medidos",
   }[ambito] || "mediciones";
-  const lecturaMuestra =
-    n < 5 ? "muestra limitada" : discrimina ? "variación útil" : "poca variación";
+  const estado = estadoMetrica(metrica);
+  const deLote = esDeLote(metrica);
+  const sinDatos = n === 0;
 
   return (
     <article
@@ -303,32 +336,54 @@ function Tarjeta({ metrica }) {
           </p>
         </div>
 
+        {/* A una métrica de lote no se le piden IQR ni tamaño de muestra: da
+            un solo número por análisis, así que ese recuadro salía siempre con
+            IQR 0.000, n=1 y un aviso ámbar de «muestra limitada». Dedicarle
+            media tarjeta a decir que la medición es pobre, en la métrica que
+            el propio catálogo llama la más diagnóstica, invitaba a desconfiar
+            de un valor que está completo. */}
         <div className="border-t border-borde pt-4 sm:border-l sm:border-t-0 sm:pl-5 sm:pt-0">
           <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-tinta-suave">
-            Calidad de la medición
+            {deLote ? "Cómo se obtuvo" : "Calidad de la medición"}
           </div>
-          <div className="mt-3 grid grid-cols-2 gap-2">
-            <div className="rounded-lg bg-hundido px-2.5 py-2">
-              <div className="text-[10px] uppercase tracking-wide text-tinta-suave">IQR</div>
-              <div className="mt-0.5 font-semibold tabular-nums text-tinta">{fmt(iqr)}</div>
-            </div>
-            <div className="rounded-lg bg-hundido px-2.5 py-2">
-              <div className="text-[10px] uppercase tracking-wide text-tinta-suave">Muestra</div>
-              <div className="mt-0.5 font-semibold tabular-nums text-tinta">n={n}</div>
-            </div>
-          </div>
+
+          {deLote ? (
+            <p className="mt-3 text-xs leading-relaxed text-tinta-media">
+              Un único valor calculado sobre el análisis completo. No tiene
+              dispersión que medir: no es una muestra a la que le falten casos,
+              sino la medición entera.
+            </p>
+          ) : (
+            <>
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                <div className="rounded-lg bg-hundido px-2.5 py-2">
+                  <div className="text-[10px] uppercase tracking-wide text-tinta-suave">IQR</div>
+                  <div className="mt-0.5 font-semibold tabular-nums text-tinta">{fmt(iqr)}</div>
+                </div>
+                <div className="rounded-lg bg-hundido px-2.5 py-2">
+                  <div className="text-[10px] uppercase tracking-wide text-tinta-suave">Muestra</div>
+                  <div className="mt-0.5 font-semibold tabular-nums text-tinta">n={n}</div>
+                </div>
+              </div>
+              <p className="mt-2 text-[11px] leading-relaxed text-tinta-suave">
+                {n} {unidadMuestra}. {alcance}.
+              </p>
+            </>
+          )}
+
           <div className="mt-3">
-            <Etiqueta tono={discrimina ? "verde" : "ambar"}>
-              {lecturaMuestra}
-            </Etiqueta>
+            <span
+              className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-[3px] text-[11px] leading-none ${estado.etiqueta}`}
+              title={veredicto}
+            >
+              <span className={`h-1.5 w-1.5 rounded-full ${estado.punto}`} aria-hidden="true" />
+              {estado.texto}
+            </span>
           </div>
-          <p className="mt-2 text-[11px] leading-relaxed text-tinta-suave" title={veredicto}>
-            {n} {unidadMuestra}. {alcance}.
-          </p>
         </div>
       </div>
 
-      <EscalaMetrica metrica={metrica} />
+      {!sinDatos && <EscalaMetrica metrica={metrica} />}
     </article>
   );
 }
@@ -742,6 +797,31 @@ export function PanelMetricas({ proyectoId }) {
 
       <GuiaLecturaMetricas />
 
+      {/* La fidelidad va sola y a todo lo ancho: es la pregunta que decide si
+          el resto del panel merece atención. */}
+      {porCodigo[CABECERA]?.n > 0 ? (
+        <Tarjeta metrica={porCodigo[CABECERA]} />
+      ) : (
+        <div className="rounded-xl border border-borde bg-superficie p-5 shadow-[var(--sombra-1)]">
+          <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-tinta-suave">
+            Resultado
+          </div>
+          <h3 className="mt-2 text-base font-semibold text-tinta">
+            Fidelidad evidencial
+          </h3>
+          <p className="mt-2 max-w-2xl text-sm leading-relaxed text-tinta-media">
+            ¿Las afirmaciones de las brechas salen del artículo? Todavía no se
+            ha comprobado. Se calcula con el botón «Verificar fidelidad», que
+            descompone cada brecha en afirmaciones y busca el fragmento que
+            sostiene cada una.
+          </p>
+          <p className="mt-2 text-xs text-tinta-suave">
+            No tenerla no invalida lo de abajo, pero es lo que permite decir si
+            el análisis se apoya en los artículos o los está adornando.
+          </p>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         {DESTACADAS.map((c) => (
           <Tarjeta key={c} metrica={porCodigo[c]} />
@@ -788,6 +868,23 @@ function grupoDeMetrica(codigo = "") {
   return GRUPOS_METRICAS.find(([prefijo]) => codigo.startsWith(prefijo))?.[0] || "OTRO";
 }
 
+/**
+ * Una métrica de lote no es una distribución.
+ *
+ * `N3.1 Discriminabilidad` y `N3.4 Redundancia` son de ámbito `run`: se
+ * calculan una vez sobre todas las brechas del análisis y devuelven un solo
+ * número. No es una muestra de la que falten casos, es la medición completa.
+ *
+ * Tratarlas con la regla general dejaba a la métrica más diagnóstica del
+ * sistema marcada siempre en ámbar como «muestra limitada», con IQR 0.000,
+ * como si algo hubiera salido mal. El aviso decía la verdad estadística —un
+ * valor no tiene rango intercuartílico— y mentía sobre lo que importa: el
+ * número es válido y está completo.
+ */
+function esDeLote(metrica) {
+  return metrica?.ambito === "run" || metrica?.ambito === "proyecto";
+}
+
 function estadoMetrica(metrica) {
   if (!metrica || metrica.n === 0) {
     return {
@@ -795,6 +892,14 @@ function estadoMetrica(metrica) {
       texto: "Sin datos",
       punto: "bg-tinta-suave",
       etiqueta: "bg-hundido text-tinta-media border-borde",
+    };
+  }
+  if (esDeLote(metrica)) {
+    return {
+      clave: "valor-unico",
+      texto: "Valor único del análisis",
+      punto: "bg-acento",
+      etiqueta: "bg-acento-claro text-acento-fuerte border-acento-borde",
     };
   }
   if (metrica.n < 5) {
@@ -862,8 +967,9 @@ function DetalleMetrica({ metrica }) {
 
   const estado = estadoMetrica(metrica);
   const sinDatos = metrica.n === 0;
+  const deLote = esDeLote(metrica);
   const unidad = {
-    run: metrica.n === 1 ? "análisis" : "análisis",
+    run: "análisis",
     brecha: metrica.n === 1 ? "brecha" : "brechas",
     articulo: metrica.n === 1 ? "artículo" : "artículos",
     proyecto: metrica.n === 1 ? "proyecto" : "proyectos",
@@ -885,7 +991,9 @@ function DetalleMetrica({ metrica }) {
         >
           <span className={`h-2 w-2 rounded-full ${estado.punto}`} aria-hidden="true" />
           {estado.texto}
-          {!sinDatos && ` · IQR ${fmt(metrica.iqr)}`}
+          {/* El IQR de un valor único es cero por definición, no por falta de
+              variación: anunciarlo al lado del estado invitaba a leerlo mal. */}
+          {!sinDatos && !deLote && ` · IQR ${fmt(metrica.iqr)}`}
         </span>
       </div>
 
@@ -916,26 +1024,45 @@ function DetalleMetrica({ metrica }) {
             <EscalaMetrica metrica={metrica} integrada />
           </div>
 
-          <div className="mt-4 grid gap-4 sm:grid-cols-2">
-            <div className="rounded-xl border border-borde bg-superficie px-4 py-4 text-center">
-              <div className="text-sm text-tinta-suave">IQR</div>
-              <div className="mt-1 text-2xl font-semibold text-aviso tabular-nums">
-                {fmt(metrica.iqr)}
-              </div>
-              <p className="mt-1 text-[11px] text-tinta-suave">
-                amplitud del 50 % central
+          {/* IQR y n van en tinta normal, no en ámbar y verde.
+              El color decía cosas que el propio panel desmiente: pintaba de
+              ámbar —advertencia— un IQR alto, que es justo lo que aquí se
+              considera bueno y lo que activa «variación útil» en verde; y
+              pintaba de verde el tamaño de muestra incluso cuando valía 1 y la
+              insignia de arriba avisaba en ámbar de que era escaso. Dos
+              números fijos no pueden codificar un veredicto que depende del
+              dato. El color queda para la insignia, que sí lo evalúa. */}
+          {deLote ? (
+            <div className="mt-4 rounded-xl border border-borde bg-superficie px-4 py-4">
+              <div className="text-sm text-tinta-suave">Cómo se obtuvo</div>
+              <p className="mt-1.5 text-sm leading-relaxed text-tinta-media">
+                Se calcula una sola vez sobre {textoAmbito(metrica.ambito)}, así
+                que da un único número. No tiene dispersión que medir: no es una
+                muestra a la que le falten casos, sino la medición completa.
               </p>
             </div>
-            <div className="rounded-xl border border-borde bg-superficie px-4 py-4 text-center">
-              <div className="text-sm text-tinta-suave">Muestra</div>
-              <div className="mt-1 text-2xl font-semibold text-bien tabular-nums">
-                {metrica.n} {unidad}
+          ) : (
+            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+              <div className="rounded-xl border border-borde bg-superficie px-4 py-4 text-center">
+                <div className="text-sm text-tinta-suave">IQR</div>
+                <div className="mt-1 text-2xl font-semibold text-tinta tabular-nums">
+                  {fmt(metrica.iqr)}
+                </div>
+                <p className="mt-1 text-[11px] text-tinta-suave">
+                  amplitud del 50 % central
+                </p>
               </div>
-              <p className="mt-1 text-[11px] text-tinta-suave">
-                mediciones incluidas en el resumen
-              </p>
+              <div className="rounded-xl border border-borde bg-superficie px-4 py-4 text-center">
+                <div className="text-sm text-tinta-suave">Muestra</div>
+                <div className="mt-1 text-2xl font-semibold text-tinta tabular-nums">
+                  {metrica.n} {unidad}
+                </div>
+                <p className="mt-1 text-[11px] text-tinta-suave">
+                  mediciones incluidas en el resumen
+                </p>
+              </div>
             </div>
-          </div>
+          )}
         </>
       )}
 
@@ -1077,6 +1204,7 @@ export function TablaDistribuciones({ metricas }) {
               <option value="variacion-util">Variación útil</option>
               <option value="poca-variacion">Poca variación</option>
               <option value="muestra-limitada">Muestra limitada</option>
+              <option value="valor-unico">Valor único del análisis</option>
               <option value="sin-datos">Sin datos</option>
             </select>
           </label>
