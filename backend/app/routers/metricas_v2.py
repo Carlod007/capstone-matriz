@@ -88,13 +88,26 @@ def metricas_proyecto(
             ultima[(m.referencia_id, m.codigo)] = m
 
     valores: dict[str, list] = {}
+    motivos: dict[str, list[str]] = {}
     for m in ultima.values():
         valores.setdefault(m.codigo, []).append(m.valor)
+        # Cuando la medición se descartó, el porqué quedó guardado junto a ella.
+        # La pantalla decía «no produjo valores», que es cierto y no explica
+        # nada: el motivo estaba en la base desde el principio.
+        if isinstance(m.detalle, dict) and m.detalle.get("motivo"):
+            motivos.setdefault(m.codigo, []).append(str(m.detalle["motivo"]))
 
     salida = []
     for codigo in sorted(valores):
         d = D.describir(codigo, valores[codigo])
         f = ficha(codigo)
+
+        # Solo se informa del motivo si no quedó ningún valor y todas las
+        # mediciones descartadas coinciden en la razón. Con motivos distintos,
+        # resumirlos en uno sería elegir por el lector cuál vale.
+        razones = set(motivos.get(codigo, []))
+        motivo = razones.pop() if d.n == 0 and len(razones) == 1 else None
+
         salida.append({
             **d.dict(),
             "nombre": f.nombre if f else codigo,
@@ -104,6 +117,11 @@ def metricas_proyecto(
             "rango": f.rango if f else "",
             "descripcion": f.descripcion if f else "",
             "interpretacion": f.interpretacion if f else "",
+            "motivo_sin_datos": motivo,
+            # Cuántas mediciones se intentaron, hubieran dado valor o no. Sin
+            # esto, «n=0» no distingue entre «no se midió nada» y «se midieron
+            # cinco y ninguna aplicaba».
+            "n_intentos": len(valores[codigo]),
         })
 
     estados = {}

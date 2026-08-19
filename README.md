@@ -404,7 +404,7 @@ Desde `backend/`, con el entorno activado:
 python -m pytest
 ```
 
-Son 363 pruebas y corren en modo simulado, sin gastar cuota. Las que
+Son 366 pruebas y corren en modo simulado, sin gastar cuota. Las que
 necesitan MySQL están marcadas con `bd` y **se saltan solas** si no hay
 conexión, de modo que la suite pasa igual en una máquina sin base de datos.
 
@@ -425,7 +425,7 @@ GitHub lo mismo que harías a mano:
 
 - levanta un MySQL vacío y construye el esquema con `alembic upgrade head`,
   de modo que una migración mal escrita se rompe ahí;
-- ejecuta `alembic check` y las 363 pruebas contra esa base recién creada,
+- ejecuta `alembic check` y las 366 pruebas contra esa base recién creada,
   sin los datos acumulados de una máquina de desarrollo;
 - instala el frontend con `npm ci`, pasa el lint y compila.
 
@@ -530,7 +530,7 @@ backend/
     routers/          endpoints HTTP
     services/         ingesta, RAG, verificación, métricas, límites de cuota
     utils/            extracción de texto y OCR
-  tests/              363 pruebas
+  tests/              366 pruebas
   storage/pdfs/       PDF subidos, en una carpeta por usuario (no se versionan)
 frontend/
   Caddyfile           servidor web, proxy a la API y HTTPS automático

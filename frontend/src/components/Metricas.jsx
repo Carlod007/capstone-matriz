@@ -247,11 +247,15 @@ function GuiaLecturaMetricas() {
       titulo: "Muestra (n)",
       texto: "Cantidad real de brechas, artículos o análisis que aportaron valores a esa métrica.",
     },
+    {
+      titulo: "Separa los casos",
+      texto: "Dice si esa métrica distingue unos artículos de otros. Habla del instrumento, no de la calidad del proyecto: un resultado excelente y parejo en todos sale como «valores parecidos».",
+    },
   ];
 
   return (
     <div className="rounded-xl border border-borde bg-hundido/40 px-4 py-3.5">
-      <div className="grid gap-3 md:grid-cols-3">
+      <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-4">
         {conceptos.map((concepto) => (
           <div key={concepto.titulo} className="flex gap-2.5">
             <span
@@ -305,6 +309,8 @@ function Tarjeta({ metrica }) {
   const estado = estadoMetrica(metrica);
   const deLote = esDeLote(metrica);
   const sinDatos = n === 0;
+  const binaria = esBinaria(metrica) && !sinDatos;
+  const recuento = binaria ? recuentoBinario(metrica) : null;
 
   return (
     <article
@@ -344,7 +350,7 @@ function Tarjeta({ metrica }) {
             de un valor que está completo. */}
         <div className="border-t border-borde pt-4 sm:border-l sm:border-t-0 sm:pl-5 sm:pt-0">
           <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-tinta-suave">
-            {deLote ? "Cómo se obtuvo" : "Calidad de la medición"}
+            {deLote || binaria ? "Cómo se obtuvo" : "Cómo se midió"}
           </div>
 
           {deLote ? (
@@ -352,6 +358,12 @@ function Tarjeta({ metrica }) {
               Un único valor calculado sobre el análisis completo. No tiene
               dispersión que medir: no es una muestra a la que le falten casos,
               sino la medición entera.
+            </p>
+          ) : binaria ? (
+            <p className="mt-3 text-xs leading-relaxed text-tinta-media">
+              Cada medición vale 0 o 1, así que lo que cuenta es en cuántas se
+              cumplió: {recuento?.aciertos} de {recuento?.total}. La dispersión
+              no aporta nada en una métrica de sí o no.
             </p>
           ) : (
             <>
@@ -885,6 +897,26 @@ function esDeLote(metrica) {
   return metrica?.ambito === "run" || metrica?.ambito === "proyecto";
 }
 
+/**
+ * Métricas de sí o no, donde la mediana y el IQR no dicen nada.
+ *
+ * `N2.verificada` y `N4.ref` valen 0 o 1: se hizo la verificación o no, se
+ * encontró el abstract o no. Con las cinco a 1 —el mejor resultado posible—
+ * salían como «mediana 1.000, IQR 0.000, poca variación» en ámbar, es decir,
+ * con aspecto de problema. Lo que un lector quiere de ellas es un recuento:
+ * cuántas de cuántas.
+ */
+function esBinaria(metrica) {
+  return metrica?.rango === "0 o 1";
+}
+
+/** "4 de 5" a partir de la media de una métrica binaria. */
+function recuentoBinario(metrica) {
+  if (!metrica || !metrica.n) return null;
+  const aciertos = Math.round((metrica.media ?? metrica.mediana ?? 0) * metrica.n);
+  return { aciertos, total: metrica.n };
+}
+
 function estadoMetrica(metrica) {
   if (!metrica || metrica.n === 0) {
     return {
@@ -892,6 +924,15 @@ function estadoMetrica(metrica) {
       texto: "Sin datos",
       punto: "bg-tinta-suave",
       etiqueta: "bg-hundido text-tinta-media border-borde",
+    };
+  }
+  if (esBinaria(metrica)) {
+    const r = recuentoBinario(metrica);
+    return {
+      clave: "recuento",
+      texto: r ? `${r.aciertos} de ${r.total}` : "Recuento",
+      punto: "bg-acento",
+      etiqueta: "bg-acento-claro text-acento-fuerte border-acento-borde",
     };
   }
   if (esDeLote(metrica)) {
@@ -902,6 +943,18 @@ function estadoMetrica(metrica) {
       etiqueta: "bg-acento-claro text-acento-fuerte border-acento-borde",
     };
   }
+  // A partir de aquí el estado habla de la MÉTRICA como instrumento, no de la
+  // calidad del proyecto, y por eso ya no se pinta en verde y ámbar.
+  //
+  // Ese par de colores se leía como «bien» y «mal», y no lo era. Con los datos
+  // reales de un proyecto: la similitud semántica salía en ámbar con valores
+  // de 0.85 a 0.93 —resultados excelentes y consistentes— solo porque su IQR
+  // era pequeño; y la verificación de fidelidad, completa en las cinco
+  // brechas, salía también en ámbar. El color no acompañaba a la calidad: la
+  // contradecía justo donde el resultado era mejor.
+  //
+  // Que una métrica separe o no los casos importa para calibrar el
+  // instrumento, no para juzgar la investigación. Se dice en gris.
   if (metrica.n < 5) {
     return {
       clave: "muestra-limitada",
@@ -913,16 +966,16 @@ function estadoMetrica(metrica) {
   if (metrica.discrimina) {
     return {
       clave: "variacion-util",
-      texto: "Variación útil",
-      punto: "bg-bien",
-      etiqueta: "bg-bien-claro text-bien border-bien-borde",
+      texto: "Separa los casos",
+      punto: "bg-tinta-suave",
+      etiqueta: "bg-hundido text-tinta-media border-borde",
     };
   }
   return {
     clave: "poca-variacion",
-    texto: "Poca variación",
-    punto: "bg-aviso",
-    etiqueta: "bg-aviso-claro text-aviso border-aviso-borde",
+    texto: "Valores parecidos entre sí",
+    punto: "bg-tinta-suave",
+    etiqueta: "bg-hundido text-tinta-media border-borde",
   };
 }
 
@@ -968,6 +1021,8 @@ function DetalleMetrica({ metrica }) {
   const estado = estadoMetrica(metrica);
   const sinDatos = metrica.n === 0;
   const deLote = esDeLote(metrica);
+  const binaria = esBinaria(metrica) && !sinDatos;
+  const recuento = binaria ? recuentoBinario(metrica) : null;
   const unidad = {
     run: "análisis",
     brecha: metrica.n === 1 ? "brecha" : "brechas",
@@ -991,9 +1046,10 @@ function DetalleMetrica({ metrica }) {
         >
           <span className={`h-2 w-2 rounded-full ${estado.punto}`} aria-hidden="true" />
           {estado.texto}
-          {/* El IQR de un valor único es cero por definición, no por falta de
-              variación: anunciarlo al lado del estado invitaba a leerlo mal. */}
-          {!sinDatos && !deLote && ` · IQR ${fmt(metrica.iqr)}`}
+          {/* El IQR de un valor único —o de una métrica de sí o no— es cero
+              por definición, no por falta de variación: anunciarlo al lado del
+              estado invitaba a leerlo mal. */}
+          {!sinDatos && !deLote && !binaria && ` · IQR ${fmt(metrica.iqr)}`}
         </span>
       </div>
 
@@ -1007,9 +1063,48 @@ function DetalleMetrica({ metrica }) {
       {sinDatos ? (
         <div className="mt-6 rounded-xl border border-borde bg-hundido px-5 py-6">
           <div className="text-xl font-semibold text-tinta">Sin mediciones aplicables</div>
-          <p className="mt-2 text-sm leading-relaxed text-tinta-media">
-            Esta métrica no produjo valores en el análisis actual. La ausencia de
-            datos no equivale a un resultado de cero.
+          {/* El porqué estaba guardado junto a cada medición descartada y la
+              pantalla no lo usaba: decía «no produjo valores», que es cierto y
+              no explica nada. En las ROUGE, por ejemplo, la razón es que el
+              resumen y el abstract están en idiomas distintos. */}
+          {metrica.motivo_sin_datos ? (
+            <>
+              <p className="mt-2 text-sm leading-relaxed text-tinta-media">
+                {metrica.motivo_sin_datos}
+              </p>
+              {metrica.n_intentos > 0 && (
+                <p className="mt-2 text-xs text-tinta-suave">
+                  Se intentó medir {metrica.n_intentos}{" "}
+                  {metrica.n_intentos === 1 ? "vez" : "veces"} y ninguna resultó
+                  aplicable. La ausencia de datos no equivale a un cero.
+                </p>
+              )}
+            </>
+          ) : (
+            <p className="mt-2 text-sm leading-relaxed text-tinta-media">
+              Esta métrica no produjo valores en el análisis actual. La ausencia
+              de datos no equivale a un resultado de cero.
+            </p>
+          )}
+        </div>
+      ) : binaria ? (
+        /* Una métrica de sí o no se lee contando, no promediando: «5 de 5» es
+           el dato, y «mediana 1.000 con IQR 0.000» era la misma verdad dicha
+           de forma que parecía un problema. */
+        <div className="mt-6 rounded-xl border border-borde bg-superficie px-5 py-6">
+          <div className="text-xs font-medium text-tinta-suave">Recuento</div>
+          <div className="mt-2 flex items-baseline gap-2">
+            <span className="text-5xl font-semibold tracking-tight text-acento tabular-nums">
+              {recuento?.aciertos}
+            </span>
+            <span className="text-lg text-tinta-media">
+              de {recuento?.total} {unidad}
+            </span>
+          </div>
+          <p className="mt-3 text-sm leading-relaxed text-tinta-media">
+            Esta métrica solo puede valer 0 o 1 en cada medición, así que se
+            cuenta en cuántas se cumplió. La mediana y el rango intercuartílico
+            no aportan nada aquí.
           </p>
         </div>
       ) : (
@@ -1127,6 +1222,21 @@ function DetalleMetrica({ metrica }) {
               <strong className="font-semibold text-tinta-media">Lectura técnica:</strong>{" "}
               {metrica.veredicto}
             </p>
+            {/* El veredicto del servidor aplica una regla general: con menos de
+                cinco valores dice «muestra insuficiente». Para una métrica de
+                lote eso contradice a la insignia de arriba, que dice que la
+                medición está completa. Las dos frases son ciertas y hablan de
+                cosas distintas, así que conviene decir cuál es cuál en vez de
+                dejar al lector eligiendo. */}
+            {(deLote || binaria) && (
+              <p className="mt-2 text-xs leading-relaxed text-tinta-suave">
+                Esa frase viene de la regla general del servidor, que cuenta
+                valores.{" "}
+                {deLote
+                  ? "Aquí solo puede haber uno, porque la métrica se calcula una vez por análisis; no es una muestra incompleta."
+                  : "Aquí cada medición vale 0 o 1, así que el recuento de arriba dice más que la dispersión."}
+              </p>
+            )}
           </div>
         )}
       </div>
@@ -1201,10 +1311,11 @@ export function TablaDistribuciones({ metricas }) {
               className="h-full min-h-9 rounded-lg border border-borde bg-superficie px-3 py-2 text-sm text-tinta outline-none focus:border-acento"
             >
               <option value="todas">Todas</option>
-              <option value="variacion-util">Variación útil</option>
-              <option value="poca-variacion">Poca variación</option>
+              <option value="variacion-util">Separa los casos</option>
+              <option value="poca-variacion">Valores parecidos</option>
               <option value="muestra-limitada">Muestra limitada</option>
               <option value="valor-unico">Valor único del análisis</option>
+              <option value="recuento">Recuento (sí o no)</option>
               <option value="sin-datos">Sin datos</option>
             </select>
           </label>
