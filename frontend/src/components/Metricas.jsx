@@ -988,6 +988,41 @@ function textoAmbito(ambito) {
   }[ambito] || ambito || "—";
 }
 
+/**
+ * La dirección de lectura, en corto, para la lista de métricas.
+ *
+ * No todas mejoran al subir. `N5.2 Reetiquetado automático` y `N3.4
+ * Redundancia` van al revés, y estando la dirección solo dentro del detalle
+ * una mediana alta en ellas pasaba por buena de un vistazo. En un proyecto
+ * real, N5.2 salía en 1.000 —el peor valor— resumida como «valores parecidos»,
+ * que no dice nada de eso.
+ *
+ * Se muestra la dirección junto al valor, sin calificarlo: el lector tiene los
+ * dos datos y saca la conclusión. Poner aquí un juicio exigiría umbrales
+ * académicos calibrados, que es justamente lo que este panel no tiene.
+ */
+const DIRECCION_CORTA = {
+  alto: { signo: "↑", texto: "mayor es mejor" },
+  bajo: { signo: "↓", texto: "menor es mejor" },
+  // Sin flecha: no apunta a ningún lado porque no hay lado mejor.
+  neutro: { signo: "", texto: "descriptiva" },
+};
+
+/** Lo que se resume de una métrica en la lista: dirección y valor. */
+function resumenLista(metrica) {
+  const direccion = DIRECCION_CORTA[metrica?.mejor] || null;
+  let valor = "sin datos";
+  if (metrica?.n > 0) {
+    if (esBinaria(metrica)) {
+      const r = recuentoBinario(metrica);
+      valor = r ? `${r.aciertos} de ${r.total}` : fmt(metrica.mediana);
+    } else {
+      valor = fmt(metrica.mediana);
+    }
+  }
+  return { direccion, valor };
+}
+
 function textoDireccion(mejor) {
   return {
     alto: "un valor mayor es más favorable",
@@ -1353,20 +1388,37 @@ export function TablaDistribuciones({ metricas }) {
                     {delGrupo.map((metrica) => {
                       const estado = estadoMetrica(metrica);
                       const activa = seleccionada?.codigo === metrica.codigo;
+                      const { direccion, valor } = resumenLista(metrica);
                       return (
                         <button
                           key={metrica.codigo}
                           type="button"
                           onClick={() => elegirMetrica(metrica)}
-                          className={`flex w-full items-center gap-3 border-l-2 px-4 py-2.5 text-left text-sm transition-colors ${
+                          className={`flex w-full items-start gap-3 border-l-2 px-4 py-2.5 text-left text-sm transition-colors ${
                             activa
                               ? "border-acento bg-acento-claro font-medium text-acento-fuerte"
                               : "border-transparent text-tinta hover:bg-superficie"
                           }`}
                         >
-                          <span className="min-w-0 flex-1 truncate">{metrica.nombre}</span>
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate">{metrica.nombre}</span>
+                            {/* Dirección y valor juntos: una mediana alta en
+                                una métrica invertida no debe pasar por buena
+                                solo porque el número sea grande. */}
+                            <span className="mt-0.5 flex items-center gap-1.5 text-[11px] font-normal text-tinta-suave">
+                              {direccion && (
+                                <span title={textoDireccion(metrica.mejor)}>
+                                  {direccion.signo
+                                    ? `${direccion.signo} ${direccion.texto}`
+                                    : direccion.texto}
+                                </span>
+                              )}
+                              <span aria-hidden="true">·</span>
+                              <span className="tabular-nums">{valor}</span>
+                            </span>
+                          </span>
                           <span
-                            className={`h-2.5 w-2.5 shrink-0 rounded-full ${estado.punto}`}
+                            className={`mt-1 h-2.5 w-2.5 shrink-0 rounded-full ${estado.punto}`}
                             title={estado.texto}
                             aria-label={estado.texto}
                           />
