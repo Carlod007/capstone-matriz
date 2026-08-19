@@ -102,7 +102,7 @@ export default function Login({ apiBase, onEntrar }) {
             <button
               type="submit"
               disabled={!listo}
-              className="rounded-lg bg-oro px-4 py-2.5 text-sm font-medium text-white shadow-[var(--sombra-1)] transition-[background-color,transform] hover:bg-oro-fuerte active:scale-[0.985] disabled:opacity-45 disabled:cursor-not-allowed disabled:hover:bg-oro"
+              className="rounded-lg bg-oro px-4 py-2.5 text-sm font-medium text-oro-tinta shadow-[var(--sombra-1)] transition-[background-color,transform] hover:bg-oro-hover active:scale-[0.985] disabled:opacity-45 disabled:cursor-not-allowed disabled:hover:bg-oro"
             >
               {enviando ? "Entrando…" : "Entrar"}
             </button>

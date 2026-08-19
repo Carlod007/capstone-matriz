@@ -45,11 +45,26 @@
   --color-acento-borde: #b9d5d1;
   --color-acento-fuerte: #234b49;
 
-  /* --- accion principal --- */
-  --color-oro: #c08a2e;
+  /* --- accion principal ---
+
+     El oro es un tono claro por naturaleza, asi que lleva tinta oscura encima.
+     Oscurecerlo hasta que admitiera texto blanco lo volvia marron y le quitaba
+     lo que lo hace reconocible como accion principal.
+
+     `oro-fuerte` hacia dos trabajos a la vez: fondo del hover del boton y
+     color de texto sobre `oro-claro`. Los dos contrastes tiran en direcciones
+     opuestas —el fondo quiere aclararse, el texto oscurecerse—, asi que
+     ninguno se cumplia: 4.46:1 el hover y 3.98:1 el aviso. Ahora el hover es
+     `oro-hover` y `oro-fuerte` se queda solo con el texto. */
+  --color-oro: #d09a3c;
+  --color-oro-hover: #c89030;
   --color-oro-claro: #fbf1de;
   --color-oro-borde: #e9d3a4;
-  --color-oro-fuerte: #9c6f20;
+  --color-oro-fuerte: #7a571d;
+  /* La tinta del boton dorado. No usa `tinta` porque esa se aclara en el tema
+     oscuro para leerse sobre fondos oscuros, y aqui el fondo es dorado claro
+     en los dos temas: 5.71:1 en claro y 6.39:1 en oscuro. */
+  --color-oro-tinta: #2c2a26;
 
   /* --- semanticos, desaturados --- */
   --color-bien: #3f7350;
@@ -95,10 +110,15 @@
   --color-acento-borde: #33514e;
   --color-acento-fuerte: #8fcac4;
 
+  /* Aqui el oro no cambia: ya era claro y aguanta la tinta oscura. Lo que
+     cambia es el reparto de papeles, igual que en el tema claro. El hover
+     aclara, que es la convencion en oscuro. */
   --color-oro: #d9a44f;
+  --color-oro-hover: #e8bd75;
   --color-oro-claro: #2b2418;
   --color-oro-borde: #4d3f24;
   --color-oro-fuerte: #e8bd75;
+  --color-oro-tinta: #2c2a26;
 
   --color-bien: #7bb389;
   --color-bien-claro: #1c2a20;

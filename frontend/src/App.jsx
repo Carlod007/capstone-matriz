@@ -77,8 +77,8 @@ function Btn({ children, kind = "ghost", ...props }) {
     // Dorado: reservado a la acción principal de cada pantalla, para que el
     // usuario sepa siempre cuál es sin tener que leerlas todas.
     yellow:
-      "rounded-lg px-4 py-2 text-sm font-medium bg-oro text-white shadow-[var(--sombra-1)] " +
-      "hover:bg-oro-fuerte transition-[background-color,transform] " +
+      "rounded-lg px-4 py-2 text-sm font-medium bg-oro text-oro-tinta shadow-[var(--sombra-1)] " +
+      "hover:bg-oro-hover transition-[background-color,transform] " +
       "active:scale-[0.985] disabled:opacity-45 disabled:cursor-not-allowed " +
       "disabled:hover:bg-oro",
     gray: `${base} border border-borde bg-hundido text-tinta-media hover:text-tinta`,
