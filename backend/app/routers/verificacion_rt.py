@@ -107,7 +107,8 @@ def verificar_proyecto(rehacer: bool = False,
         # las leyera tenia que adivinar cual vale.
         (db.query(Metrica)
          .filter(Metrica.referencia_id == rb.id,
-                 Metrica.codigo.in_(["N2.1", "N2.2", "N2.4", "N2.verificada"]))
+                 Metrica.codigo.in_(["N2.1", "N2.2", "N2.4", "N2.5",
+                                     "N2.verificada"]))
          .delete(synchronize_session=False))
 
         def _add(codigo, valor, detalle=None):
@@ -121,6 +122,16 @@ def verificar_proyecto(rehacer: bool = False,
                                    if not a.respaldada][:10]})
             _add("N2.2", v.trazabilidad)
             _add("N2.4", v.equilibrio_evidencial)
+            # El detalle guarda la frase y la cita que la desmiente, no solo el
+            # número: una contradicción sin la prueba al lado no se puede
+            # revisar, y es justo la medición que más falta hace poder revisar.
+            _add("N2.5", v.tasa_contradiccion,
+                 {"contradicciones": [
+                     {"afirmacion": a.texto,
+                      "fragmento": a.fragmento_contrario,
+                      "cita": a.cita_contraria,
+                      "tipo": a.tipo}
+                     for a in v.contradictorias][:10]})
             verificadas += 1
         _add("N2.verificada", 1.0 if v.disponible else 0.0, v.resumen())
         db.commit()
@@ -132,6 +143,7 @@ def verificar_proyecto(rehacer: bool = False,
             "fidelidad": v.fidelidad if v.disponible else None,
             "sin_respaldo": (sum(1 for a in v.evidenciales if not a.respaldada)
                              if v.disponible else None),
+            "contradicciones": (len(v.contradictorias) if v.disponible else None),
         })
 
     return {

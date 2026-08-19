@@ -139,10 +139,12 @@ def find_duplicate_breach(
     Busca una brecha previa similar (Jaccard) del mismo artículo.
     Retorna (brecha_duplicada, es_duplicada)
     """
+    # `.select()` explícito: pasar la subconsulta cruda a `in_()` está en
+    # desuso desde SQLAlchemy 1.4 y romperá en una versión futura.
     subq = db.query(RunItem.id).filter(RunItem.articulo_id == articulo_id).subquery()
     prev = (
         db.query(ResultadoBrecha)
-        .filter(ResultadoBrecha.run_item_id.in_(subq))
+        .filter(ResultadoBrecha.run_item_id.in_(subq.select()))
         .all()
     )
 

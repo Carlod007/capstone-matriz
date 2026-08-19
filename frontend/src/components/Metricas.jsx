@@ -1447,6 +1447,30 @@ export function TablaDistribuciones({ metricas }) {
 /* ------------------------------------------------------------ fidelidad */
 
 /**
+ * La cita del artículo que desmiente una afirmación.
+ *
+ * Va pegada a la afirmación y no en una lista aparte: sin ver las dos frases
+ * juntas no hay forma de juzgar si la contradicción es real, y quien revisa
+ * necesita poder discrepar del verificador.
+ */
+function CitaContraria({ afirmacion }) {
+  if (!afirmacion?.contradice) return null;
+  return (
+    <p className="mt-1.5 rounded-md border border-mal-borde bg-mal-claro px-2 py-1.5 text-[11px] leading-snug text-mal">
+      <span className="font-semibold">El artículo dice lo contrario</span>
+      {afirmacion.fragmento_contrario && (
+        <> · fragmento {afirmacion.fragmento_contrario}</>
+      )}
+      {afirmacion.cita_contraria && (
+        <span className="mt-0.5 block font-normal text-tinta-media">
+          «{afirmacion.cita_contraria}»
+        </span>
+      )}
+    </p>
+  );
+}
+
+/**
  * Desglose de la verificación de fidelidad (nivel N2).
  *
  * Muestra la brecha descompuesta en afirmaciones y, de cada una, si se
@@ -1471,13 +1495,17 @@ export function Fidelidad({ verificacion }) {
     equilibrio_evidencial: equilibrio,
     n_sin_respaldo: sinRespaldo,
     n_dependientes: dependientes = 0,
+    n_contradicciones: contradicciones = 0,
   } = verificacion;
 
   const evidenciales = afirmaciones.filter((a) => a.tipo === "evidencial");
   const inferenciales = afirmaciones.filter((a) => a.tipo === "inferencial");
 
   return (
-    <details className="border border-borde rounded-lg" open={sinRespaldo > 0}>
+    <details
+      className="border border-borde rounded-lg"
+      open={sinRespaldo > 0 || contradicciones > 0}
+    >
       <summary className="cursor-pointer select-none px-3 py-2 bg-hundido rounded-t-lg">
         <span className="font-medium">Fidelidad a las fuentes</span>
         {disponible ? (
@@ -1487,6 +1515,17 @@ export function Fidelidad({ verificacion }) {
             {sinRespaldo > 0 && (
               <span className="text-mal">
                 {" "}· {sinRespaldo} sin respaldo en los fragmentos
+              </span>
+            )}
+            {/* La contradicción va delante en importancia y por eso se nombra
+                aunque la fidelidad sea perfecta: son cosas distintas y esta es
+                la grave. */}
+            {contradicciones > 0 && (
+              <span className="font-medium text-mal">
+                {" "}· {contradicciones}{" "}
+                {contradicciones === 1
+                  ? "contradice al artículo"
+                  : "contradicen al artículo"}
               </span>
             )}
           </span>
@@ -1515,6 +1554,27 @@ export function Fidelidad({ verificacion }) {
             la sostienen, no que sea falsa: conviene mirar el artículo antes de
             descartarla.
           </p>
+        )}
+
+        {/* Lo primero después del alcance, porque es lo más grave que puede
+            decir esta pantalla. «Sin respaldo» significa que los fragmentos no
+            hablan de eso; contradicción significa que dicen lo contrario, y
+            eso no se arregla mirando el artículo: ya se miró. */}
+        {disponible && contradicciones > 0 && (
+          <div className="rounded-lg border border-mal-borde bg-mal-claro px-3 py-2.5">
+            <p className="font-medium text-mal">
+              {contradicciones}{" "}
+              {contradicciones === 1
+                ? "afirmación contradice"
+                : "afirmaciones contradicen"}{" "}
+              al artículo
+            </p>
+            <p className="mt-1 leading-relaxed text-tinta-media">
+              Algún fragmento sostiene lo opuesto. Es distinto de no estar
+              respaldada y bastante peor: aquí el artículo sí habla del tema, y
+              dice otra cosa. Están marcadas abajo con su cita en contra.
+            </p>
+          </div>
         )}
 
         {/* Si esto aparece, el fallo es del verificador y no del modelo que
@@ -1610,6 +1670,7 @@ export function Fidelidad({ verificacion }) {
                           {a.motivo && <> {a.motivo}</>}
                         </p>
                       )}
+                      <CitaContraria afirmacion={a} />
                     </div>
                   </div>
                 </div>
@@ -1624,18 +1685,29 @@ export function Fidelidad({ verificacion }) {
               Conclusiones
             </div>
             <div className="space-y-1.5">
+              {/* Una conclusión no se verifica, pero sí puede contradecir. Es
+                  el caso que se coló con datos reales: la brecha hablaba de
+                  «posibles diseños inseguros» sobre un artículo que califica el
+                  estándar de conservador, y como era una conclusión quedaba
+                  fuera de todo cálculo. */}
               {inferenciales.map((a, i) => (
                 <div
                   key={i}
-                  className="rounded-lg border border-borde bg-hundido/50 px-2.5 py-2"
+                  className={`rounded-lg border px-2.5 py-2 ${
+                    a.contradice
+                      ? "border-mal-borde bg-mal-claro"
+                      : "border-borde bg-hundido/50"
+                  }`}
                 >
                   <p className="leading-snug">{a.texto}</p>
+                  <CitaContraria afirmacion={a} />
                 </div>
               ))}
             </div>
             <p className="text-[11px] text-tinta-suave mt-1.5 leading-relaxed">
               Afirman lo que el artículo no cubre, así que no pueden
-              comprobarse contra él. Su validez se decide con criterio experto.
+              comprobarse contra él: su validez se decide con criterio experto.
+              Sí se comprueba, en cambio, que no lo contradigan.
             </p>
           </div>
         )}

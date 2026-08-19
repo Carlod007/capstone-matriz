@@ -38,10 +38,14 @@ def generar_estado_arte(
         raise HTTPException(status_code=400, detail="No hay runs completados para sintetizar estado del arte")
 
     # 3) Brechas SOLO de ese run
+    # `.select()` explícito sobre la subconsulta: pasarle el objeto crudo a
+    # `in_()` está en desuso desde SQLAlchemy 1.4 y dejará de funcionar. Hoy
+    # solo emite un aviso, así que el fallo llegaría el día de una
+    # actualización rutinaria de dependencias, lejos de esta línea.
     sub_items = db.query(RunItem.id).filter(RunItem.run_id == run.id).subquery()
     brechas_rows = (
         db.query(ResultadoBrecha)
-        .filter(ResultadoBrecha.run_item_id.in_(sub_items))
+        .filter(ResultadoBrecha.run_item_id.in_(sub_items.select()))
         .order_by(ResultadoBrecha.created_at.asc())
         .all()
     )

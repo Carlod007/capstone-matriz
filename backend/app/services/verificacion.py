@@ -78,10 +78,33 @@ Tu tarea tiene tres pasos:
    respalda. Una afirmación está respaldada solo si el fragmento la sostiene
    de forma directa; que trate del mismo tema no basta.
 
+4. BUSCAR CONTRADICCIONES en TODAS las afirmaciones, evidenciales e
+   inferenciales por igual.
+
+   Una afirmación contradice al artículo cuando algún fragmento sostiene lo
+   contrario de lo que ella dice. No es lo mismo que no estar respaldada: sin
+   respaldo significa que el artículo no habla de eso; contradicción significa
+   que el artículo dice lo opuesto.
+
+   Mal:  la brecha dice "el método puede producir diseños inseguros" y el
+         artículo califica el estándar de conservador.
+         -> "contradice": true, señalando ese fragmento.
+   Bien: la brecha dice "no se evaluó en cohortes latinoamericanas" y el
+         artículo no menciona ninguna cohorte.
+         -> "contradice": false. No hay nada opuesto, solo ausencia.
+
+   Esto se aplica también a las inferenciales, aunque no se verifiquen. Una
+   conclusión sobre lo que falta puede ser incompatible con lo que el artículo
+   afirma, y ese caso es más grave que una afirmación sin respaldo.
+
+   Ante la duda, "contradice" es false. Marca solo lo que un fragmento niegue
+   de forma explícita, y cita la parte que lo niega.
+
 Reglas:
 - No inventes fragmentos. Si ninguno respalda la afirmación, "respaldada" es
   false y "fragmento" es null.
 - Las inferenciales llevan siempre "respaldada": null y "fragmento": null.
+  Pero sí pueden llevar "contradice": true con su "fragmento_contrario".
 - La cita debe ser literal del fragmento, como máximo 200 caracteres.
 - Responde solo con JSON válido, sin texto adicional.
 
@@ -94,6 +117,9 @@ Formato exacto:
       "respaldada": true | false | null,
       "fragmento": <número de fragmento> | null,
       "cita": "texto literal del fragmento" | null,
+      "contradice": true | false,
+      "fragmento_contrario": <número de fragmento> | null,
+      "cita_contraria": "texto literal que dice lo contrario" | null,
       "motivo": "una frase explicando la decisión"
     }
   ]
@@ -142,6 +168,22 @@ class Afirmacion:
     # Se calcula, no lo decide el modelo.
     autonoma: bool = True
 
+    # Si algún fragmento sostiene lo contrario de lo que dice la afirmación.
+    #
+    # Es distinto de `respaldada is False`, y peor. Sin respaldo significa que
+    # el artículo no habla de eso; contradicción significa que dice lo opuesto.
+    # Hasta ahora el sistema solo medía lo primero, y sobre datos reales dejó
+    # pasar una brecha que hablaba de «posibles diseños inseguros» en un
+    # artículo que califica el estándar de conservador y donde la palabra
+    # `unsafe` no aparece.
+    #
+    # Se comprueba también en las inferenciales, aunque no se verifiquen: una
+    # conclusión sobre lo que falta puede ser incompatible con lo que el
+    # artículo afirma, y ese caso es el más grave de todos.
+    contradice: bool = False
+    fragmento_contrario: int | None = None
+    cita_contraria: str | None = None
+
     def dict(self) -> dict:
         return asdict(self)
 
@@ -166,6 +208,34 @@ class Verificacion:
     def dependientes(self) -> List[Afirmacion]:
         """Afirmaciones que perdieron su sujeto al descomponerse."""
         return [a for a in self.afirmaciones if not a.autonoma]
+
+    @property
+    def contradictorias(self) -> List[Afirmacion]:
+        """Afirmaciones a las que algún fragmento lleva la contraria."""
+        return [a for a in self.afirmaciones if a.contradice]
+
+    @property
+    def tasa_contradiccion(self) -> float:
+        """N2.5: proporción de afirmaciones que el artículo desmiente.
+
+        Menor es mejor, y no es la inversa de la fidelidad. Una brecha puede
+        tener fidelidad 1.0 —todas sus evidenciales respaldadas— y aun así
+        contradecir al artículo en una inferencia, que es el caso que se coló
+        en las pruebas con datos reales.
+
+        El denominador son TODAS las afirmaciones, no solo las evidenciales:
+        las inferenciales también se comprueban contra los fragmentos en este
+        paso, aunque no se verifiquen en el anterior.
+
+        Se incluyen las que perdieron el sujeto, a diferencia de la fidelidad.
+        Allí excluirlas corregía un defecto del descompositor que las hacía
+        parecer alucinaciones; aquí una contradicción detectada es un hallazgo
+        real aunque la frase esté mal recortada, y descartarla ocultaría el
+        problema más grave por culpa del menos grave.
+        """
+        if not self.afirmaciones:
+            return 0.0
+        return round(len(self.contradictorias) / len(self.afirmaciones), 4)
 
     @property
     def fidelidad(self) -> float:
@@ -225,9 +295,13 @@ class Verificacion:
             # el problema está en la descomposición, no en el modelo que
             # redactó la brecha.
             "n_dependientes": len(self.dependientes),
+            # Va aparte de `n_sin_respaldo` porque no es lo mismo ni pesa
+            # igual: el artículo dice lo contrario, no es que calle.
+            "n_contradicciones": len(self.contradictorias),
             "fidelidad": self.fidelidad,
             "trazabilidad": self.trazabilidad,
             "equilibrio_evidencial": self.equilibrio_evidencial,
+            "tasa_contradiccion": self.tasa_contradiccion,
             "afirmaciones": [a.dict() for a in self.afirmaciones],
         }
 
@@ -263,6 +337,18 @@ def _clasificar_heuristica(oracion: str) -> str:
     return INFERENCIAL if any(m in bajo for m in _MARCAS_INFERENCIALES) else EVIDENCIAL
 
 
+# Pares para la contradicción del modo simulado. El primero es el que motivó
+# la métrica: una brecha hablaba de diseños «inseguros» sobre un artículo que
+# califica el estándar de «conservador».
+_ANTONIMOS = (
+    ("inseguro", "conservador"),
+    ("insegura", "conservador"),
+    ("unsafe", "conservative"),
+    ("aumenta", "reduce"),
+    ("mayor", "menor"),
+)
+
+
 def _verificacion_simulada(brecha: str, fragmentos: Sequence[dict]) -> Verificacion:
     """Descomposición determinista para modo simulado y pruebas.
 
@@ -279,6 +365,25 @@ def _verificacion_simulada(brecha: str, fragmentos: Sequence[dict]) -> Verificac
     for o in _oraciones(brecha):
         tipo = _clasificar_heuristica(o)
         af = Afirmacion(texto=o, tipo=tipo, motivo="clasificación simulada")
+
+        # Contradicción simulada por antónimos declarados. No detecta nada
+        # parecido a lo que hace el juez real —eso exige entender la frase—,
+        # pero recorre el camino entero sin gastar cuota: que se guarde N2.5,
+        # que llegue al panel y que se pinte. Los pares son los que aparecieron
+        # en el fallo real que motivó esta métrica.
+        bajo = o.lower()
+        for palabra, contraria in _ANTONIMOS:
+            if palabra in bajo:
+                for i, v in enumerate(vocab, start=1):
+                    if contraria in " ".join(v):
+                        af.contradice = True
+                        af.fragmento_contrario = i
+                        af.cita_contraria = " ".join(
+                            (fragmentos[i - 1].get("texto") or "").split())[:200]
+                        break
+            if af.contradice:
+                break
+
         if tipo == EVIDENCIAL:
             toks = set(tokens_contenido(o))
             mejor, mejor_i = 0.0, None
@@ -404,6 +509,15 @@ def _interpretar(bruto: str, usage: dict, n_fragmentos: int) -> Verificacion:
         if respaldada is False:
             frag = None
 
+        # La contradicción se acepta solo si viene señalada con un fragmento
+        # real. Sin fragmento que la sostenga sería una acusación sin prueba,
+        # y este es el peor sitio para admitir una: marcaría como error del
+        # sistema algo que quizá está bien.
+        contra = c.get("fragmento_contrario")
+        if not isinstance(contra, int) or not (1 <= contra <= n_fragmentos):
+            contra = None
+        contradice = bool(c.get("contradice")) and contra is not None
+
         afirmaciones.append(Afirmacion(
             texto=texto_af,
             tipo=tipo,
@@ -412,6 +526,11 @@ def _interpretar(bruto: str, usage: dict, n_fragmentos: int) -> Verificacion:
             cita=((c.get("cita") or "").strip()[:200] or None) if frag else None,
             motivo=(c.get("motivo") or "").strip()[:300],
             autonoma=_es_autonoma(texto_af),
+            contradice=contradice,
+            fragmento_contrario=contra if contradice else None,
+            cita_contraria=(
+                ((c.get("cita_contraria") or "").strip()[:200] or None)
+                if contradice else None),
         ))
 
     if not afirmaciones:
