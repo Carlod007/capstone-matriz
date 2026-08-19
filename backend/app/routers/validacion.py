@@ -1,0 +1,209 @@
+# app/routers/validacion.py
+"""
+Anotacion humana de las brechas (nivel N6).
+
+Todas las metricas anteriores comparan al sistema consigo mismo: dicen si es
+consistente, no si acierta. Para saber lo segundo hace falta que alguien que se
+haya leido el articulo diga si la brecha es correcta.
+
+Lo que aporta esta pantalla no es el porcentaje sino la justificacion. Un «esta
+mal» sin motivo no permite corregir el sistema ni defender la evaluacion; con
+el motivo escrito, cada brecha rechazada es una linea del capitulo de
+resultados.
+"""
+
+from __future__ import annotations
+
+import uuid
+
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
+
+from app.database import get_db
+from app.dependencias import proyecto_propio, usuario_actual
+from app.models.articulo import Articulo
+from app.models.proyecto import Proyecto
+from app.models.resultado_brecha import ResultadoBrecha
+from app.models.run import Run
+from app.models.run_item import RunItem
+from app.models.usuario import Usuario
+from app.models.validacion_humana import (
+    CORRECTA, INCORRECTA, PARCIAL, VEREDICTOS, ValidacionHumana,
+)
+from app.schemas.validacion import ValidacionIn, ValidacionOut
+
+router = APIRouter(prefix="/proyectos", tags=["validacion"])
+
+# Peso de cada veredicto al resumir. «Parcial» vale medio punto: la brecha
+# acierta en el problema y falla en un matiz, y contarla como acierto o como
+# fallo completo falsea el resultado en direcciones opuestas.
+PESOS = {CORRECTA: 1.0, PARCIAL: 0.5, INCORRECTA: 0.0}
+
+
+def _brecha_del_proyecto(db: Session, proyecto_id: str,
+                         brecha_id: str) -> ResultadoBrecha:
+    """El filtro por proyecto no sobra: sin el, conocer el identificador de una
+    brecha ajena bastaria para anotarla desde un proyecto propio."""
+    rb = (db.query(ResultadoBrecha)
+            .join(RunItem, RunItem.id == ResultadoBrecha.run_item_id)
+            .join(Run, Run.id == RunItem.run_id)
+            .filter(ResultadoBrecha.id == brecha_id,
+                    Run.proyecto_id == proyecto_id)
+            .first())
+    if not rb:
+        raise HTTPException(status_code=404, detail="Brecha no encontrada")
+    return rb
+
+
+@router.get("/{proyecto_id}/validacion")
+def listar_para_validar(proyecto: Proyecto = Depends(proyecto_propio),
+                        usuario: Usuario = Depends(usuario_actual),
+                        db: Session = Depends(get_db)):
+    """Las brechas del ultimo analisis con el veredicto propio, si lo hay."""
+    run = (db.query(Run).filter(Run.proyecto_id == proyecto.id)
+           .order_by(Run.iniciado_en.desc(), Run.id).first())
+    if not run:
+        return {"run": None, "brechas": [], "resumen": None}
+
+    filas = (db.query(ResultadoBrecha, Articulo)
+             .join(RunItem, RunItem.id == ResultadoBrecha.run_item_id)
+             .join(Articulo, Articulo.id == RunItem.articulo_id)
+             .filter(RunItem.run_id == run.id)
+             .order_by(Articulo.titulo.asc()).all())
+
+    ids = [rb.id for rb, _ in filas]
+    mias = {v.brecha_id: v for v in
+            db.query(ValidacionHumana)
+              .filter(ValidacionHumana.brecha_id.in_(ids or ["-"]),
+                      ValidacionHumana.usuario_id == usuario.id).all()}
+
+    # Cuantas personas han anotado cada brecha, sin decir quienes ni que
+    # dijeron: saber el veredicto ajeno antes de emitir el propio arruina la
+    # independencia de los jueces, que es lo unico que hace util el acuerdo
+    # entre ellos.
+    otros = {}
+    for bid, in db.query(ValidacionHumana.brecha_id).filter(
+            ValidacionHumana.brecha_id.in_(ids or ["-"]),
+            ValidacionHumana.usuario_id != usuario.id).all():
+        otros[bid] = otros.get(bid, 0) + 1
+
+    brechas = []
+    for rb, art in filas:
+        v = mias.get(rb.id)
+        brechas.append({
+            "id": rb.id,
+            "articulo": art.titulo or "(sin título)",
+            "tipo_brecha": rb.tipo_brecha,
+            "brecha": rb.brecha,
+            "oportunidad": rb.oportunidad,
+            "veredicto": v.veredicto if v else None,
+            "justificacion": v.justificacion if v else None,
+            "otros_anotadores": otros.get(rb.id, 0),
+        })
+
+    return {"run": run.id, "brechas": brechas,
+            "resumen": _resumen(db, proyecto.id, usuario.id)}
+
+
+@router.put("/{proyecto_id}/validacion/{brecha_id}", response_model=ValidacionOut)
+def anotar(brecha_id: str, datos: ValidacionIn,
+           proyecto: Proyecto = Depends(proyecto_propio),
+           usuario: Usuario = Depends(usuario_actual),
+           db: Session = Depends(get_db)):
+    """Registra o sustituye el veredicto propio sobre una brecha."""
+    if datos.veredicto not in VEREDICTOS:
+        raise HTTPException(status_code=422,
+                            detail="Veredicto no reconocido: %s" % datos.veredicto)
+
+    justificacion = (datos.justificacion or "").strip() or None
+
+    # Un rechazo sin motivo no sirve para nada: ni corrige el sistema ni
+    # sostiene la evaluacion. Marcar «correcta» sin comentario si vale, porque
+    # ahi el motivo es que no hay nada que objetar.
+    if datos.veredicto in (INCORRECTA, PARCIAL) and not justificacion:
+        raise HTTPException(
+            status_code=422,
+            detail="Explica qué falla: un veredicto negativo sin motivo no "
+                   "permite corregir el sistema ni defender la evaluación.")
+
+    _brecha_del_proyecto(db, proyecto.id, brecha_id)
+
+    fila = (db.query(ValidacionHumana)
+              .filter(ValidacionHumana.brecha_id == brecha_id,
+                      ValidacionHumana.usuario_id == usuario.id)
+              .first())
+    if fila:
+        fila.veredicto = datos.veredicto
+        fila.justificacion = justificacion
+    else:
+        fila = ValidacionHumana(id=str(uuid.uuid4()), brecha_id=brecha_id,
+                                usuario_id=usuario.id,
+                                veredicto=datos.veredicto,
+                                justificacion=justificacion)
+        db.add(fila)
+    db.commit()
+    db.refresh(fila)
+
+    return ValidacionOut(
+        brecha_id=fila.brecha_id, veredicto=fila.veredicto,
+        justificacion=fila.justificacion,
+        resumen=_resumen(db, proyecto.id, usuario.id))
+
+
+@router.delete("/{proyecto_id}/validacion/{brecha_id}")
+def retirar(brecha_id: str,
+            proyecto: Proyecto = Depends(proyecto_propio),
+            usuario: Usuario = Depends(usuario_actual),
+            db: Session = Depends(get_db)):
+    """Retira el veredicto propio. Solo el propio."""
+    _brecha_del_proyecto(db, proyecto.id, brecha_id)
+    (db.query(ValidacionHumana)
+       .filter(ValidacionHumana.brecha_id == brecha_id,
+               ValidacionHumana.usuario_id == usuario.id)
+       .delete(synchronize_session=False))
+    db.commit()
+    return {"brecha_id": brecha_id, "veredicto": None,
+            "resumen": _resumen(db, proyecto.id, usuario.id)}
+
+
+def _resumen(db: Session, proyecto_id: str, usuario_id: str) -> dict:
+    """Cuanto ha anotado esta persona y con que resultado.
+
+    El acierto se calcula sobre lo anotado, no sobre el total: mientras falten
+    brechas por revisar, dividir entre todas daria un numero que sube solo al
+    seguir anotando y que no significa nada. `pendientes` dice cuanto le falta
+    al dato para estar completo.
+    """
+    filas = (db.query(ValidacionHumana.veredicto)
+               .join(ResultadoBrecha,
+                     ResultadoBrecha.id == ValidacionHumana.brecha_id)
+               .join(RunItem, RunItem.id == ResultadoBrecha.run_item_id)
+               .join(Run, Run.id == RunItem.run_id)
+               .filter(Run.proyecto_id == proyecto_id,
+                       ValidacionHumana.usuario_id == usuario_id).all())
+
+    total_brechas = (db.query(ResultadoBrecha.id)
+                       .join(RunItem, RunItem.id == ResultadoBrecha.run_item_id)
+                       .join(Run, Run.id == RunItem.run_id)
+                       .filter(Run.proyecto_id == proyecto_id).count())
+
+    conteo = {v: 0 for v in VEREDICTOS}
+    for (veredicto,) in filas:
+        conteo[veredicto] = conteo.get(veredicto, 0) + 1
+
+    anotadas = len(filas)
+    acierto = (round(sum(PESOS[v] * n for v, n in conteo.items()) / anotadas, 4)
+               if anotadas else None)
+
+    return {
+        "anotadas": anotadas,
+        "total": total_brechas,
+        "pendientes": max(0, total_brechas - anotadas),
+        "por_veredicto": conteo,
+        # None y no cero cuando no hay nada anotado: un cero aqui se leeria
+        # como «el sistema no acerto ninguna».
+        "acierto": acierto,
+        # Se dice siempre, porque es la limitacion que hay que declarar: con un
+        # solo anotador no hay acuerdo entre jueces que medir.
+        "anotadores": 1,
+    }

@@ -15,6 +15,7 @@ from app.routers import embeddings
 from app.routers import metrics
 from app.routers import metricas_v2
 from app.routers import verificacion_rt
+from app.routers import validacion
 from app.routers import export
 from app.routers import metrics_plots
 from app.routers import dashboard
@@ -42,6 +43,7 @@ from app.models.rag_log import RagLog
 from app.models.metrica import Metrica
 from app.models.llamada_api import LlamadaAPI
 from app.models.usuario import Usuario
+from app.models.validacion_humana import ValidacionHumana
 
 # -------------------------------
 # CONFIGURACION
@@ -141,6 +143,7 @@ app.include_router(metrics.router)
 app.include_router(metricas_v2.router)
 app.include_router(metricas_v2.router_global)
 app.include_router(verificacion_rt.router)
+app.include_router(validacion.router)
 app.include_router(export.router)
 app.include_router(metrics_plots.router)
 app.include_router(dashboard.router)

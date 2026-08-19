@@ -87,7 +87,7 @@ PDF → ingesta (texto + OCR si hace falta + detección de secciones)
 - Cuentas, sesión por token, aislamiento entre usuarios
 - Cola de trabajos con reintentos y recuperación de trabajadores caídos
 - Limitador de cuota propio (ventana deslizante) antes de chocar con la API
-- **400 pruebas automáticas**, integración continua en verde
+- **413 pruebas automáticas**, integración continua en verde
 - Esquema gobernado por Alembic, verificado desde base vacía
 
 ### Verificado con datos reales
@@ -175,9 +175,26 @@ Chile West, con Docker Compose y Caddy. Coste cero y permanente.
 
 ### Deuda conocida, en orden de importancia
 
-1. **N6 sin anclaje humano.** Falta un conjunto de brechas anotado por
-   expertos. Hasta entonces las métricas dicen si el sistema es *consistente*,
-   no si *acierta*. Es la mayor debilidad de cara a una defensa académica.
+1. **N6: el anclaje humano ya tiene dónde vivir, pero falta anotar.**
+   *(Herramienta construida; el dato depende de leer los artículos.)*
+
+   La pantalla «Tu revisión de las brechas» permite marcar cada una como
+   correcta, parcial o incorrecta con su justificación, y guarda quién la
+   emitió y cuándo. Los veredictos van en `validacion_humana`, una tabla
+   aparte de `estado_validacion` —que es de la validación automática
+   desactivada— para no dejar dos verdades conviviendo, y con una fila por
+   (brecha, persona) para poder medir el acuerdo entre jueces el día que haya
+   más de uno.
+
+   **La limitación que queda es de método, no de código:** con un solo
+   anotador no hay acuerdo entre jueces. La pantalla lo dice en su cabecera en
+   lugar de esconderlo, porque es lo primero que pregunta un tribunal. Lo
+   defendible con un solo autor es anotar con protocolo escrito, antes de
+   mirar las métricas del sistema, y declarar la limitación.
+
+   *No usar otro modelo de lenguaje para contrastar.* Validar un LLM con otro
+   LLM es circular y anula el capítulo entero. Sirve para localizar pasajes;
+   el juicio tiene que ser humano.
 2. **La ventana de evidencia son unos pocos fragmentos, no el artículo.**
    *(Resuelto en parte: N2.5 ya detecta contradicciones y la ventana se amplió
    a los párrafos contiguos. Se conserva porque el límite de fondo sigue.)*
@@ -250,7 +267,7 @@ Si el objetivo es **nivel académico sólido**, lo que más pesa:
 Si el objetivo es **proyecto profesional presentable**, lo que más pesa:
 
 - **A favor:** desplegado y accesible con HTTPS, migraciones con Alembic,
-  integración continua, 400 pruebas, aislamiento entre cuentas probado
+  integración continua, 413 pruebas, aislamiento entre cuentas probado
   endpoint por endpoint, cola de trabajos con reintentos, copias de seguridad
   programadas y un README que instala desde cero.
 - Lo que se echa en falta: dominio propio en lugar de un nombre derivado de la

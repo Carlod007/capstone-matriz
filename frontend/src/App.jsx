@@ -28,6 +28,7 @@ import {
 } from "./components/UI";
 import { useAviso } from "./components/avisos";
 import Login from "./components/Login";
+import Validacion from "./components/Validacion";
 import {
   alExpirar,
   api,
@@ -1611,6 +1612,16 @@ function BrechasProyecto({ proyecto, goBack }) {
           </aside>
         </div>
       </section>
+
+      {/* La revisión humana va antes de la lista de artículos: es lo único
+          del panel que puede decir si el sistema ACIERTA. Todo lo demás
+          compara al sistema consigo mismo. */}
+      <Seccion
+        titulo="Tu revisión de las brechas"
+        apoyo="Marca cada brecha después de leer el artículo. Es el único dato del panel que no sale del propio sistema, y el que permite decir si acierta y no solo si es consistente."
+      >
+        <Validacion proyectoId={proyecto.id} onError={setErr} />
+      </Seccion>
 
       <Seccion
         titulo={`Artículos analizados (${arts.length})`}
