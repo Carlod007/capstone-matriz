@@ -65,8 +65,14 @@ function Btn({ children, kind = "ghost", ...props }) {
       "hover:border-acento",
     green:
       `${base} border border-bien-borde bg-bien-claro text-bien hover:border-bien`,
+    // Acento sólido: la acción principal dentro de una pantalla que ya tiene
+    // varias. El texto va en `papel` y no en blanco: el fondo lo pone un token
+    // que cambia con el tema, y en oscuro el acento es un verde azulado claro
+    // sobre el que el blanco se queda en 2.4:1 —ilegible, y peor todavía al
+    // pasar el ratón—. `papel` se invierte con el tema igual que el fondo, así
+    // que la pareja aguanta en los dos: 6.2:1 en claro y 7.4:1 en oscuro.
     primary:
-      `${base} border border-acento bg-acento text-white font-medium ` +
+      `${base} border border-acento bg-acento text-papel font-medium ` +
       "hover:bg-acento-fuerte hover:border-acento-fuerte active:scale-[0.985]",
     // Dorado: reservado a la acción principal de cada pantalla, para que el
     // usuario sepa siempre cuál es sin tener que leerlas todas.
