@@ -8,10 +8,14 @@ que decidia el sentido de una afirmacion: el fragmento entregado empezaba por
 anterior -que no se entrego- terminaba con «the DNV formula underestimates the
 load-bearing capacity».
 
-Sin esas cinco palabras, la brecha podia hablar de «disenos inseguros» sin que
-nada la desmintiera, cuando el articulo dice lo contrario: subestimar la
-capacidad es ser conservador, o sea mas seguro. Con la ventana estrecha el
-verificador no se equivocaba, no podia acertar.
+Sin esas cinco palabras no habia forma de saber si el estandar falla por exceso
+o por defecto. Con la ventana estrecha el verificador no se equivocaba: no
+podia acertar.
+
+Al ampliarla aparecio ademas un fragmento que ninguna version anterior habia
+visto, donde el articulo advierte que el estandar «produces some dangerous
+results under small bending moments», y con el la primera contradiccion real
+detectada por el sistema.
 
 Estas pruebas fijan que el vecino llegue, que no se dupliquen fragmentos y que
 el orden sea el del documento: un vecino separado de su fragmento no

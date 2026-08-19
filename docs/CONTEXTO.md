@@ -178,14 +178,36 @@ Chile West, con Docker Compose y Caddy. Coste cero y permanente.
 1. **N6 sin anclaje humano.** Falta un conjunto de brechas anotado por
    expertos. Hasta entonces las métricas dicen si el sistema es *consistente*,
    no si *acierta*. Es la mayor debilidad de cara a una defensa académica.
-2. **N2 no detecta contradicciones.** Comprueba si una afirmación evidencial
-   está respaldada, pero una inferencia que *contradice* la fuente queda fuera
-   del cálculo por diseño. Medido con datos reales: sobre un artículo de
-   tuberías el sistema escribió «posibles diseños inseguros» cuando el
-   artículo califica el estándar de conservador y la palabra *unsafe* no
-   aparece en el texto. Contradecir es peor que no estar respaldado.
-3. **Aviso de SQLAlchemy** en `estado_arte.py:44` (subconsulta sin `select()`
-   explícito). Inofensivo hoy, romperá en una versión futura.
+2. **La ventana de evidencia son unos pocos fragmentos, no el artículo.**
+   *(Resuelto en parte: N2.5 ya detecta contradicciones y la ventana se amplió
+   a los párrafos contiguos. Se conserva porque el límite de fondo sigue.)*
+
+   La verificación se hace contra los fragmentos recuperados, así que una
+   afirmación cuya prueba —a favor o en contra— viva fuera de ellos es
+   indetectable por diseño. El troceado agrava el problema cortando a mitad de
+   frase: en un caso real el fragmento entregado empezaba por «*, particularly
+   for MLPs, as it neglects material hardening…*» y el trozo anterior, no
+   entregado, terminaba con «*the DNV formula **underestimates** the
+   load-bearing capacity*». Faltaban las palabras que decidían la dirección del
+   error.
+
+   **Corrección de una versión anterior de este documento.** Aquí se afirmaba
+   que el sistema había alucinado al escribir «posibles diseños inseguros»,
+   porque *unsafe* no aparecía en el artículo. Era la palabra equivocada: el
+   artículo dice, literalmente, «*even with the safety factor considered, the
+   DNV standard still produces some **dangerous** results under small bending
+   moments*». La brecha era correcta y el ejemplo estaba mal. Se deja escrito
+   porque ilustra el riesgo de dar por falsa una afirmación buscando un término
+   y no el concepto, que es exactamente el error que N2.5 puede cometer al
+   revés.
+
+   Lo que sí encontró N2.5 al ampliar la ventana: la afirmación «la omisión de
+   estos factores resulta en una subestimación de la capacidad» quedó marcada
+   como contradicha por ese mismo fragmento. Es un buen hallazgo — el artículo
+   sostiene las dos cosas en regímenes distintos, conservador en general y
+   peligroso a momentos flectores pequeños, y la brecha lo generalizaba.
+3. ~~**Aviso de SQLAlchemy**~~ *(resuelto: `estado_arte.py` y `metrics.py`
+   pasan la subconsulta con `.select()` explícito).*
 4. **Sin renovación silenciosa de sesión.** A las ocho horas hay que volver a
    entrar, y si eso ocurre a mitad de algo, se pierde lo que hubiera en el
    formulario. La dirección sí se recuerda.

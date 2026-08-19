@@ -45,14 +45,16 @@ def _fragmentos_de(db: Session, rb: ResultadoBrecha) -> list[dict]:
     parte que decidía el sentido de una afirmación: el fragmento entregado
     empezaba por «, particularly for MLPs, as it neglects material hardening…»
     y el trozo anterior —no entregado— terminaba con «the DNV formula
-    underestimates the load-bearing capacity». Sin esas cinco palabras, la
-    brecha podía hablar de «diseños inseguros» sin que nada la desmintiera,
-    cuando el artículo dice lo contrario: subestimar la capacidad es ser
-    conservador, es decir, más seguro.
+    underestimates the load-bearing capacity».
 
-    Con la ventana estrecha el verificador no se equivocaba, no podía acertar.
-    Ampliarla no cuesta ninguna llamada: los embeddings ya están guardados y
-    solo se recuperan más filas de la misma tabla.
+    Con la ventana estrecha el verificador no se equivocaba: no podía acertar.
+    Al ampliarla apareció además un fragmento que ninguna de las dos versiones
+    había visto, donde el artículo advierte que el estándar «produces some
+    dangerous results under small bending moments», y con él una contradicción
+    real que antes era invisible.
+
+    No cuesta ninguna llamada: los embeddings ya están guardados y solo se
+    recuperan más filas de la misma tabla.
     """
     hits = rb.rag_hits if isinstance(rb.rag_hits, list) else []
     ids = [h.get("embedding_id") for h in hits

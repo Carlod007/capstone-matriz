@@ -7,15 +7,22 @@ CONTRADICE al articulo quedaba fuera del calculo por diseno, y es peor: sin
 respaldo significa que el articulo no habla de eso; contradicha significa que
 dice lo opuesto.
 
-Se midio con datos reales. Sobre un articulo de tuberias el sistema escribio
-«posibles disenos inseguros» cuando el articulo califica el estandar de
-conservador y la palabra `unsafe` no aparece en el texto. La brecha salia con
-fidelidad alta porque sus evidenciales si estaban respaldadas: el error vivia
-en una inferencia, que no se verificaba.
+Se midio con datos reales. Sobre un articulo de tuberias, una brecha afirmaba
+que omitir ciertos factores «resulta en una subestimacion de la capacidad de
+carga», y el articulo advierte que en un regimen concreto ocurre lo contrario:
+«even with the safety factor considered, the DNV standard still produces some
+dangerous results under small bending moments». Las dos cosas son ciertas en
+regimenes distintos, y la brecha presentaba una como si valiera siempre.
+
+Esa brecha salia con fidelidad alta, y con razon: sus evidenciales estaban
+respaldadas uma a una. El problema era del conjunto, y ninguna metrica lo veia.
 
 De ahi las dos decisiones que estas pruebas fijan: las inferenciales tambien se
 comprueban contra los fragmentos en este paso, y una contradiccion sin
 fragmento que la sostenga no se acepta.
+
+Los textos de mas abajo usan pares de antonimos simples porque comprueban el
+recorrido y las reglas, no la capacidad de juicio del modelo.
 """
 
 import os

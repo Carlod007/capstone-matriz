@@ -72,9 +72,10 @@ CATALOGO: dict[str, Ficha] = {f.codigo: f for f in [
           "respaldo significa que el artículo no habla de eso; una contradicha "
           "significa que dice lo opuesto. Se comprueban también las "
           "inferenciales, que no se verifican pero sí pueden ser incompatibles "
-          "con lo que el artículo afirma. Sobre datos reales se coló una brecha "
-          "que hablaba de «posibles diseños inseguros» en un artículo que "
-          "califica el estándar de conservador."),
+          "con lo que el artículo afirma. La primera detección real fue una "
+          "generalización: la brecha afirmaba que omitir ciertos factores "
+          "«resulta en una subestimación de la capacidad», y el artículo "
+          "advierte que en un régimen concreto ocurre lo contrario."),
 
     Ficha("N2.verificada", "Verificación realizada", "N2 Fidelidad", "brecha", ALTO,
           "0 o 1",

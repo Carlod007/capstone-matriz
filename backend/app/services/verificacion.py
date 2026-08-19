@@ -172,14 +172,17 @@ class Afirmacion:
     #
     # Es distinto de `respaldada is False`, y peor. Sin respaldo significa que
     # el artículo no habla de eso; contradicción significa que dice lo opuesto.
-    # Hasta ahora el sistema solo medía lo primero, y sobre datos reales dejó
-    # pasar una brecha que hablaba de «posibles diseños inseguros» en un
-    # artículo que califica el estándar de conservador y donde la palabra
-    # `unsafe` no aparece.
     #
     # Se comprueba también en las inferenciales, aunque no se verifiquen: una
     # conclusión sobre lo que falta puede ser incompatible con lo que el
     # artículo afirma, y ese caso es el más grave de todos.
+    #
+    # La primera detección real fue una afirmación que generalizaba de más:
+    # «la omisión de estos factores resulta en una subestimación de la
+    # capacidad», contradicha por un fragmento donde el artículo dice que el
+    # estándar «produces some dangerous results under small bending moments».
+    # El artículo sostiene las dos cosas en regímenes distintos, y la brecha
+    # presentaba una como si valiera siempre.
     contradice: bool = False
     fragmento_contrario: int | None = None
     cita_contraria: str | None = None
