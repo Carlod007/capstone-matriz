@@ -28,7 +28,14 @@ import {
 } from "./components/UI";
 import { useAviso } from "./components/avisos";
 import Login from "./components/Login";
-import { alExpirar, api, cerrarSesion, leerSesion } from "./sesion";
+import {
+  alExpirar,
+  api,
+  cerrarSesion,
+  detenerRenovacion,
+  iniciarRenovacion,
+  leerSesion,
+} from "./sesion";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "http://127.0.0.1:8000";
 
@@ -1875,7 +1882,20 @@ export default function App() {
     alExpirar(() => setSesion(null));
   }, []);
 
+  // Mientras haya sesión se renueva sola, para no cortar a alguien a mitad de
+  // un formulario a las ocho horas. Se detiene al salir: renovar la sesión de
+  // quien acaba de cerrarla sería justo lo contrario de lo que pidió.
+  useEffect(() => {
+    if (!sesion) {
+      detenerRenovacion();
+      return;
+    }
+    iniciarRenovacion(API_BASE);
+    return () => detenerRenovacion();
+  }, [sesion]);
+
   function salir() {
+    detenerRenovacion();
     cerrarSesion();
     setSesion(null);
     navegar("/", { replace: true });

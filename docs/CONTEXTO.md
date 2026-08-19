@@ -87,7 +87,7 @@ PDF → ingesta (texto + OCR si hace falta + detección de secciones)
 - Cuentas, sesión por token, aislamiento entre usuarios
 - Cola de trabajos con reintentos y recuperación de trabajadores caídos
 - Limitador de cuota propio (ventana deslizante) antes de chocar con la API
-- **383 pruebas automáticas**, integración continua en verde
+- **400 pruebas automáticas**, integración continua en verde
 - Esquema gobernado por Alembic, verificado desde base vacía
 
 ### Verificado con datos reales
@@ -208,12 +208,23 @@ Chile West, con Docker Compose y Caddy. Coste cero y permanente.
    peligroso a momentos flectores pequeños, y la brecha lo generalizaba.
 3. ~~**Aviso de SQLAlchemy**~~ *(resuelto: `estado_arte.py` y `metrics.py`
    pasan la subconsulta con `.select()` explícito).*
-4. **Sin renovación silenciosa de sesión.** A las ocho horas hay que volver a
-   entrar, y si eso ocurre a mitad de algo, se pierde lo que hubiera en el
-   formulario. La dirección sí se recuerda.
-5. **Cuota compartida.** Los 20 análisis diarios del nivel gratuito son de la
-   clave, no del usuario: con el registro abierto, unos pocos desconocidos
-   dejarían al dueño sin cuota. Por eso el alta está cerrada.
+4. ~~**Sin renovación silenciosa de sesión**~~ *(resuelto).* La sesión se
+   renueva sola cada media hora y al volver a la pestaña, así que ya no corta
+   a mitad de un formulario. Con un techo absoluto de siete días desde que se
+   escribió la contraseña: sin él, encadenar renovaciones volvería permanente
+   cualquier token filtrado, y aquí no hay revocación.
+5. **Cuota compartida.** *(Mitigado, no resuelto.)* Los 20 análisis diarios
+   del nivel gratuito son de la **clave** de Gemini, no del usuario, y eso no
+   se puede cambiar desde aquí: repartir no crea capacidad.
+
+   Lo que faltaba era poder repartirla. El consumo se atribuye ahora a cada
+   cuenta —a través del dueño del proyecto— y existe un tope por cuenta,
+   `LIMITE_GENERACION_DIA_USUARIO`, que se comprueba **antes** de encolar. Nace
+   en cero, es decir desactivado: con una sola persona el techo real es el de
+   la clave y un segundo tope solo estorbaría.
+
+   El alta sigue cerrada por decisión, pero abrirla ya no significa regalar el
+   día al primero que llegue.
 
 ### Aplazado por decisión explícita
 
@@ -239,7 +250,7 @@ Si el objetivo es **nivel académico sólido**, lo que más pesa:
 Si el objetivo es **proyecto profesional presentable**, lo que más pesa:
 
 - **A favor:** desplegado y accesible con HTTPS, migraciones con Alembic,
-  integración continua, 383 pruebas, aislamiento entre cuentas probado
+  integración continua, 400 pruebas, aislamiento entre cuentas probado
   endpoint por endpoint, cola de trabajos con reintentos, copias de seguridad
   programadas y un README que instala desde cero.
 - Lo que se echa en falta: dominio propio en lugar de un nombre derivado de la

@@ -51,6 +51,42 @@ def usuario_actual(
     return usuario
 
 
+# ------------------------------------------------------------------ cuota
+def comprobar_cuota_usuario(usuario: Usuario) -> None:
+    """Niega la operación si la cuenta agotó su reparto del día.
+
+    Se comprueba ANTES de encolar, no cuando el proveedor responde con un
+    error. Un análisis rechazado a mitad deja artículos en estados intermedios
+    y consume las llamadas que sí llegaron a salir; decir que no antes de
+    empezar no cuesta nada y se entiende.
+
+    Sin límite configurado no comprueba nada: con una sola cuenta el techo
+    real es el de la clave, y añadir un segundo tope solo serviría para
+    bloquear antes de tiempo.
+    """
+    from app.services import limitador, registro_api
+
+    tope = limitador.LIMITE_GENERACION_DIA_USUARIO
+    if tope <= 0:
+        return
+
+    datos = registro_api.consumo(usuario_id=usuario.id)
+    if not datos.get("disponible"):
+        # Sin registro no se puede afirmar que haya gastado nada, y negar por
+        # las dudas dejaría la aplicación inservible ante un fallo del contador.
+        return
+
+    gastadas = int(datos.get("generaciones") or 0)
+    if gastadas >= tope:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=("Has consumido tu reparto diario (%d de %d generaciones). "
+                    "La cuota es compartida entre las cuentas de esta "
+                    "instancia y se restablece al día siguiente."
+                    % (gastadas, tope)),
+        )
+
+
 # --------------------------------------------------------------- propiedad
 #
 # Casi todo cuelga de un proyecto: los articulos son de un proyecto, las

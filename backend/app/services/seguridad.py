@@ -61,12 +61,22 @@ def comprobar(contrasena: str, hash_guardado: str) -> bool:
         return False
 
 
-def emitir_token(usuario_id: str) -> str:
+def emitir_token(usuario_id: str, inicio_sesion: datetime | None = None) -> str:
+    """Emite un token de sesion.
+
+    `inicio_sesion` es el momento en que se escribio la contrasena, y viaja en
+    el token como `ini`. No es lo mismo que `iat`: al renovar, `iat` avanza y
+    `ini` se conserva, de modo que la sesion puede refrescarse mientras se usa
+    pero no vivir para siempre. Sin ese ancla, renovar indefinidamente
+    convertiria un token robado en permanente.
+    """
     ahora = datetime.now(timezone.utc)
+    inicio = inicio_sesion or ahora
     return jwt.encode(
         {
             "sub": usuario_id,
             "iat": ahora,
+            "ini": int(inicio.timestamp()),
             "exp": ahora + timedelta(hours=JWT_HORAS),
         },
         JWT_SECRETO,
@@ -74,8 +84,8 @@ def emitir_token(usuario_id: str) -> str:
     )
 
 
-def leer_token(token: str) -> str:
-    """Devuelve el identificador del usuario. Levanta TokenInvalido si no vale.
+def datos_token(token: str) -> dict:
+    """Contenido verificado del token. Levanta TokenInvalido si no vale.
 
     `algorithms` se fija explicitamente. Aceptar el algoritmo que declare el
     propio token es la vulnerabilidad clasica de JWT: basta con enviar uno
@@ -86,7 +96,24 @@ def leer_token(token: str) -> str:
     except jwt.PyJWTError as exc:
         raise TokenInvalido(str(exc)) from exc
 
-    usuario_id = datos.get("sub")
-    if not usuario_id:
+    if not datos.get("sub"):
         raise TokenInvalido("el token no identifica a ningun usuario")
-    return usuario_id
+    return datos
+
+
+def leer_token(token: str) -> str:
+    """Devuelve el identificador del usuario."""
+    return datos_token(token)["sub"]
+
+
+def inicio_de_sesion(datos: dict) -> datetime:
+    """Cuando se escribio la contrasena por ultima vez.
+
+    Los tokens emitidos antes de que existiera `ini` no lo traen. Se toma su
+    `iat` como inicio: es lo mas antiguo que se puede afirmar de ellos, y asi
+    una sesion vieja no obtiene un techo mas generoso que una nueva.
+    """
+    marca = datos.get("ini") or datos.get("iat")
+    if not marca:
+        raise TokenInvalido("el token no dice cuando empezo la sesion")
+    return datetime.fromtimestamp(int(marca), tz=timezone.utc)

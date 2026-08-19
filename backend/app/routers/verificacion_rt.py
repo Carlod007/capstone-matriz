@@ -21,7 +21,12 @@ from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.dependencias import proyecto_propio
+from app.dependencias import (
+    comprobar_cuota_usuario,
+    proyecto_propio,
+    usuario_actual,
+)
+from app.models.usuario import Usuario
 from app.models.articulo import Articulo
 from app.models.embedding_doc import EmbeddingDoc
 from app.models.metrica import Metrica, AMBITO_BRECHA
@@ -95,6 +100,7 @@ def _fragmentos_de(db: Session, rb: ResultadoBrecha) -> list[dict]:
 @router.post("/{proyecto_id}/verificar")
 def verificar_proyecto(rehacer: bool = False,
                        proyecto: Proyecto = Depends(proyecto_propio),
+                       usuario: Usuario = Depends(usuario_actual),
                        db: Session = Depends(get_db)):
     """Verifica la fidelidad de las brechas del último análisis.
 
@@ -102,6 +108,8 @@ def verificar_proyecto(rehacer: bool = False,
     estan, de modo que reintentar tras un fallo a mitad no vuelve a pagar por
     las ya hechas.
     """
+    comprobar_cuota_usuario(usuario)
+
     proyecto_id = proyecto.id
 
     run = (db.query(Run).filter(Run.proyecto_id == proyecto_id)

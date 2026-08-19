@@ -54,6 +54,68 @@ export function token() {
   return leerSesion()?.token || null;
 }
 
+/* ------------------------------------------------------------ renovación */
+
+/**
+ * Alarga la sesión mientras se esté usando la aplicación.
+ *
+ * A las ocho horas caducaba en seco, y si eso ocurría a mitad de un
+ * formulario se perdía lo escrito. El servidor no puede distinguir «se fue
+ * hace ocho horas» de «lleva ocho horas trabajando»; el navegador sí, porque
+ * sabe si la pestaña está delante.
+ *
+ * Se renueva cada media hora y al volver a la pestaña. No hay reintentos ni
+ * avisos: si falla, el token viejo sigue sirviendo hasta que caduque, y ese
+ * caso ya está cubierto. Un fallo de renovación no debe interrumpir nada.
+ *
+ * El servidor mantiene un techo absoluto desde que se escribió la contraseña,
+ * así que esto no vuelve la sesión eterna: solo evita cortarla a media tarea.
+ */
+const CADA = 30 * 60 * 1000;
+let temporizador = null;
+let ultimaRenovacion = 0;
+
+async function renovar(base) {
+  const t = token();
+  if (!t) return;
+  try {
+    const r = await fetch(`${base}/auth/renovar`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${t}` },
+    });
+    if (!r.ok) return; // El token actual sigue valiendo hasta su caducidad.
+    const datos = await r.json();
+    if (datos?.token) {
+      guardarSesion({ ...(leerSesion() || {}), ...datos });
+      ultimaRenovacion = Date.now();
+    }
+  } catch {
+    // Sin red, o el servidor no responde. No es asunto del usuario.
+  }
+}
+
+export function iniciarRenovacion(base) {
+  detenerRenovacion();
+  ultimaRenovacion = Date.now();
+
+  temporizador = setInterval(() => renovar(base), CADA);
+
+  // Al volver a la pestaña: el temporizador puede haberse quedado dormido con
+  // el ordenador suspendido, y entonces la sesión caducaría sin que nadie lo
+  // intentara. Se comprueba el tiempo real transcurrido, no los disparos.
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible" &&
+        Date.now() - ultimaRenovacion > CADA) {
+      renovar(base);
+    }
+  });
+}
+
+export function detenerRenovacion() {
+  if (temporizador) clearInterval(temporizador);
+  temporizador = null;
+}
+
 /**
  * `fetch` con la cabecera de sesión puesta.
  *

@@ -80,6 +80,15 @@ JWT_SECRETO = _texto("JWT_SECRETO")
 JWT_HORAS = _entero("JWT_HORAS", 8)
 JWT_ALGORITMO = "HS256"
 
+# Techo absoluto de una sesion, contado desde que se escribio la contrasena.
+#
+# La sesion se renueva sola mientras se usa, para no echar a nadie a mitad de
+# un formulario. Pero renovar sin limite convierte un token filtrado en
+# permanente, y aqui no hay revocacion: la caducidad es la unica defensa. A
+# partir de este plazo hay que volver a escribir la contrasena, se este usando
+# la aplicacion o no.
+JWT_MAXIMO_HORAS = _entero("JWT_MAXIMO_HORAS", 24 * 7)
+
 # El registro se construye completo pero nace cerrado: por ahora la instancia
 # es de una sola persona. Abrirlo es cambiar esta variable, no tocar codigo.
 REGISTRO_ABIERTO = _bandera("REGISTRO_ABIERTO", False)

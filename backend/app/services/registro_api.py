@@ -133,17 +133,32 @@ def renovaciones(horas: int = 24, limite: int = 40) -> dict:
     return {"disponible": True, "ahora": ahora.isoformat(), "eventos": eventos}
 
 
-def consumo(horas: int = 24) -> dict:
-    """Consumo real registrado en la ventana indicada."""
+def consumo(horas: int = 24, usuario_id: str | None = None) -> dict:
+    """Consumo real registrado en la ventana indicada.
+
+    Con `usuario_id` se cuenta solo lo gastado por esa cuenta, atribuyendo cada
+    llamada por el dueño de su proyecto. La cuota del nivel gratuito es de la
+    clave y no del usuario, así que esto no crea capacidad: sirve para repartir
+    la que hay y evitar que una cuenta se lleve el día entero.
+
+    Las llamadas sin proyecto —las que no nacen de un análisis concreto— no se
+    pueden atribuir a nadie y quedan fuera del recuento por usuario. Siguen
+    contando en el total, que es el que manda frente al proveedor.
+    """
     from app.database import SessionLocal
     from sqlalchemy import func as F
 
+    from app.models.proyecto import Proyecto
+
     s = SessionLocal()
     try:
-        filas = (s.query(LlamadaAPI.operacion, LlamadaAPI.exito,
-                         F.count(LlamadaAPI.id), F.sum(LlamadaAPI.unidades))
-                 .filter(LlamadaAPI.creado_en >= corte(horas))
-                 .group_by(LlamadaAPI.operacion, LlamadaAPI.exito).all())
+        q = s.query(LlamadaAPI.operacion, LlamadaAPI.exito,
+                    F.count(LlamadaAPI.id), F.sum(LlamadaAPI.unidades))
+        if usuario_id:
+            q = (q.join(Proyecto, Proyecto.id == LlamadaAPI.proyecto_id)
+                  .filter(Proyecto.usuario_id == usuario_id))
+        filas = (q.filter(LlamadaAPI.creado_en >= corte(horas))
+                  .group_by(LlamadaAPI.operacion, LlamadaAPI.exito).all())
     except Exception:
         return {"disponible": False, "generaciones": 0, "fallidas": 0,
                 "embeddings": 0}

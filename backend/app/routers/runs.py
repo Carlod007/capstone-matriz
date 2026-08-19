@@ -5,7 +5,13 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.dependencias import proyecto_propio, run_propio
+from app.dependencias import (
+    comprobar_cuota_usuario,
+    proyecto_propio,
+    run_propio,
+    usuario_actual,
+)
+from app.models.usuario import Usuario
 from app.models.run import Run, EstadoRun
 from app.models.run_item import RunItem, EstadoRunItem
 from app.models.articulo import Articulo
@@ -213,8 +219,13 @@ router = APIRouter(prefix="/proyectos", tags=["runs"])
 def crear_run(
     _body: RunCreate | None = None,
     proyecto: Proyecto = Depends(proyecto_propio),
+    usuario: Usuario = Depends(usuario_actual),
     db: Session = Depends(get_db),
 ):
+    # Antes de encolar nada: un lote rechazado a mitad deja artículos en
+    # estados intermedios y ya habrá gastado las llamadas que salieron.
+    comprobar_cuota_usuario(usuario)
+
     proyecto_id = proyecto.id
     arts = db.query(Articulo).filter(Articulo.proyecto_id == proyecto_id).all()
     if not arts:

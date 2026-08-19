@@ -48,6 +48,17 @@ LIMITE_GENERACION_MIN = int(os.getenv("LIMITE_GENERACION_MIN", "4"))
 LIMITE_GENERACION_DIA = int(os.getenv("LIMITE_GENERACION_DIA", "20"))
 LIMITE_EMBEDDINGS_DIA = int(os.getenv("LIMITE_EMBEDDINGS_DIA", "1000"))
 
+# Reparto por cuenta. Cero significa sin límite propio, que es lo correcto
+# mientras la instancia sea de una persona: el techo real es el de la clave.
+#
+# No crea capacidad, la reparte. La cuota del nivel gratuito es de la clave de
+# Gemini, así que con el registro abierto y sin esto unas pocas cuentas
+# desconocidas dejarían al dueño sin sus veinte generaciones antes del
+# mediodía. Poner aquí un número es el requisito que faltaba para poder abrir
+# el alta sin regalar el día.
+LIMITE_GENERACION_DIA_USUARIO = int(
+    os.getenv("LIMITE_GENERACION_DIA_USUARIO", "0"))
+
 # Huso en el que el proveedor reinicia sus cuotas diarias. El panel de AI
 # Studio rotula sus gráficas en UTC-8, de modo que el corte es la medianoche
 # de ese huso y no la del servidor donde corre esto.
