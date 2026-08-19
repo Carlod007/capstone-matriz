@@ -74,7 +74,18 @@ def metricas_proyecto(
                   .filter(RunItem.run_id == run.id).all()]
     ids_articulo = [r[0] for r in
                     db.query(RunItem.articulo_id).filter(RunItem.run_id == run.id).all()]
+
+    # La sintesis y sus metricas N5 pertenecen a una ejecucion concreta. Una
+    # sintesis de un run anterior no debe aparecer como resultado del actual.
+    ea = (db.query(EstadoDelArte)
+          .filter(EstadoDelArte.proyecto_id == proyecto_id,
+                  EstadoDelArte.run_id == run.id)
+          .order_by(EstadoDelArte.version.desc(),
+                    EstadoDelArte.created_at.desc())
+          .first())
     referencias = set(ids_brecha) | set(ids_articulo) | {run.id}
+    if ea:
+        referencias.add(ea.id)
 
     # Una métrica de ámbito artículo conserva el mismo `referencia_id` entre
     # ejecuciones, así que filtrar solo por referencia mezclaría el análisis
@@ -128,10 +139,6 @@ def metricas_proyecto(
     for (e,) in (db.query(ResultadoBrecha.estado_validacion)
                  .filter(ResultadoBrecha.id.in_(ids_brecha or ["-"])).all()):
         estados[e or ""] = estados.get(e or "", 0) + 1
-
-    ea = (db.query(EstadoDelArte)
-          .filter(EstadoDelArte.proyecto_id == proyecto_id)
-          .order_by(EstadoDelArte.version.desc()).first())
 
     return {
         "proyecto_id": proyecto_id,

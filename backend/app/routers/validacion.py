@@ -41,18 +41,23 @@ PESOS = {CORRECTA: 1.0, PARCIAL: 0.5, INCORRECTA: 0.0}
 
 
 def _brecha_del_proyecto(db: Session, proyecto_id: str,
-                         brecha_id: str) -> ResultadoBrecha:
+                         brecha_id: str) -> tuple[ResultadoBrecha, str]:
     """El filtro por proyecto no sobra: sin el, conocer el identificador de una
     brecha ajena bastaria para anotarla desde un proyecto propio."""
-    rb = (db.query(ResultadoBrecha)
+    fila = (db.query(ResultadoBrecha, Run.id)
             .join(RunItem, RunItem.id == ResultadoBrecha.run_item_id)
             .join(Run, Run.id == RunItem.run_id)
             .filter(ResultadoBrecha.id == brecha_id,
                     Run.proyecto_id == proyecto_id)
             .first())
-    if not rb:
+    if not fila:
         raise HTTPException(status_code=404, detail="Brecha no encontrada")
-    return rb
+    return fila[0], fila[1]
+
+
+def _ultimo_run(db: Session, proyecto_id: str) -> Run | None:
+    return (db.query(Run).filter(Run.proyecto_id == proyecto_id)
+            .order_by(Run.iniciado_en.desc(), Run.id).first())
 
 
 @router.get("/{proyecto_id}/validacion")
@@ -60,8 +65,7 @@ def listar_para_validar(proyecto: Proyecto = Depends(proyecto_propio),
                         usuario: Usuario = Depends(usuario_actual),
                         db: Session = Depends(get_db)):
     """Las brechas del ultimo analisis con el veredicto propio, si lo hay."""
-    run = (db.query(Run).filter(Run.proyecto_id == proyecto.id)
-           .order_by(Run.iniciado_en.desc(), Run.id).first())
+    run = _ultimo_run(db, proyecto.id)
     if not run:
         return {"run": None, "brechas": [], "resumen": None}
 
@@ -102,7 +106,7 @@ def listar_para_validar(proyecto: Proyecto = Depends(proyecto_propio),
         })
 
     return {"run": run.id, "brechas": brechas,
-            "resumen": _resumen(db, proyecto.id, usuario.id)}
+            "resumen": _resumen(db, proyecto.id, usuario.id, run.id)}
 
 
 @router.put("/{proyecto_id}/validacion/{brecha_id}", response_model=ValidacionOut)
@@ -126,7 +130,7 @@ def anotar(brecha_id: str, datos: ValidacionIn,
             detail="Explica qué falla: un veredicto negativo sin motivo no "
                    "permite corregir el sistema ni defender la evaluación.")
 
-    _brecha_del_proyecto(db, proyecto.id, brecha_id)
+    _, run_id = _brecha_del_proyecto(db, proyecto.id, brecha_id)
 
     fila = (db.query(ValidacionHumana)
               .filter(ValidacionHumana.brecha_id == brecha_id,
@@ -147,7 +151,7 @@ def anotar(brecha_id: str, datos: ValidacionIn,
     return ValidacionOut(
         brecha_id=fila.brecha_id, veredicto=fila.veredicto,
         justificacion=fila.justificacion,
-        resumen=_resumen(db, proyecto.id, usuario.id))
+        resumen=_resumen(db, proyecto.id, usuario.id, run_id))
 
 
 @router.delete("/{proyecto_id}/validacion/{brecha_id}")
@@ -156,17 +160,18 @@ def retirar(brecha_id: str,
             usuario: Usuario = Depends(usuario_actual),
             db: Session = Depends(get_db)):
     """Retira el veredicto propio. Solo el propio."""
-    _brecha_del_proyecto(db, proyecto.id, brecha_id)
+    _, run_id = _brecha_del_proyecto(db, proyecto.id, brecha_id)
     (db.query(ValidacionHumana)
        .filter(ValidacionHumana.brecha_id == brecha_id,
                ValidacionHumana.usuario_id == usuario.id)
        .delete(synchronize_session=False))
     db.commit()
     return {"brecha_id": brecha_id, "veredicto": None,
-            "resumen": _resumen(db, proyecto.id, usuario.id)}
+            "resumen": _resumen(db, proyecto.id, usuario.id, run_id)}
 
 
-def _resumen(db: Session, proyecto_id: str, usuario_id: str) -> dict:
+def _resumen(db: Session, proyecto_id: str, usuario_id: str,
+             run_id: str) -> dict:
     """Cuanto ha anotado esta persona y con que resultado.
 
     El acierto se calcula sobre lo anotado, no sobre el total: mientras falten
@@ -180,12 +185,25 @@ def _resumen(db: Session, proyecto_id: str, usuario_id: str) -> dict:
                .join(RunItem, RunItem.id == ResultadoBrecha.run_item_id)
                .join(Run, Run.id == RunItem.run_id)
                .filter(Run.proyecto_id == proyecto_id,
+                       Run.id == run_id,
                        ValidacionHumana.usuario_id == usuario_id).all())
 
     total_brechas = (db.query(ResultadoBrecha.id)
                        .join(RunItem, RunItem.id == ResultadoBrecha.run_item_id)
                        .join(Run, Run.id == RunItem.run_id)
-                       .filter(Run.proyecto_id == proyecto_id).count())
+                       .filter(Run.proyecto_id == proyecto_id,
+                               Run.id == run_id).count())
+
+    anotadores = (db.query(ValidacionHumana.usuario_id)
+                    .join(ResultadoBrecha,
+                          ResultadoBrecha.id == ValidacionHumana.brecha_id)
+                    .join(RunItem,
+                          RunItem.id == ResultadoBrecha.run_item_id)
+                    .join(Run, Run.id == RunItem.run_id)
+                    .filter(Run.proyecto_id == proyecto_id,
+                            Run.id == run_id)
+                    .distinct()
+                    .count())
 
     conteo = {v: 0 for v in VEREDICTOS}
     for (veredicto,) in filas:
@@ -203,7 +221,7 @@ def _resumen(db: Session, proyecto_id: str, usuario_id: str) -> dict:
         # None y no cero cuando no hay nada anotado: un cero aqui se leeria
         # como «el sistema no acerto ninguna».
         "acierto": acierto,
-        # Se dice siempre, porque es la limitacion que hay que declarar: con un
-        # solo anotador no hay acuerdo entre jueces que medir.
-        "anotadores": 1,
+        # Personas que realmente dejaron al menos un veredicto en este run. No
+        # se presupone un anotador por el mero hecho de que exista el proyecto.
+        "anotadores": anotadores,
     }

@@ -17,7 +17,6 @@ from __future__ import annotations
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -28,73 +27,34 @@ from app.dependencias import (
 )
 from app.models.usuario import Usuario
 from app.models.articulo import Articulo
-from app.models.embedding_doc import EmbeddingDoc
 from app.models.metrica import Metrica, AMBITO_BRECHA
 from app.models.proyecto import Proyecto
 from app.models.resultado_brecha import ResultadoBrecha
 from app.models.run import Run
 from app.models.run_item import RunItem
+from app.services.ventana_evidencia import fragmentos_de_brecha
 from app.services.verificacion import verificar
 
 router = APIRouter(prefix="/proyectos", tags=["verificacion"])
 
 
-def _fragmentos_de(db: Session, rb: ResultadoBrecha) -> list[dict]:
-    """Los fragmentos que sustentaron la brecha, con sus trozos vecinos.
+CODIGOS_N2_COMPLETOS = {"N2.1", "N2.2", "N2.4", "N2.5", "N2.verificada"}
 
-    rag_hits guarda los identificadores y la seccion, no el texto, para no
-    duplicar contenido; el texto se recupera de embedding_doc.
 
-    Se añaden los trozos contiguos (`chunk_orden ± 1`) por un motivo medido.
-    El troceado corta a mitad de frase, y sobre datos reales se llevó justo la
-    parte que decidía el sentido de una afirmación: el fragmento entregado
-    empezaba por «, particularly for MLPs, as it neglects material hardening…»
-    y el trozo anterior —no entregado— terminaba con «the DNV formula
-    underestimates the load-bearing capacity».
-
-    Con la ventana estrecha el verificador no se equivocaba: no podía acertar.
-    Al ampliarla apareció además un fragmento que ninguna de las dos versiones
-    había visto, donde el artículo advierte que el estándar «produces some
-    dangerous results under small bending moments», y con él una contradicción
-    real que antes era invisible.
-
-    No cuesta ninguna llamada: los embeddings ya están guardados y solo se
-    recuperan más filas de la misma tabla.
-    """
-    hits = rb.rag_hits if isinstance(rb.rag_hits, list) else []
-    ids = [h.get("embedding_id") for h in hits
-           if isinstance(h, dict) and h.get("embedding_id")]
-    if not ids:
-        return []
-    filas = db.query(EmbeddingDoc).filter(EmbeddingDoc.id.in_(ids)).all()
-    if not filas:
-        return []
-
-    # Los trozos buscados, por artículo: cada recuperado y sus dos contiguos.
-    por_articulo: dict[str, set[int]] = {}
-    for f in filas:
-        if f.chunk_orden is None:
-            continue
-        ordenes = por_articulo.setdefault(f.articulo_id, set())
-        ordenes.update((f.chunk_orden - 1, f.chunk_orden, f.chunk_orden + 1))
-
-    if not por_articulo:
-        return [{"texto": f.texto, "seccion": f.seccion or "otro"} for f in filas]
-
-    condiciones = [
-        and_(EmbeddingDoc.articulo_id == aid,
-             EmbeddingDoc.chunk_orden.in_(sorted(ordenes)))
-        for aid, ordenes in por_articulo.items()
-    ]
-    # En orden de documento y no en el de recuperación: los vecinos solo sirven
-    # para reconstruir la frase partida si van pegados a su fragmento. Numerarlos
-    # por relevancia los separaría otra vez.
-    ampliados = (db.query(EmbeddingDoc)
-                 .filter(or_(*condiciones))
-                 .order_by(EmbeddingDoc.articulo_id, EmbeddingDoc.chunk_orden)
-                 .all())
-    return [{"texto": f.texto, "seccion": f.seccion or "otro"}
-            for f in ampliados]
+def _brechas_verificadas_completas(db: Session, proyecto_id: str) -> set[str]:
+    """Brechas cuya verificacion disponible conserva todos sus resultados."""
+    filas = (db.query(Metrica.referencia_id, Metrica.codigo, Metrica.valor)
+             .filter(Metrica.proyecto_id == proyecto_id,
+                     Metrica.codigo.in_(CODIGOS_N2_COMPLETOS))
+             .all())
+    por_brecha: dict[str, set[str]] = {}
+    disponibles: set[str] = set()
+    for referencia_id, codigo, valor in filas:
+        por_brecha.setdefault(referencia_id, set()).add(codigo)
+        if codigo == "N2.verificada" and valor == 1.0:
+            disponibles.add(referencia_id)
+    return {referencia_id for referencia_id in disponibles
+            if CODIGOS_N2_COMPLETOS <= por_brecha.get(referencia_id, set())}
 
 
 @router.post("/{proyecto_id}/verificar")
@@ -124,11 +84,7 @@ def verificar_proyecto(rehacer: bool = False,
     if not filas:
         raise HTTPException(status_code=400, detail="El análisis no dejó brechas.")
 
-    ya_hechas = {m.referencia_id for m in
-                 db.query(Metrica)
-                 .filter(Metrica.proyecto_id == proyecto_id,
-                         Metrica.codigo == "N2.verificada",
-                         Metrica.valor == 1.0).all()}
+    ya_hechas = _brechas_verificadas_completas(db, proyecto_id)
 
     resultados = []
     verificadas = 0
@@ -137,7 +93,7 @@ def verificar_proyecto(rehacer: bool = False,
             resultados.append({"articulo": art.titulo, "estado": "ya verificada"})
             continue
 
-        fragmentos = _fragmentos_de(db, rb)
+        fragmentos = fragmentos_de_brecha(db, rb)
         if not fragmentos:
             resultados.append({
                 "articulo": art.titulo,

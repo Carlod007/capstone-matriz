@@ -190,10 +190,60 @@ class TestElResumen:
 
     def test_declara_cuantos_anotadores_hay(self, cliente,
                                             proyecto_con_brechas):
-        """Es la limitacion que hay que declarar, no esconder."""
+        """No presupone una persona que todavia no dejo ningun veredicto."""
+        r = cliente.get("/proyectos/%s/validacion"
+                        % proyecto_con_brechas["proyecto"])
+        assert r.json()["resumen"]["anotadores"] == 0
+
+        _anotar(cliente, proyecto_con_brechas["proyecto"],
+                proyecto_con_brechas["brechas"][0], "correcta")
         r = cliente.get("/proyectos/%s/validacion"
                         % proyecto_con_brechas["proyecto"])
         assert r.json()["resumen"]["anotadores"] == 1
+
+    def test_el_resumen_solo_describe_la_ultima_ejecucion(
+            self, db, cliente, proyecto_con_brechas):
+        """Una anotacion historica no infla el total ni el acierto vigente."""
+        from datetime import datetime
+
+        from app.models.articulo import Articulo
+        from app.models.resultado_brecha import ResultadoBrecha
+        from app.models.run import EstadoRun, Run
+        from app.models.run_item import EstadoRunItem, RunItem
+
+        pid = proyecto_con_brechas["proyecto"]
+        _anotar(cliente, pid, proyecto_con_brechas["brechas"][0], "correcta")
+
+        rid, aid, iid, bid = (str(uuid.uuid4()) for _ in range(4))
+        db.add(Articulo(id=aid, proyecto_id=pid, doi=None,
+                        titulo="Articulo del segundo analisis"))
+        db.add(Run(id=rid, proyecto_id=pid, estado=EstadoRun.completado,
+                   iniciado_en=datetime(2099, 1, 1), n_items_total=1,
+                   n_items_ok=1))
+        db.flush()
+        db.add(RunItem(id=iid, run_id=rid, articulo_id=aid,
+                       estado=EstadoRunItem.analizado))
+        db.flush()
+        db.add(ResultadoBrecha(id=bid, run_item_id=iid, tipo_brecha="otra",
+                               brecha="Brecha vigente", oportunidad="o",
+                               rag_hits=[]))
+        db.commit()
+
+        try:
+            datos = cliente.get("/proyectos/%s/validacion" % pid).json()
+            assert datos["run"] == rid
+            assert datos["resumen"]["total"] == 1
+            assert datos["resumen"]["anotadas"] == 0
+            assert datos["resumen"]["acierto"] is None
+            assert datos["resumen"]["anotadores"] == 0
+        finally:
+            db.rollback()
+            db.query(ResultadoBrecha).filter(
+                ResultadoBrecha.id == bid).delete()
+            db.query(RunItem).filter(RunItem.id == iid).delete()
+            db.query(Run).filter(Run.id == rid).delete()
+            db.query(Articulo).filter(Articulo.id == aid).delete()
+            db.commit()
 
 
 class TestElListado:
@@ -292,6 +342,7 @@ class TestElAislamiento:
             assert fila["veredicto"] is None, "no debe verse el ajeno"
             assert fila["otros_anotadores"] == 1, "pero si que existe"
             assert "opinion ajena" not in str(datos)
+            assert datos["resumen"]["anotadores"] == 1
         finally:
             db.rollback()
             db.query(ValidacionHumana).filter(

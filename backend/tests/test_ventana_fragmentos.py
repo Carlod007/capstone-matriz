@@ -104,10 +104,10 @@ def brecha_con_fragmentos(db, usuario_prueba):
 
 def _fragmentos(db, bid):
     from app.models.resultado_brecha import ResultadoBrecha
-    from app.routers.verificacion_rt import _fragmentos_de
+    from app.services.ventana_evidencia import fragmentos_de_brecha
 
     rb = db.query(ResultadoBrecha).filter(ResultadoBrecha.id == bid).first()
-    return _fragmentos_de(db, rb)
+    return fragmentos_de_brecha(db, rb)
 
 
 class TestLaVentana:
@@ -164,3 +164,27 @@ class TestLaVentana:
         db.commit()
 
         assert _fragmentos(db, brecha_con_fragmentos["brecha"]) == []
+
+
+class TestVerificacionCompleta:
+    def test_una_verificacion_antigua_sin_n2_5_se_puede_completar(
+            self, db, brecha_con_fragmentos):
+        """N2.verificada=1 no basta si el resultado quedo incompleto."""
+        from app.models.metrica import AMBITO_BRECHA, Metrica
+        from app.routers.verificacion_rt import _brechas_verificadas_completas
+
+        pid = brecha_con_fragmentos["proyecto"]
+        bid = brecha_con_fragmentos["brecha"]
+        for codigo in ("N2.1", "N2.2", "N2.4", "N2.verificada"):
+            db.add(Metrica(id=str(uuid.uuid4()), proyecto_id=pid,
+                           ambito=AMBITO_BRECHA, referencia_id=bid,
+                           codigo=codigo, valor=1.0))
+        db.flush()
+
+        assert bid not in _brechas_verificadas_completas(db, pid)
+
+        db.add(Metrica(id=str(uuid.uuid4()), proyecto_id=pid,
+                       ambito=AMBITO_BRECHA, referencia_id=bid,
+                       codigo="N2.5", valor=0.0))
+        db.flush()
+        assert bid in _brechas_verificadas_completas(db, pid)

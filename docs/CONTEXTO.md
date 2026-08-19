@@ -101,7 +101,7 @@ varios anotadores sobre la misma brecha.
 - Cuentas, sesión por token, aislamiento entre usuarios
 - Cola de trabajos con reintentos y recuperación de trabajadores caídos
 - Limitador de cuota propio (ventana deslizante) antes de chocar con la API
-- **413 pruebas automáticas**, integración continua en verde
+- **417 pruebas automáticas**, integración continua en verde
 - Esquema gobernado por Alembic, verificado desde base vacía
 
 ### Verificado con datos reales
@@ -317,7 +317,7 @@ Si el objetivo es **nivel académico sólido**, lo que más pesa:
 Si el objetivo es **proyecto profesional presentable**, lo que más pesa:
 
 - **A favor:** desplegado y accesible con HTTPS, migraciones con Alembic,
-  integración continua, 413 pruebas, aislamiento entre cuentas probado
+  integración continua, 417 pruebas, aislamiento entre cuentas probado
   endpoint por endpoint, cola de trabajos con reintentos, copias de seguridad
   programadas y un README que instala desde cero.
 - Lo que se echa en falta: dominio propio en lugar de un nombre derivado de la

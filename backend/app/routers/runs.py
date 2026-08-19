@@ -33,6 +33,7 @@ from app.services.document_structure import extraer_abstract
 from app.services.metricas import niveles as N
 from app.services.metricas import sintesis as S
 from app.services.verificacion import verificar
+from app.services.ventana_evidencia import fragmentos_de_brecha
 
 from app.utils.text_extractor import extraer_con_diagnostico
 
@@ -117,7 +118,11 @@ def _registrar_metricas(db, art, rb, res, texto, recuperados, ruta_pdf) -> None:
     # Es el unico nivel que necesita una llamada adicional al modelo. Si falla
     # o esta desactivado se registra el motivo en lugar de un valor: una
     # medicion que no se hizo no es una medicion con resultado cero.
-    ver = verificar(brecha_txt, recuperados)
+    # La verificacion normal y la posterior usan la misma ventana. Los vecinos
+    # reconstruyen frases que el troceado pudo partir; si por compatibilidad no
+    # se puede reconstruir desde rag_hits, se conservan los recuperados.
+    ventana = fragmentos_de_brecha(db, rb) or recuperados
+    ver = verificar(brecha_txt, ventana)
     if ver.disponible:
         _metrica(db, art.proyecto_id, AMBITO_BRECHA, rb.id, "N2.1", ver.fidelidad,
                  {"sin_respaldo": [a.texto for a in ver.evidenciales
@@ -125,6 +130,14 @@ def _registrar_metricas(db, art, rb, res, texto, recuperados, ruta_pdf) -> None:
         _metrica(db, art.proyecto_id, AMBITO_BRECHA, rb.id, "N2.2", ver.trazabilidad)
         _metrica(db, art.proyecto_id, AMBITO_BRECHA, rb.id, "N2.4",
                  ver.equilibrio_evidencial)
+        _metrica(db, art.proyecto_id, AMBITO_BRECHA, rb.id, "N2.5",
+                 ver.tasa_contradiccion,
+                 {"contradicciones": [
+                     {"afirmacion": a.texto,
+                      "fragmento": a.fragmento_contrario,
+                      "cita": a.cita_contraria,
+                      "tipo": a.tipo}
+                     for a in ver.contradictorias][:10]})
     _metrica(db, art.proyecto_id, AMBITO_BRECHA, rb.id, "N2.verificada",
              1.0 if ver.disponible else 0.0, ver.resumen())
 

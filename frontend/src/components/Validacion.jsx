@@ -220,12 +220,15 @@ export default function Validacion({ proyectoId, onError }) {
             pregunta que hace un tribunal. Decirlo antes vale más que
             defenderlo después. */}
         <p className="mt-3 border-t border-borde pt-3 text-xs leading-relaxed text-tinta-suave">
-          Este porcentaje sale de tu juicio, no del sistema. Se calcula sobre
-          las brechas que ya has revisado —«parcial» cuenta medio punto—, así
-          que mientras queden pendientes es provisional. Con{" "}
-          {r.anotadores === 1 ? "un solo anotador" : `${r.anotadores} anotadores`}{" "}
-          no hay acuerdo entre jueces que medir: conviene declararlo como
-          limitación del estudio.
+          Este porcentaje sale del juicio humano, no del sistema. Se calcula
+          sobre las brechas que ya revisaste —«parcial» cuenta medio punto—,
+          así que mientras queden pendientes es provisional.{" "}
+          {r.anotadores === 0
+            ? "Todavía no hay anotaciones humanas para esta ejecución."
+            : r.anotadores === 1
+              ? "Solo una persona ha anotado esta ejecución; no hay acuerdo entre jueces que medir."
+              : `${r.anotadores} personas han anotado esta ejecución; el acuerdo entre jueces aún no se calcula.`}{" "}
+          Conviene declararlo como limitación del estudio.
         </p>
       </div>
 

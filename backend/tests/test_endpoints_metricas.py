@@ -1,9 +1,49 @@
 # tests/test_endpoints_metricas.py
 """Endpoints de la capa de medicion v2 y catalogo."""
 
+from datetime import datetime
+import uuid
+
 import pytest
 
 from app.services.metricas.catalogo import CATALOGO, ficha, nombre
+
+
+@pytest.fixture
+def proyecto_con_sintesis_medida(db, usuario_prueba):
+    from app.models.estado_arte import EstadoDelArte
+    from app.models.metrica import AMBITO_PROYECTO, Metrica
+    from app.models.proyecto import Proyecto
+    from app.models.run import EstadoRun, Run
+
+    pid, rid, eid = (str(uuid.uuid4()) for _ in range(3))
+    db.add(Proyecto(id=pid, usuario_id=usuario_prueba["id"],
+                    tema_principal="Sintesis medida",
+                    objetivo="Mostrar las metricas N5 del run vigente",
+                    n_articulos_objetivo=1, estado_arte_generado=False))
+    db.flush()
+    db.add(Run(id=rid, proyecto_id=pid, estado=EstadoRun.completado,
+               iniciado_en=datetime(2026, 1, 1), n_items_total=0,
+               n_items_ok=0))
+    db.flush()
+    db.add(EstadoDelArte(id=eid, proyecto_id=pid, run_id=rid, version=1,
+                         texto="Sintesis del primer analisis"))
+    for codigo, valor in (("N5.3", 0.8), ("N5.5", 0.0)):
+        db.add(Metrica(id=str(uuid.uuid4()), proyecto_id=pid,
+                       ambito=AMBITO_PROYECTO, referencia_id=eid,
+                       codigo=codigo, valor=valor))
+    db.commit()
+
+    try:
+        yield {"proyecto": pid, "run": rid, "estado_arte": eid}
+    finally:
+        db.rollback()
+        db.query(Metrica).filter(Metrica.proyecto_id == pid).delete(
+            synchronize_session=False)
+        db.query(EstadoDelArte).filter(EstadoDelArte.id == eid).delete()
+        db.query(Run).filter(Run.id == rid).delete()
+        db.query(Proyecto).filter(Proyecto.id == pid).delete()
+        db.commit()
 
 
 class TestCatalogo:
@@ -87,3 +127,35 @@ class TestEndpoints:
         r = cliente.get("/articulos/%s/brechas" % proyecto_indexado["pertinente"])
         assert r.status_code == 200
         assert r.json() == []
+
+    def test_incluye_las_metricas_de_la_sintesis_del_run_actual(
+            self, cliente, proyecto_con_sintesis_medida):
+        pid = proyecto_con_sintesis_medida["proyecto"]
+        datos = cliente.get("/proyectos/%s/metricas" % pid).json()
+        metricas = {m["codigo"]: m for m in datos["metricas"]}
+
+        assert metricas["N5.3"]["mediana"] == 0.8
+        assert metricas["N5.5"]["mediana"] == 0.0
+        assert datos["estado_arte"]["version"] == 1
+
+    def test_no_atribuye_la_sintesis_anterior_a_un_run_nuevo(
+            self, db, cliente, proyecto_con_sintesis_medida):
+        from app.models.run import EstadoRun, Run
+
+        pid = proyecto_con_sintesis_medida["proyecto"]
+        rid = str(uuid.uuid4())
+        db.add(Run(id=rid, proyecto_id=pid, estado=EstadoRun.completado,
+                   iniciado_en=datetime(2026, 2, 1), n_items_total=0,
+                   n_items_ok=0))
+        db.commit()
+        try:
+            datos = cliente.get("/proyectos/%s/metricas" % pid).json()
+            codigos = {m["codigo"] for m in datos["metricas"]}
+            assert datos["run"]["id"] == rid
+            assert datos["estado_arte"] is None
+            assert "N5.3" not in codigos
+            assert "N5.5" not in codigos
+        finally:
+            db.rollback()
+            db.query(Run).filter(Run.id == rid).delete()
+            db.commit()

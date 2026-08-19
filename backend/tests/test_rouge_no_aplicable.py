@@ -71,7 +71,8 @@ class TestComoSeGuarda:
     ocurre.
     """
 
-    def test_las_rouge_se_guardan_sin_valor(self, db, usuario_prueba):
+    def test_las_rouge_se_guardan_sin_valor(self, db, usuario_prueba,
+                                            monkeypatch):
         import uuid
 
         from app.models.articulo import Articulo
@@ -80,6 +81,8 @@ class TestComoSeGuarda:
         from app.models.resultado_brecha import ResultadoBrecha
         from app.models.run import Run
         from app.models.run_item import EstadoRunItem, RunItem
+        from app.services.verificacion import Afirmacion, Verificacion
+        import app.routers.runs as runs_router
         from app.routers.runs import _registrar_metricas
 
         pid, aid, rid, iid = (str(uuid.uuid4()) for _ in range(4))
@@ -106,6 +109,19 @@ class TestComoSeGuarda:
         texto = "Abstract\n" + ABSTRACT_EN + "\n\n1. Introduction\nTexto." * 20
         res = {"brecha": "una brecha", "resumen": RESUMEN_ES}
 
+        # El juez se sustituye por una respuesta disponible y determinista:
+        # fija que el pipeline normal guarde tambien N2.5 y su evidencia, sin
+        # hacer una llamada real al modelo.
+        afirmacion = Afirmacion(
+            texto="El articulo sostiene lo contrario.",
+            tipo="evidencial", respaldada=True, fragmento=1, cita="cita",
+            contradice=True, fragmento_contrario=1,
+            cita_contraria="fragmento contrario")
+        monkeypatch.setattr(
+            runs_router, "verificar",
+            lambda _brecha, _fragmentos: Verificacion(
+                afirmaciones=[afirmacion], disponible=True))
+
         try:
             _registrar_metricas(db, art, rb, res, texto, [], None)
             db.commit()
@@ -126,6 +142,12 @@ class TestComoSeGuarda:
             # La similitud semantica si tiene que traer numero.
             if "N4.2" in guardadas:
                 assert guardadas["N4.2"].valor is not None
+
+            assert guardadas["N2.5"].valor == 1.0
+            contradiccion = guardadas["N2.5"].detalle["contradicciones"][0]
+            assert contradiccion["afirmacion"] == afirmacion.texto
+            assert contradiccion["fragmento"] == 1
+            assert contradiccion["cita"] == "fragmento contrario"
         finally:
             db.rollback()
             db.query(Metrica).filter(Metrica.referencia_id == rb.id).delete(
