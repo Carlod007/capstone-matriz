@@ -1544,15 +1544,15 @@ export function Fidelidad({ verificacion }) {
 
         {/* El alcance de la medición, dicho antes de los números.
             Sin esta frase, un 60 % se lee como «el 40 % es inventado», y no es
-            eso: la comprobación se hace contra los ocho fragmentos que el
-            modelo leyó, no contra el artículo completo. Una afirmación puede
-            ser cierta y estar en otra página. */}
+            eso: la comprobación se hace contra un extracto del artículo, no
+            contra el artículo completo. Una afirmación puede ser cierta y
+            estar en otra página. */}
         {disponible && (
           <p className="text-tinta-suave leading-relaxed">
-            Se comprueba contra los fragmentos que el modelo leyó, no contra el
-            artículo completo. «Sin respaldo» significa que esos fragmentos no
-            la sostienen, no que sea falsa: conviene mirar el artículo antes de
-            descartarla.
+            Se comprueba contra los fragmentos que el modelo leyó y sus párrafos
+            contiguos, no contra el artículo completo. «Sin respaldo» significa
+            que ese extracto no la sostiene, no que sea falsa: conviene mirar el
+            artículo antes de descartarla.
           </p>
         )}
 

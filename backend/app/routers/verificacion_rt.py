@@ -17,6 +17,7 @@ from __future__ import annotations
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy import and_, or_
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -34,10 +35,24 @@ router = APIRouter(prefix="/proyectos", tags=["verificacion"])
 
 
 def _fragmentos_de(db: Session, rb: ResultadoBrecha) -> list[dict]:
-    """Reconstruye los fragmentos que se usaron al generar la brecha.
+    """Los fragmentos que sustentaron la brecha, con sus trozos vecinos.
 
     rag_hits guarda los identificadores y la seccion, no el texto, para no
     duplicar contenido; el texto se recupera de embedding_doc.
+
+    Se añaden los trozos contiguos (`chunk_orden ± 1`) por un motivo medido.
+    El troceado corta a mitad de frase, y sobre datos reales se llevó justo la
+    parte que decidía el sentido de una afirmación: el fragmento entregado
+    empezaba por «, particularly for MLPs, as it neglects material hardening…»
+    y el trozo anterior —no entregado— terminaba con «the DNV formula
+    underestimates the load-bearing capacity». Sin esas cinco palabras, la
+    brecha podía hablar de «diseños inseguros» sin que nada la desmintiera,
+    cuando el artículo dice lo contrario: subestimar la capacidad es ser
+    conservador, es decir, más seguro.
+
+    Con la ventana estrecha el verificador no se equivocaba, no podía acertar.
+    Ampliarla no cuesta ninguna llamada: los embeddings ya están guardados y
+    solo se recuperan más filas de la misma tabla.
     """
     hits = rb.rag_hits if isinstance(rb.rag_hits, list) else []
     ids = [h.get("embedding_id") for h in hits
@@ -45,14 +60,34 @@ def _fragmentos_de(db: Session, rb: ResultadoBrecha) -> list[dict]:
     if not ids:
         return []
     filas = db.query(EmbeddingDoc).filter(EmbeddingDoc.id.in_(ids)).all()
-    por_id = {f.id: f for f in filas}
-    # Se respeta el orden original: es el que vio el modelo al redactar.
-    salida = []
-    for h in hits:
-        f = por_id.get(h.get("embedding_id"))
-        if f:
-            salida.append({"texto": f.texto, "seccion": f.seccion or "otro"})
-    return salida
+    if not filas:
+        return []
+
+    # Los trozos buscados, por artículo: cada recuperado y sus dos contiguos.
+    por_articulo: dict[str, set[int]] = {}
+    for f in filas:
+        if f.chunk_orden is None:
+            continue
+        ordenes = por_articulo.setdefault(f.articulo_id, set())
+        ordenes.update((f.chunk_orden - 1, f.chunk_orden, f.chunk_orden + 1))
+
+    if not por_articulo:
+        return [{"texto": f.texto, "seccion": f.seccion or "otro"} for f in filas]
+
+    condiciones = [
+        and_(EmbeddingDoc.articulo_id == aid,
+             EmbeddingDoc.chunk_orden.in_(sorted(ordenes)))
+        for aid, ordenes in por_articulo.items()
+    ]
+    # En orden de documento y no en el de recuperación: los vecinos solo sirven
+    # para reconstruir la frase partida si van pegados a su fragmento. Numerarlos
+    # por relevancia los separaría otra vez.
+    ampliados = (db.query(EmbeddingDoc)
+                 .filter(or_(*condiciones))
+                 .order_by(EmbeddingDoc.articulo_id, EmbeddingDoc.chunk_orden)
+                 .all())
+    return [{"texto": f.texto, "seccion": f.seccion or "otro"}
+            for f in ampliados]
 
 
 @router.post("/{proyecto_id}/verificar")
