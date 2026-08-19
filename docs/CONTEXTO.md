@@ -5,9 +5,13 @@ estado se encuentra y qué falta. Escrito para que alguien que no ha visto el
 repositorio —persona o herramienta— pueda opinar con criterio sin tener que
 reconstruirlo leyendo código.
 
-**Actualizado:** 14 de agosto de 2026
-**Rama de trabajo:** `CarlosDev` · **Rama principal:** `main` (unos 30 commits
-por detrás)
+**Actualizado:** 19 de agosto de 2026
+**Rama de trabajo:** `CarlosDev` · **Rama principal:** `main` (33 commits por
+detrás — todo el trabajo vive en `CarlosDev`, conviene fusionar antes de seguir)
+
+**Referencia de métricas:** [`Metricas.md`](Metricas.md), generado desde el
+catálogo del código. Es la fuente vigente; el PDF de especificación es anterior
+a N2.5.
 
 ---
 
@@ -64,12 +68,17 @@ PDF → ingesta (texto + OCR si hace falta + detección de secciones)
 
 ### Modelo de datos
 
-15 tablas. `usuario` → `proyecto` → (`articulo`, `run`) → (`run_item`,
+16 tablas. `usuario` → `proyecto` → (`articulo`, `run`) → (`run_item`,
 `archivo`) → (`resultado_brecha`, `embedding_doc`, `metrica`, `rag_log`,
-`estado_arte`, `resultado_resumen`, `articulo_meta`, `llamada_api`).
+`estado_arte`, `resultado_resumen`, `articulo_meta`, `llamada_api`), y
+`validacion_humana` colgando de `resultado_brecha` y de `usuario`.
 
 **Todo cuelga del proyecto**, y el proyecto tiene dueño: esa única columna
 (`proyecto.usuario_id`) es la que separa las cuentas.
+
+`validacion_humana` es la excepción deliberada: apunta a la persona que emite
+el juicio y no al dueño del proyecto, porque su razón de ser es poder tener
+varios anotadores sobre la misma brecha.
 
 ---
 
@@ -81,8 +90,13 @@ PDF → ingesta (texto + OCR si hace falta + detección de secciones)
 - RAG real: recuperación por relevancia con diversidad y cuota por sección
 - Análisis de brechas con cita del fragmento de origen
 - **Verificación de fidelidad** (N2): afirmaciones evidenciales contrastadas
+- **Detección de contradicciones** (N2.5): afirmaciones a las que un fragmento
+  lleva la contraria, incluidas las conclusiones, que no se verifican pero sí
+  pueden ser incompatibles con lo que el artículo afirma
+- **Anotación humana** (N6): pantalla de revisión con veredicto y justificación
+  por brecha, guardando quién lo emitió
 - Síntesis de estado del arte
-- Siete niveles de métricas, con distribución (mediana + IQR)
+- Siete niveles de métricas (22 en el catálogo), con distribución (mediana + IQR)
 - Exportación: matriz PDF/JSON, brechas CSV, estado del arte MD, panel PDF
 - Cuentas, sesión por token, aislamiento entre usuarios
 - Cola de trabajos con reintentos y recuperación de trabajadores caídos
@@ -97,11 +111,24 @@ Cinco artículos de ingeniería descargados de Scopus, en modo real:
 | Medida | Resultado |
 |---|---|
 | Extracción de resumen | 5/5 (era 0/5 antes de las correcciones) |
-| Cobertura de secciones | 65 % (era 42 %) |
-| N3.1 discriminabilidad | 0.345 |
-| N5.3 cobertura de síntesis | 1.0 |
-| N5.5 citas fabricadas | 0.0 |
-| N2 fidelidad | 3 de 5 brechas con una afirmación sin respaldo |
+| N4.ref abstract localizado | 5 de 5 |
+| N2.verificada | 5 de 5 |
+| N1.2 cobertura seccional | mediana 0.500 (IQR 0.167) |
+| N2.1 fidelidad | mediana 0.714 (IQR 0.333) |
+| N2.2 trazabilidad | mediana 0.625 |
+| N2.5 contradicciones | 1 detectada sobre 39 afirmaciones |
+| N3.1 discriminabilidad | 0.399 |
+| N4.2 similitud semántica | mediana 0.905 (IQR 0.009) |
+| N4.1a–e ROUGE | no aplicable: resumen y abstract en idiomas distintos |
+| N5.2 reetiquetado | mediana 1.0 — *menor es mejor*: 4 de 5 brechas |
+
+**La contradicción detectada**, porque ilustra lo que la capa aporta: la brecha
+afirmaba que omitir ciertos factores «resulta en una subestimación de la
+capacidad», y el artículo advierte que en un régimen concreto ocurre lo
+contrario («*the DNV standard still produces some dangerous results under small
+bending moments*»). Las dos cosas son ciertas en regímenes distintos y la
+brecha presentaba una como si valiera siempre. Ese fragmento no estaba entre
+los ocho originales: apareció al ampliar la ventana a los párrafos contiguos.
 
 ---
 
@@ -243,10 +270,33 @@ Chile West, con Docker Compose y Caddy. Coste cero y permanente.
    El alta sigue cerrada por decisión, pero abrirla ya no significa regalar el
    día al primero que llegue.
 
-### Aplazado por decisión explícita
+### Sobre la numeración: no hay Fase 3
 
-Cuotas por usuario, facturación y textos legales (Fase 4). El autor no
-pretende publicarlo abiertamente por ahora.
+Las fases se nombraron sobre la marcha, no de un plan previo. La 1 fue poner
+los cimientos —Alembic como fuente única del esquema, README que instala desde
+cero, integración continua—; la 2, pasar de herramienta local a servicio
+accesible desde un enlace. «Fase 4» se escribió en `Plan_Fase_2.md` para
+etiquetar lo que se apartaba a propósito, y ese salto dejó el hueco.
+
+No se definió ninguna Fase 3, no se canceló y no falta nada por ella. Se
+documenta aquí porque el hueco invita a buscar un plan perdido que no existe.
+
+### Fase 4 — abrir el sistema a más usuarios *(aplazada por decisión)*
+
+No está empezada, y no la bloquea la arquitectura: las cuentas, el aislamiento
+entre ellas y el reparto de cuota ya están. Lo que falta es lo que convierte
+una herramienta personal en un servicio de cara al público.
+
+| Pendiente | Por qué hace falta |
+|---|---|
+| **Cuota que no dependa de una sola clave** | Hoy las 20 generaciones diarias son de la clave de Gemini. Repartirlas entre cuentas evita que una se lleve el día, pero no crea capacidad: con varios usuarios reales hace falta una clave de pago o una por cuenta. |
+| **Facturación** | Si hay clave de pago, alguien paga. Sin un modelo de cobro, abrir el alta es asumir un coste abierto. |
+| **Textos legales** | Se suben PDF con derechos de autor y se guardan correos. Términos de uso y política de privacidad dejan de ser opcionales en cuanto entra alguien que no sea el autor. |
+| **Registro abierto y recuperación de contraseña** | `REGISTRO_ABIERTO` existe pero está en `false`, y no hay forma de recuperar una contraseña olvidada: hoy la resolvería el autor a mano. |
+| **Borrado de cuenta y de datos** | Un usuario debe poder irse con sus datos. Hoy se puede borrar un artículo, no una cuenta. |
+
+**No se empieza hasta que N6 esté anclado.** Sin saber si el sistema acierta,
+abrirlo a desconocidos es repartir un resultado que nadie ha comprobado.
 
 ---
 
@@ -289,10 +339,23 @@ Si el objetivo es **proyecto profesional presentable**, lo que más pesa:
 
 ## 8. Documentos relacionados
 
-| Archivo | Contenido |
-|---|---|
-| `README.md` | Instalación desde cero, arranque, problemas frecuentes |
-| `docs/Plan_Fase_2.md` | Plan de los ocho pasos hacia el despliegue |
-| `docs/Especificacion_Capa_Medicion_v2.pdf` | Los siete niveles de métricas |
-| `docs/Plan_Evolucion_Tecnica_Matriz_IAG.pdf` | Diagnóstico inicial y hoja de ruta |
-| `backend/migraciones/README` | Cómo cambiar el esquema |
+| Archivo | Contenido | Vigencia |
+|---|---|---|
+| `README.md` | Instalación desde cero, arranque, problemas frecuentes | al día |
+| `docs/Metricas.md` | **Las 22 métricas una por una**, con escala y dirección | se genera desde el catálogo |
+| `docs/Despliegue_Oracle_Cloud.pdf` | Qué se hizo en el servidor y qué falló | al día |
+| `docs/Plan_Fase_2.md` | Plan de los ocho pasos hacia el despliegue | histórico: se ejecutó entero |
+| `docs/Especificacion_Capa_Medicion_v2.pdf` | Por qué se rehízo la medición | **anterior a N2.5**: no es el listado actual |
+| `docs/Plan_Evolucion_Tecnica_Matriz_IAG.pdf` | Diagnóstico inicial y hoja de ruta | histórico |
+| `backend/migraciones/README` | Cómo cambiar el esquema | al día |
+
+Los marcados como históricos se conservan a propósito: describen decisiones en
+su momento y sirven para entender por qué el código tiene la forma que tiene.
+Leerlos como estado actual lleva a conclusiones equivocadas, y por eso la
+columna de vigencia.
+
+`Metricas.md` se regenera con:
+
+```bash
+cd backend && python scripts/generar_doc_metricas.py
+```

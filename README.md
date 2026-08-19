@@ -444,31 +444,45 @@ ninguna.
 |---|---|
 | N0 | Calidad de la ingesta: texto extraído, secciones detectadas, si hizo falta OCR |
 | N1 | Recuperación: de qué secciones salieron los fragmentos, cuánta diversidad tienen |
-| N2 | **Fidelidad**: qué proporción de las afirmaciones evidenciales está respaldada por el texto |
+| N2 | **Fidelidad**: qué proporción de las afirmaciones está respaldada por el texto, y cuáles lo **contradicen** |
 | N3 | Especificidad: si las brechas distinguen un artículo de otro o son intercambiables |
-| N4 | Resumen: solapamiento léxico con el resumen original del artículo |
+| N4 | Resumen: solapamiento léxico y semántico con el resumen original del artículo |
 | N5 | Síntesis: cobertura del estado del arte y **citas fabricadas** |
-| N6 | Anclaje humano: contraste contra un conjunto anotado por expertos |
+| N6 | Anclaje humano: el juicio de quien leyó los artículos |
 
-Tres advertencias honestas:
+Las 22 métricas, una por una, con su escala y su dirección de lectura, están en
+[`docs/Metricas.md`](docs/Metricas.md), que se genera desde el catálogo del
+código y por tanto no se desincroniza.
+
+Cuatro advertencias honestas:
 
 - **N4 (ROUGE) no aplica entre idiomas.** ROUGE cuenta palabras compartidas.
   Si el resumen se genera en español y el resumen original del artículo está
   en inglés, el valor es cercano a cero por construcción, no por mala
   calidad. El sistema detecta el idioma y declara la métrica *no aplicable*
   en vez de mostrar un número engañoso.
-- **N6 todavía no está anclado.** Requiere un conjunto de brechas anotado por
-  expertos que aún no existe. Hasta entonces, las métricas dicen si el
-  sistema es *consistente*, no si *acierta* según un experto humano.
+- **Contradecir es peor que no estar respaldado, y son cosas distintas.** Sin
+  respaldo significa que el artículo no habla de eso; contradicha significa que
+  dice lo opuesto. `N2.5` mide lo segundo, también en las conclusiones, que no
+  se verifican pero sí pueden ser incompatibles con lo que el artículo afirma.
+- **N6 depende de que alguien lea los artículos.** La herramienta existe —la
+  pantalla «Tu revisión de las brechas»— pero el dato no se genera solo. Hasta
+  que se anote, las métricas dicen si el sistema es *consistente*, no si
+  *acierta*. Y validar un modelo de lenguaje con otro modelo de lenguaje es
+  circular: no sustituye al juicio humano.
 - **Una métrica que sale siempre igual no mide nada.** Las que resultan
-  cuasiconstantes (recorrido intercuartílico menor que 0.05) se retiran en
-  lugar de exhibirse como si informaran.
+  cuasiconstantes (recorrido intercuartílico menor que 0.05) se marcan como
+  «valores parecidos» en lugar de exhibirse como si informaran. Eso habla del
+  instrumento, no de la calidad del proyecto: un resultado excelente y parejo
+  en todos los artículos cae en esa categoría.
 
 Los valores se reportan como mediana y recorrido intercuartílico, no como
 promedio: con pocos artículos, un caso extremo arrastra la media entera.
 
-La especificación completa está en
-[`docs/Especificacion_Capa_Medicion_v2.pdf`](docs/Especificacion_Capa_Medicion_v2.pdf).
+La referencia vigente es [`docs/Metricas.md`](docs/Metricas.md). El PDF
+[`docs/Especificacion_Capa_Medicion_v2.pdf`](docs/Especificacion_Capa_Medicion_v2.pdf)
+recoge el diseño de la capa v2 y **es anterior a N2.5**: sirve para entender
+por qué se rehízo la medición, no como listado actual.
 
 ---
 
@@ -633,13 +647,28 @@ horas. Para salir, el botón *Salir* de los controles de arriba a la derecha.
 
 ## Estado del proyecto
 
-Funciona de principio a fin en una máquina local y está medido. Lo que
-todavía no tiene:
+Funciona de principio a fin, está medido y está desplegado: vive en un servidor
+Oracle Cloud del nivel gratuito, con HTTPS, arranque automático y copia de
+seguridad diaria. Se entra desde el móvil o el ordenador con la laptop apagada.
 
-- Despliegue: los PDF se guardan en el disco local y el origen del frontend
-  está fijado en el código.
-- Anclaje humano de las métricas (N6).
+**Lo que falta no es código:**
 
-Es decir: sirve como herramienta personal de investigación, no como servicio
-publicado. Esos cuatro puntos son, en ese orden, lo que falta para que lo
-sea.
+- **Anclaje humano (N6).** La pantalla de revisión existe y guarda los
+  veredictos; falta leer los artículos y anotar. Sin eso, las métricas dicen si
+  el sistema es consistente, no si acierta.
+- **Calibrar la validación automática.** Está desactivada a propósito porque
+  sus umbrales estaban por debajo del piso de ruido. Se podrá calibrar cuando
+  haya anotación humana con la que comparar.
+
+**Límites declarados, que conviene conocer antes de fiarse de un número:**
+
+- La verificación se hace contra los fragmentos recuperados y sus párrafos
+  contiguos, **no contra el artículo completo**. Una afirmación cuya prueba
+  viva fuera de esa ventana es indetectable por diseño.
+- La cuota diaria del nivel gratuito es de la **clave** de Gemini, no del
+  usuario. El consumo se atribuye por cuenta y existe un tope por cuenta, pero
+  repartir no crea capacidad. Por eso el alta está cerrada.
+
+Sirve como herramienta personal de investigación. Abrirla a más usuarios es
+posible sin tocar arquitectura, pero exige lo aplazado en la Fase 4: facturación,
+textos legales y una cuota que no dependa de una sola clave gratuita.
