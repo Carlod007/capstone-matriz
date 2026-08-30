@@ -96,6 +96,11 @@ def listar_para_validar(proyecto: Proyecto = Depends(proyecto_propio),
         v = mias.get(rb.id)
         brechas.append({
             "id": rb.id,
+            # Hace falta para abrir el PDF: no se puede juzgar una brecha sin
+            # leer el artículo, y hasta ahora había que buscarlo a mano en el
+            # ordenador, con el riesgo de revisar una versión distinta de la
+            # que el sistema analizó.
+            "articulo_id": art.id,
             "articulo": art.titulo or "(sin título)",
             "tipo_brecha": rb.tipo_brecha,
             "brecha": rb.brecha,

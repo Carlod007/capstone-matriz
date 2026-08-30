@@ -120,7 +120,15 @@ class TestCatalogo:
         for c in ("N5.2", "N5.3", "N5.5"):
             assert c in CATALOGO, "falta la ficha de %s" % c
 
-        # Dos de las tres se leen al reves: conviene que la interfaz lo sepa.
-        assert ficha("N5.2").mejor == "bajo"
+        # N5.5 se lee al reves: conviene que la interfaz lo sepa. Una cita que
+        # no corresponde a ningun articulo del proyecto es el fallo mas grave
+        # posible aqui, y eso si esta fuera de duda.
         assert ficha("N5.5").mejor == "bajo"
         assert ficha("N5.3").mejor == "alto"
+
+        # N5.2 era "bajo" y pasa a descriptiva. Declarar que menos
+        # reetiquetado es mejor daba por supuesto que la heuristica estorba, y
+        # nunca se comprobo si acierta mas o menos que el modelo. Mientras no
+        # haya tipos anotados a mano con los que comparar, se describe el valor
+        # y no se premia ninguna direccion.
+        assert ficha("N5.2").mejor == "neutro"

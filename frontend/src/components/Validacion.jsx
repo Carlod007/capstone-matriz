@@ -38,11 +38,47 @@ const VEREDICTOS = [
   },
 ];
 
+/**
+ * Abre el PDF original del artículo en otra pestaña.
+ *
+ * No sirve un enlace normal: el endpoint pide sesión y el navegador no manda
+ * la cabecera de autorización al seguir un `href`. Se descarga con `fetch`,
+ * que sí la lleva, y se abre el resultado desde la memoria del navegador.
+ *
+ * En otra pestaña y no dentro de la página a propósito: al anotar se está
+ * leyendo el artículo y decidiendo a la vez, y eso pide dos ventanas, no un
+ * recuadro pequeño debajo del formulario.
+ */
+async function abrirPdf(articuloId, setEstado) {
+  setEstado("abriendo");
+  try {
+    const r = await api(`${API_BASE}/articulos/${articuloId}/pdf`);
+    if (!r.ok) {
+      const cuerpo = await r.json().catch(() => null);
+      setEstado(cuerpo?.detail || `No se pudo abrir (error ${r.status})`);
+      return;
+    }
+    const url = URL.createObjectURL(await r.blob());
+    const ventana = window.open(url, "_blank", "noopener");
+    if (!ventana) {
+      setEstado("El navegador bloqueó la ventana. Permite las emergentes.");
+    } else {
+      setEstado(null);
+    }
+    // El objeto se libera tarde: revocarlo de inmediato cancelaría la carga
+    // en la pestaña que acaba de abrirse.
+    setTimeout(() => URL.revokeObjectURL(url), 60_000);
+  } catch {
+    setEstado("No se pudo abrir el artículo.");
+  }
+}
+
 function Fila({ brecha, proyectoId, onCambio, onError }) {
   const [veredicto, setVeredicto] = useState(brecha.veredicto || null);
   const [motivo, setMotivo] = useState(brecha.justificacion || "");
   const [guardando, setGuardando] = useState(false);
   const [aviso, setAviso] = useState(null);
+  const [pdf, setPdf] = useState(null);
 
   // «Correcta» no necesita motivo: no hay nada que objetar. Los otros dos sí,
   // y el servidor los rechaza sin él; conviene decirlo aquí antes de que el
@@ -85,6 +121,24 @@ function Fila({ brecha, proyectoId, onCambio, onError }) {
           {brecha.tipo_brecha}
         </span>
       </div>
+
+      {/* Junto a la brecha y no en otra pantalla: juzgarla exige tener el
+          artículo delante, y hasta ahora había que buscarlo en el ordenador,
+          con el riesgo de leer una versión distinta de la analizada. */}
+      {brecha.articulo_id && (
+        <div className="mt-1.5 flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => abrirPdf(brecha.articulo_id, setPdf)}
+            className="rounded-lg border border-acento-borde bg-acento-claro px-2.5 py-1 text-xs font-medium text-acento-fuerte transition-colors hover:border-acento"
+          >
+            {pdf === "abriendo" ? "Abriendo…" : "Leer el artículo (PDF)"}
+          </button>
+          {pdf && pdf !== "abriendo" && (
+            <span className="text-[11px] text-mal">{pdf}</span>
+          )}
+        </div>
+      )}
 
       <p className="mt-2 text-sm leading-relaxed text-tinta-media">
         {brecha.brecha}

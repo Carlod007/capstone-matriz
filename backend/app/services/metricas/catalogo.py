@@ -58,12 +58,17 @@ CATALOGO: dict[str, Ficha] = {f.codigo: f for f in [
           "Sin esto la herramienta no es auditable: el investigador no puede "
           "comprobar de dónde sale cada frase."),
 
-    Ficha("N2.4", "Equilibrio evidencial", "N2 Fidelidad", "brecha", ALTO, "0 a 1",
+    Ficha("N2.4", "Composición evidencial", "N2 Fidelidad", "brecha", NEUTRO,
+          "0 a 1",
           "Qué parte de la brecha describe hechos del artículo, frente a la que "
           "solo concluye.",
           "Una brecha compuesta unicamente por conclusiones no tiene nada que "
-          "verificar: es especulación bien redactada. Avisa de ello aunque la "
-          "fidelidad salga alta por apoyarse en una sola afirmación."),
+          "verificar: es especulación bien redactada, y un valor muy bajo avisa "
+          "de ello aunque la fidelidad salga alta por apoyarse en una sola "
+          "afirmación. Pero un valor muy alto tampoco es la meta: una brecha "
+          "que solo describe lo que el artículo dice no señala ningún vacío. "
+          "Se describe la proporción y no se premia ninguna: cuál es la buena "
+          "es justo lo que hace falta anotación humana para saber."),
 
     Ficha("N2.5", "Contradicciones", "N2 Fidelidad", "brecha", BAJO, "0 a 1",
           "Proporción de afirmaciones de la brecha a las que algún fragmento del "
@@ -84,13 +89,16 @@ CATALOGO: dict[str, Ficha] = {f.codigo: f for f in [
           "el motivo: una medición que no se hizo no equivale a una medición con "
           "resultado cero."),
 
-    Ficha("N5.2", "Reetiquetado automático", "N5 Tipificación", "brecha", BAJO,
+    Ficha("N5.2", "Reetiquetado automático", "N5 Tipificación", "brecha", NEUTRO,
           "0 a 1",
           "Con qué frecuencia un contador de palabras clave sobrescribe el tipo que "
           "asignó el modelo.",
           "Un valor alto significa que la etiqueta final la decide una heurística y "
-          "no el modelo. Conviene saberlo antes de dar por buena la tipificación: "
-          "nunca se comprobó si esa heurística ayuda o perjudica."),
+          "no el modelo. Conviene saberlo antes de dar por buena la tipificación, "
+          "pero no se declara ninguna dirección: nunca se comprobó si esa "
+          "heurística acierta más o menos que el modelo, y decir «menos es "
+          "mejor» —como estaba— daba por supuesto que estorba. Con tipos "
+          "anotados a mano se podrá saber cuál de los dos acierta."),
 
     Ficha("N5.3", "Cobertura de la síntesis", "N5 Síntesis", "proyecto", ALTO,
           "0 a 1",

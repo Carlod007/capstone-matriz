@@ -24,6 +24,19 @@ from app.services.document_structure import SECCIONES_SUSTANTIVAS
 from app.services.embedding_service import _cos, _embed_texts
 from app.services.metricas import texto as T
 
+# Versión de la fórmula, guardada junto a cada medición que la use.
+#
+# Cuando una fórmula cambia, sus valores dejan de ser comparables con los
+# anteriores, y sin una marca en el dato nadie puede saber cuáles son de antes
+# y cuáles de después: la serie histórica queda mezclada en silencio. Este
+# proyecto ya ha pagado dos veces el precio de no poder distinguir mediciones
+# de distinto origen.
+#
+# v2: la redundancia marca los dos elementos de cada pareja duplicada. Antes
+# marcaba solo el segundo, con lo que tres brechas idénticas daban 0.667 y el
+# resultado dependía del orden de recorrido.
+FORMULA_N3_4 = 2
+
 
 # ================================================================= N1
 def n1_2_cobertura_seccional(recuperados: Sequence[dict]) -> float:
@@ -109,7 +122,10 @@ def n3_4_redundancia(brechas_por_articulo: Dict[str, str], umbral: float = 0.85
     palabras, que prácticamente nunca se alcanzaba entre dos paráfrasis, y
     amplía el alcance del artículo al proyecto completo.
     """
-    ids = [k for k, v in brechas_por_articulo.items() if (v or "").strip()]
+    # Orden fijo: el diccionario podría llegar en cualquier orden, y de él
+    # dependen tanto el resultado como las parejas que se guardan para
+    # auditar. Dos ejecuciones sobre los mismos datos deben coincidir.
+    ids = sorted(k for k, v in brechas_por_articulo.items() if (v or "").strip())
     if len(ids) < 2:
         return 0.0, {"motivo": "se necesitan al menos dos artículos con brecha"}
 
@@ -123,11 +139,19 @@ def n3_4_redundancia(brechas_por_articulo: Dict[str, str], umbral: float = 0.85
             s = _cos(vectores[i], vectores[j])
             if s >= umbral:
                 duplicados.append({"a": ids[i], "b": ids[j], "similitud": round(s, 4)})
-                marcados.add(ids[j])
+                # Los dos de la pareja, no solo el segundo.
+                #
+                # Marcar únicamente `ids[j]` contaba las brechas «sobrantes» y
+                # no las redundantes, así que tres brechas idénticas daban
+                # 0.667 en vez de 1.0: dos de tres marcadas, cuando las tres
+                # son intercambiables. Y como el primero de cada pareja se
+                # salvaba, el resultado dependía del orden de recorrido.
+                marcados.update((ids[i], ids[j]))
     return round(len(marcados) / len(ids), 4), {
         "umbral": umbral,
         "pares_duplicados": duplicados[:20],
         "n_articulos": len(ids),
+        "formula": FORMULA_N3_4,
     }
 
 
