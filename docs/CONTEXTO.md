@@ -29,7 +29,7 @@ leer al retomar el proyecto o al abrir una conversación nueva.*
 
 | | |
 |---|---|
-| Pruebas | **441**, `alembic check` verde |
+| Pruebas | **448** en verde contra MySQL real (CI #64), `alembic check` verde |
 | Migraciones | hasta `0009` |
 | Ramas | `main` y `CarlosDev` al mismo commit |
 | Anotación humana (N6) | **5 de 5**, prueba piloto |
@@ -119,6 +119,15 @@ todo y borrar uno para verlo.
 Al terminar aparece la comparación brecha por brecha contra `N2.1`, `N2.5` y
 `N2.6`. Es el momento en que las dos columnas se ven por primera vez, y solo
 entonces significan algo.
+
+Ocho pruebas nuevas, verificadas contra MySQL en la integración continua. El
+cambio dejó una lección: el primer intento salió rojo porque `acierto` pasó de
+significar «lo acertado hasta ahora» a «el resultado, cuando lo hay», y dos
+pruebas antiguas lo comprobaban a mitad de anotar. Cambiar el significado de un
+dato rompe a quien dependía del anterior, aunque el cálculo siga siendo
+correcto; las dos pruebas se reescribieron sobre la regla nueva en vez de
+borrarlas, porque lo que protegían —que una brecha parcial valga medio punto—
+sigue vigente.
 
 ### Lo demás que se hizo
 
