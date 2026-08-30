@@ -79,6 +79,9 @@ function Fila({ brecha, proyectoId, onCambio, onError }) {
   const [guardando, setGuardando] = useState(false);
   const [aviso, setAviso] = useState(null);
   const [pdf, setPdf] = useState(null);
+  // Cómo se llegó al veredicto. Las dos formas cuentan igual; se registra para
+  // que dentro de unos meses se sepa cómo se hizo cada revisión.
+  const [origen, setOrigen] = useState(brecha.origen || null);
 
   // «Correcta» no necesita motivo: no hay nada que objetar. Los otros dos sí,
   // y el servidor los rechaza sin él; conviene decirlo aquí antes de que el
@@ -96,7 +99,7 @@ function Fila({ brecha, proyectoId, onCambio, onError }) {
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ veredicto, justificacion: motivo }),
+          body: JSON.stringify({ veredicto, justificacion: motivo, origen }),
         },
       );
       const cuerpo = await r.json().catch(() => null);
@@ -183,6 +186,34 @@ function Fila({ brecha, proyectoId, onCambio, onError }) {
             }
             className="mt-1 w-full rounded-lg border border-borde bg-superficie px-3 py-2 text-sm text-tinta outline-none transition-colors placeholder:text-tinta-suave focus:border-acento"
           />
+          {/* Cómo se revisó. No pondera nada: las dos cuentan igual en el
+              porcentaje. Es un dato del procedimiento, y si no se registra al
+              anotar se pierde para siempre. */}
+          <div className="mt-2.5">
+            <span className="block text-xs text-tinta-suave">
+              ¿Cómo la revisaste?
+            </span>
+            <div className="mt-1 flex flex-wrap gap-2">
+              {[
+                ["lectura", "Leyendo el artículo"],
+                ["asistida", "Con ayuda de una herramienta"],
+              ].map(([valor, etiqueta]) => (
+                <button
+                  key={valor}
+                  type="button"
+                  onClick={() => setOrigen(valor)}
+                  className={`rounded-lg border px-2.5 py-1 text-xs transition-colors ${
+                    origen === valor
+                      ? "border-acento bg-acento-claro text-acento-fuerte"
+                      : "border-borde bg-hundido text-tinta-media hover:text-tinta"
+                  }`}
+                >
+                  {etiqueta}
+                </button>
+              ))}
+            </div>
+          </div>
+
           <div className="mt-2 flex items-center gap-3">
             <button
               type="button"

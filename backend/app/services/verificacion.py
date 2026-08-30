@@ -100,6 +100,27 @@ Tu tarea tiene tres pasos:
    Ante la duda, "contradice" es false. Marca solo lo que un fragmento niegue
    de forma explícita, y cita la parte que lo niega.
 
+5. COMPROBAR SI LA BRECHA YA ESTÁ RESUELTA EN ESTE MISMO ARTÍCULO.
+
+   Una brecha señala lo que falta por hacer. El error más difícil de ver es
+   presentar como pendiente aquello que el artículo ya hizo: describir su
+   propia contribución como si fuera un vacío abierto.
+
+   Ocurre porque los artículos motivan su aportación explicando qué faltaba
+   antes. Esas frases están en el texto y son ciertas, así que las
+   afirmaciones salen respaldadas una a una; lo que está mal es el tiempo
+   verbal del conjunto.
+
+   Mal:  el artículo propone y valida una fórmula nueva, y la brecha dice que
+         «hace falta desarrollar una fórmula».
+         -> "ya_resuelta": true, citando donde el artículo la presenta.
+   Bien: el artículo propone una fórmula y la brecha dice que «no se ha
+         probado fuera del rango de presiones estudiado».
+         -> "ya_resuelta": false. Eso sigue abierto.
+
+   Ante la duda, false. Marca true solo si algún fragmento muestra que el
+   artículo hizo precisamente lo que la brecha pide.
+
 Reglas:
 - No inventes fragmentos. Si ninguno respalda la afirmación, "respaldada" es
   false y "fragmento" es null.
@@ -122,7 +143,10 @@ Formato exacto:
       "cita_contraria": "texto literal que dice lo contrario" | null,
       "motivo": "una frase explicando la decisión"
     }
-  ]
+  ],
+  "ya_resuelta": true | false,
+  "fragmento_resuelta": <número de fragmento> | null,
+  "cita_resuelta": "texto literal donde el artículo lo hace" | null
 }"""
 
 
@@ -197,6 +221,22 @@ class Verificacion:
     disponible: bool = False
     motivo: str = ""
     usage: Dict[str, int] = field(default_factory=dict)
+
+    # Si la brecha pide como pendiente algo que el articulo ya hizo.
+    #
+    # Es una propiedad de la brecha entera y no de cada afirmacion: el fallo
+    # esta en el tiempo verbal del conjunto, no en ninguna frase suelta.
+    #
+    # Se detecto anotando a mano: dos de cinco brechas presentaban la
+    # aportacion del propio articulo como un vacio abierto -una pedia
+    # desarrollar una formula que el articulo ya desarrollo y valido-. Ninguna
+    # metrica podia verlo, y menos que ninguna la fidelidad: los articulos
+    # motivan su aportacion explicando que faltaba antes, asi que esas frases
+    # estan en el texto y salen respaldadas una a una. Una de las dos tenia
+    # N2.1 = 1.000.
+    ya_resuelta: bool = False
+    fragmento_resuelta: int | None = None
+    cita_resuelta: str | None = None
 
     # ---------------- métricas derivadas ----------------
     @property
@@ -301,6 +341,9 @@ class Verificacion:
             # Va aparte de `n_sin_respaldo` porque no es lo mismo ni pesa
             # igual: el artículo dice lo contrario, no es que calle.
             "n_contradicciones": len(self.contradictorias),
+            "ya_resuelta": self.ya_resuelta,
+            "fragmento_resuelta": self.fragmento_resuelta,
+            "cita_resuelta": self.cita_resuelta,
             "fidelidad": self.fidelidad,
             "trazabilidad": self.trazabilidad,
             "equilibrio_evidencial": self.equilibrio_evidencial,
@@ -540,4 +583,17 @@ def _interpretar(bruto: str, usage: dict, n_fragmentos: int) -> Verificacion:
         return Verificacion(disponible=False,
                             motivo="Ninguna afirmación del verificador era utilizable.")
 
-    return Verificacion(afirmaciones=afirmaciones, disponible=True, usage=usage)
+    # Misma regla que en las contradicciones: sin un fragmento real que lo
+    # sostenga no se acepta. Decir que una brecha ya está resuelta la invalida
+    # entera, y eso no puede afirmarse sin señalar dónde.
+    frag_resuelta = datos.get("fragmento_resuelta")
+    if not isinstance(frag_resuelta, int) or not (1 <= frag_resuelta <= n_fragmentos):
+        frag_resuelta = None
+    ya_resuelta = bool(datos.get("ya_resuelta")) and frag_resuelta is not None
+
+    return Verificacion(
+        afirmaciones=afirmaciones, disponible=True, usage=usage,
+        ya_resuelta=ya_resuelta,
+        fragmento_resuelta=frag_resuelta if ya_resuelta else None,
+        cita_resuelta=(((datos.get("cita_resuelta") or "").strip()[:200] or None)
+                       if ya_resuelta else None))

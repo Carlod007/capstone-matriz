@@ -28,7 +28,7 @@ from app.models.run import Run
 from app.models.run_item import RunItem
 from app.models.usuario import Usuario
 from app.models.validacion_humana import (
-    CORRECTA, INCORRECTA, PARCIAL, VEREDICTOS, ValidacionHumana,
+    CORRECTA, INCORRECTA, ORIGENES, PARCIAL, VEREDICTOS, ValidacionHumana,
 )
 from app.schemas.validacion import ValidacionIn, ValidacionOut
 
@@ -107,6 +107,7 @@ def listar_para_validar(proyecto: Proyecto = Depends(proyecto_propio),
             "oportunidad": rb.oportunidad,
             "veredicto": v.veredicto if v else None,
             "justificacion": v.justificacion if v else None,
+            "origen": v.origen if v else None,
             "otros_anotadores": otros.get(rb.id, 0),
         })
 
@@ -141,21 +142,30 @@ def anotar(brecha_id: str, datos: ValidacionIn,
               .filter(ValidacionHumana.brecha_id == brecha_id,
                       ValidacionHumana.usuario_id == usuario.id)
               .first())
+    # Se guarda solo si viene declarado. Suponer uno por defecto inventaría el
+    # dato del procedimiento que este campo existe para conservar, y al
+    # sustituir un veredicto ya emitido se respeta lo que dijera antes si la
+    # pantalla no manda nada.
+    origen = datos.origen if datos.origen in ORIGENES else None
+
     if fila:
         fila.veredicto = datos.veredicto
         fila.justificacion = justificacion
+        if origen:
+            fila.origen = origen
     else:
         fila = ValidacionHumana(id=str(uuid.uuid4()), brecha_id=brecha_id,
                                 usuario_id=usuario.id,
                                 veredicto=datos.veredicto,
-                                justificacion=justificacion)
+                                justificacion=justificacion,
+                                origen=origen)
         db.add(fila)
     db.commit()
     db.refresh(fila)
 
     return ValidacionOut(
         brecha_id=fila.brecha_id, veredicto=fila.veredicto,
-        justificacion=fila.justificacion,
+        justificacion=fila.justificacion, origen=fila.origen,
         resumen=_resumen(db, proyecto.id, usuario.id, run_id))
 
 
@@ -184,7 +194,7 @@ def _resumen(db: Session, proyecto_id: str, usuario_id: str,
     seguir anotando y que no significa nada. `pendientes` dice cuanto le falta
     al dato para estar completo.
     """
-    filas = (db.query(ValidacionHumana.veredicto)
+    filas = (db.query(ValidacionHumana.veredicto, ValidacionHumana.origen)
                .join(ResultadoBrecha,
                      ResultadoBrecha.id == ValidacionHumana.brecha_id)
                .join(RunItem, RunItem.id == ResultadoBrecha.run_item_id)
@@ -211,8 +221,13 @@ def _resumen(db: Session, proyecto_id: str, usuario_id: str,
                     .count())
 
     conteo = {v: 0 for v in VEREDICTOS}
-    for (veredicto,) in filas:
+    # `sin_declarar` incluido a proposito: un procedimiento que no se registro
+    # no es lo mismo que uno registrado, y no decirlo lo daria por sabido.
+    por_origen = {o: 0 for o in ORIGENES}
+    por_origen["sin_declarar"] = 0
+    for veredicto, origen in filas:
         conteo[veredicto] = conteo.get(veredicto, 0) + 1
+        por_origen[origen if origen in ORIGENES else "sin_declarar"] += 1
 
     anotadas = len(filas)
     acierto = (round(sum(PESOS[v] * n for v, n in conteo.items()) / anotadas, 4)
@@ -222,6 +237,9 @@ def _resumen(db: Session, proyecto_id: str, usuario_id: str,
         "anotadas": anotadas,
         "total": total_brechas,
         "pendientes": max(0, total_brechas - anotadas),
+        # Cómo se obtuvieron los veredictos. Las dos formas cuentan igual en el
+        # acierto: el desglose describe el procedimiento, no pondera la calidad.
+        "por_origen": por_origen,
         "por_veredicto": conteo,
         # None y no cero cuando no hay nada anotado: un cero aqui se leeria
         # como «el sistema no acerto ninguna».

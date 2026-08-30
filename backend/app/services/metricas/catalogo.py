@@ -82,6 +82,16 @@ CATALOGO: dict[str, Ficha] = {f.codigo: f for f in [
           "«resulta en una subestimación de la capacidad», y el artículo "
           "advierte que en un régimen concreto ocurre lo contrario."),
 
+    Ficha("N2.6", "Brecha ya resuelta", "N2 Fidelidad", "brecha", BAJO, "0 o 1",
+          "Si la brecha pide como pendiente algo que el propio artículo ya "
+          "hizo.",
+          "Es el error que ninguna otra métrica puede ver. Los artículos "
+          "motivan su aportación explicando qué faltaba antes, así que una "
+          "brecha que repite esa motivación en futuro sale con todas sus "
+          "afirmaciones respaldadas: se detectó anotando a mano, y una de las "
+          "dos brechas afectadas tenía fidelidad 1.000. El fallo no está en "
+          "ninguna frase suelta sino en el tiempo verbal del conjunto."),
+
     Ficha("N2.verificada", "Verificación realizada", "N2 Fidelidad", "brecha", ALTO,
           "0 o 1",
           "Si la comprobación de fidelidad llegó a ejecutarse.",

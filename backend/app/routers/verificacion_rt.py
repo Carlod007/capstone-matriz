@@ -38,7 +38,7 @@ from app.services.verificacion import verificar
 router = APIRouter(prefix="/proyectos", tags=["verificacion"])
 
 
-CODIGOS_N2_COMPLETOS = {"N2.1", "N2.2", "N2.4", "N2.5", "N2.verificada"}
+CODIGOS_N2_COMPLETOS = {"N2.1", "N2.2", "N2.4", "N2.5", "N2.6", "N2.verificada"}
 
 
 def _brechas_verificadas_completas(db: Session, proyecto_id: str) -> set[str]:
@@ -108,7 +108,7 @@ def verificar_proyecto(rehacer: bool = False,
         # las leyera tenia que adivinar cual vale.
         (db.query(Metrica)
          .filter(Metrica.referencia_id == rb.id,
-                 Metrica.codigo.in_(["N2.1", "N2.2", "N2.4", "N2.5",
+                 Metrica.codigo.in_(["N2.1", "N2.2", "N2.4", "N2.5", "N2.6",
                                      "N2.verificada"]))
          .delete(synchronize_session=False))
 
@@ -133,6 +133,10 @@ def verificar_proyecto(rehacer: bool = False,
                       "cita": a.cita_contraria,
                       "tipo": a.tipo}
                      for a in v.contradictorias][:10]})
+            # La cita se guarda con el valor: decir que una brecha ya está
+            # resuelta la invalida entera, y eso hay que poder revisarlo.
+            _add("N2.6", 1.0 if v.ya_resuelta else 0.0,
+                 {"fragmento": v.fragmento_resuelta, "cita": v.cita_resuelta})
             verificadas += 1
         _add("N2.verificada", 1.0 if v.disponible else 0.0, v.resumen())
         db.commit()

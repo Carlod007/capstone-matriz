@@ -138,6 +138,10 @@ def _registrar_metricas(db, art, rb, res, texto, recuperados, ruta_pdf) -> None:
                       "cita": a.cita_contraria,
                       "tipo": a.tipo}
                      for a in ver.contradictorias][:10]})
+        _metrica(db, art.proyecto_id, AMBITO_BRECHA, rb.id, "N2.6",
+                 1.0 if ver.ya_resuelta else 0.0,
+                 {"fragmento": ver.fragmento_resuelta,
+                  "cita": ver.cita_resuelta})
     _metrica(db, art.proyecto_id, AMBITO_BRECHA, rb.id, "N2.verificada",
              1.0 if ver.disponible else 0.0, ver.resumen())
 

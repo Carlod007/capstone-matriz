@@ -167,24 +167,37 @@ class TestLaVentana:
 
 
 class TestVerificacionCompleta:
-    def test_una_verificacion_antigua_sin_n2_5_se_puede_completar(
+    def test_una_verificacion_a_medias_se_puede_completar(
             self, db, brecha_con_fragmentos):
-        """N2.verificada=1 no basta si el resultado quedo incompleto."""
+        """N2.verificada=1 no basta si el resultado quedo incompleto.
+
+        La lista de codigos crece cuando aparece un nivel nuevo -primero N2.5,
+        despues N2.6-, y una brecha verificada antes de que existieran no los
+        tiene. Se recomprueban con el boton normal, sin exigir «volver a
+        verificar»: la alternativa era darlas por completas y dejar huecos que
+        nadie volveria a mirar.
+        """
         from app.models.metrica import AMBITO_BRECHA, Metrica
-        from app.routers.verificacion_rt import _brechas_verificadas_completas
+        from app.routers.verificacion_rt import (
+            CODIGOS_N2_COMPLETOS, _brechas_verificadas_completas,
+        )
 
         pid = brecha_con_fragmentos["proyecto"]
         bid = brecha_con_fragmentos["brecha"]
-        for codigo in ("N2.1", "N2.2", "N2.4", "N2.verificada"):
+
+        def anotar(codigo):
             db.add(Metrica(id=str(uuid.uuid4()), proyecto_id=pid,
                            ambito=AMBITO_BRECHA, referencia_id=bid,
                            codigo=codigo, valor=1.0))
-        db.flush()
+            db.flush()
 
-        assert bid not in _brechas_verificadas_completas(db, pid)
+        # Se anaden uno a uno: hasta el ultimo, la brecha sigue incompleta.
+        faltan = sorted(CODIGOS_N2_COMPLETOS)
+        for codigo in faltan[:-1]:
+            anotar(codigo)
+            assert bid not in _brechas_verificadas_completas(db, pid), (
+                "con %s todavia sin guardar no puede darse por completa"
+                % faltan[-1])
 
-        db.add(Metrica(id=str(uuid.uuid4()), proyecto_id=pid,
-                       ambito=AMBITO_BRECHA, referencia_id=bid,
-                       codigo="N2.5", valor=0.0))
-        db.flush()
+        anotar(faltan[-1])
         assert bid in _brechas_verificadas_completas(db, pid)

@@ -93,16 +93,16 @@ Si lo que dice la brecha se sostiene en el artículo. Es la capa que distingue e
 | Dirección | ↑ mayor es mejor |
 | Se calcula sobre | cada brecha |
 
-### N2.4 · Equilibrio evidencial
+### N2.4 · Composición evidencial
 
 **Qué mide.** Qué parte de la brecha describe hechos del artículo, frente a la que solo concluye.
 
-**Por qué importa.** Una brecha compuesta unicamente por conclusiones no tiene nada que verificar: es especulación bien redactada. Avisa de ello aunque la fidelidad salga alta por apoyarse en una sola afirmación.
+**Por qué importa.** Una brecha compuesta unicamente por conclusiones no tiene nada que verificar: es especulación bien redactada, y un valor muy bajo avisa de ello aunque la fidelidad salga alta por apoyarse en una sola afirmación. Pero un valor muy alto tampoco es la meta: una brecha que solo describe lo que el artículo dice no señala ningún vacío. Se describe la proporción y no se premia ninguna: cuál es la buena es justo lo que hace falta anotación humana para saber.
 
 | | |
 |---|---|
 | Escala | 0 a 1 |
-| Dirección | ↑ mayor es mejor |
+| Dirección | descriptiva (no hay valor mejor) |
 | Se calcula sobre | cada brecha |
 
 ### N2.5 · Contradicciones
@@ -114,6 +114,18 @@ Si lo que dice la brecha se sostiene en el artículo. Es la capa que distingue e
 | | |
 |---|---|
 | Escala | 0 a 1 |
+| Dirección | ↓ menor es mejor |
+| Se calcula sobre | cada brecha |
+
+### N2.6 · Brecha ya resuelta
+
+**Qué mide.** Si la brecha pide como pendiente algo que el propio artículo ya hizo.
+
+**Por qué importa.** Es el error que ninguna otra métrica puede ver. Los artículos motivan su aportación explicando qué faltaba antes, así que una brecha que repite esa motivación en futuro sale con todas sus afirmaciones respaldadas: se detectó anotando a mano, y una de las dos brechas afectadas tenía fidelidad 1.000. El fallo no está en ninguna frase suelta sino en el tiempo verbal del conjunto.
+
+| | |
+|---|---|
+| Escala | 0 o 1 |
 | Dirección | ↓ menor es mejor |
 | Se calcula sobre | cada brecha |
 
@@ -289,12 +301,12 @@ El estado del arte: qué cubre y si inventa citas.
 
 **Qué mide.** Con qué frecuencia un contador de palabras clave sobrescribe el tipo que asignó el modelo.
 
-**Por qué importa.** Un valor alto significa que la etiqueta final la decide una heurística y no el modelo. Conviene saberlo antes de dar por buena la tipificación: nunca se comprobó si esa heurística ayuda o perjudica.
+**Por qué importa.** Un valor alto significa que la etiqueta final la decide una heurística y no el modelo. Conviene saberlo antes de dar por buena la tipificación, pero no se declara ninguna dirección: nunca se comprobó si esa heurística acierta más o menos que el modelo, y decir «menos es mejor» —como estaba— daba por supuesto que estorba. Con tipos anotados a mano se podrá saber cuál de los dos acierta.
 
 | | |
 |---|---|
 | Escala | 0 a 1 |
-| Dirección | ↓ menor es mejor |
+| Dirección | descriptiva (no hay valor mejor) |
 | Se calcula sobre | cada brecha |
 
 ### N5.3 · Cobertura de la síntesis

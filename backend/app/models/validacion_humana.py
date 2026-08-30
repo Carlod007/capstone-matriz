@@ -26,6 +26,18 @@ PARCIAL = "parcial"
 INCORRECTA = "incorrecta"
 VEREDICTOS = (CORRECTA, PARCIAL, INCORRECTA)
 
+# Como se llego al veredicto.
+#
+# No es una escala de calidad ni un reproche: las dos formas son legitimas y
+# las dos aportan. Es un dato del procedimiento, y sin el se pierde: dentro de
+# unos meses nadie sabra -incluido quien anoto- cuales revisó leyendo el
+# articulo entero y cuales con una herramienta delante. Guardar dos cosas
+# distintas en el mismo sitio sin marca que las separe es el fallo que este
+# proyecto ya ha corregido varias veces.
+LECTURA = "lectura"        # se leyo el articulo y se decidio
+ASISTIDA = "asistida"      # con apoyo de alguna herramienta de lectura
+ORIGENES = (LECTURA, ASISTIDA)
+
 
 class ValidacionHumana(Base):
     __tablename__ = "validacion_humana"
@@ -55,6 +67,12 @@ class ValidacionHumana(Base):
     # el, la anotacion dice que algo fallo pero no que, y no sirve para
     # corregir el sistema ni para defender la evaluacion.
     justificacion: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    # Nulo mientras no se declare. No se supone ninguno por defecto: dar por
+    # hecho que un veredicto se emitio de una forma concreta seria inventar un
+    # dato del procedimiento, que es justo lo que este campo viene a evitar.
+    origen: Mapped[str | None] = mapped_column(
+        Enum(*ORIGENES, name="origen_validacion"), nullable=True)
 
     creado_en: Mapped[DateTime] = mapped_column(
         DateTime, server_default=func.current_timestamp(), nullable=True)

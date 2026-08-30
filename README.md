@@ -404,7 +404,7 @@ Desde `backend/`, con el entorno activado:
 python -m pytest
 ```
 
-Son 417 pruebas y corren en modo simulado, sin gastar cuota. Las que
+Son 441 pruebas y corren en modo simulado, sin gastar cuota. Las que
 necesitan MySQL están marcadas con `bd` y **se saltan solas** si no hay
 conexión, de modo que la suite pasa igual en una máquina sin base de datos.
 
@@ -425,7 +425,7 @@ GitHub lo mismo que harías a mano:
 
 - levanta un MySQL vacío y construye el esquema con `alembic upgrade head`,
   de modo que una migración mal escrita se rompe ahí;
-- ejecuta `alembic check` y las 417 pruebas contra esa base recién creada,
+- ejecuta `alembic check` y las 441 pruebas contra esa base recién creada,
   sin los datos acumulados de una máquina de desarrollo;
 - instala el frontend con `npm ci`, pasa el lint y compila.
 
@@ -450,7 +450,7 @@ ninguna.
 | N5 | Síntesis: cobertura del estado del arte y **citas fabricadas** |
 | N6 | Anclaje humano: el juicio de quien leyó los artículos |
 
-Las 22 métricas, una por una, con su escala y su dirección de lectura, están en
+Las 23 métricas, una por una, con su escala y su dirección de lectura, están en
 [`docs/Metricas.md`](docs/Metricas.md), que se genera desde el catálogo del
 código y por tanto no se desincroniza.
 
@@ -544,7 +544,7 @@ backend/
     routers/          endpoints HTTP
     services/         ingesta, RAG, verificación, métricas, límites de cuota
     utils/            extracción de texto y OCR
-  tests/              417 pruebas
+  tests/              441 pruebas
   storage/pdfs/       PDF subidos, en una carpeta por usuario (no se versionan)
 frontend/
   Caddyfile           servidor web, proxy a la API y HTTPS automático

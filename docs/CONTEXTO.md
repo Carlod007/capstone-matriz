@@ -8,13 +8,13 @@ reconstruirlo leyendo código.
 **Si vienes a retomar el trabajo, empieza por la sección 0.** Dice dónde se
 quedó todo, qué se hizo lo último y qué toca ahora.
 
-**Actualizado:** 19 de agosto de 2026
-**Rama de trabajo:** `CarlosDev` · **Rama principal:** `main` (33 commits por
+**Actualizado:** 30 de agosto de 2026
+**Rama de trabajo:** `CarlosDev` · **Rama principal:** `main` (35 commits por
 detrás — todo el trabajo vive en `CarlosDev`, conviene fusionar antes de seguir)
 
 **Referencia de métricas:** [`Metricas.md`](Metricas.md), generado desde el
 catálogo del código. Es la fuente vigente; el PDF de especificación es anterior
-a N2.5.
+a N2.5 y N2.6.
 
 ---
 
@@ -23,59 +23,76 @@ a N2.5.
 *Esta sección se actualiza al cerrar cada avance. Es lo primero que hay que
 leer al retomar el proyecto o al abrir una conversación nueva.*
 
-**Última actualización:** 29 de agosto de 2026 · commit `ceef6b3`
+**Última actualización:** 30 de agosto de 2026
 
 ### Estado comprobado
 
 | | |
 |---|---|
-| Integración continua | verde, **417 pruebas** |
-| Servidor | `ceef6b3`, contenedores en marcha, HTTPS |
-| Respaldos | diarios, verificados |
+| Pruebas | **441**, `alembic check` verde |
+| Migraciones | hasta `0009` |
 | Rama `main` | **35 commits por detrás** de `CarlosDev` |
-| Anotación humana (N6) | **0 de 5 brechas** |
+| Anotación humana (N6) | **5 de 5**, prueba piloto |
 
-**La construcción está terminada.** El sistema hace de punta a punta lo que
-prometía: ingesta, RAG, brechas, verificación de fidelidad, detección de
-contradicciones, síntesis, métricas, exportaciones, cuentas, cola y despliegue.
-No hay funcionalidad pendiente de construir.
+**La construcción está terminada.** No hay funcionalidad pendiente. Lo que
+queda es afinar la medición con evidencia.
+
+### El resultado de anotar, y lo que destapó
+
+Las cinco brechas del proyecto de prueba se revisaron: **tres correctas y dos
+parciales**, acierto ponderado **0.80**.
+
+El número importa menos que lo que salió de las justificaciones. **Las dos
+parciales fallaban por lo mismo**: presentaban la aportación del propio
+artículo como si fuera un vacío abierto. Una pedía desarrollar una fórmula que
+el artículo ya había desarrollado y validado; la otra planteaba como pendiente
+la integración que el artículo demuestra en su título.
+
+**Ninguna métrica podía verlo**, y menos que ninguna la fidelidad: los
+artículos motivan su aportación explicando qué faltaba antes, así que esas
+frases están en el texto y salen respaldadas una a una. Una de las dos brechas
+tenía `N2.1 = 1.000`.
+
+También se comprobó lo contrario: **ninguna métrica separa las correctas de las
+parciales**. `N2.2` incluso va al revés — sus dos valores más bajos
+corresponden a brechas correctas. Por eso **no se movió ningún umbral**: con
+cinco casos se puede detectar un umbral claramente mal puesto, y no había
+ninguno. Lo que había era una métrica que faltaba.
 
 ### Lo último que se hizo
 
-Una revisión externa encontró cinco problemas reales, todos ciertos. Se
-corrigieron en una primera etapa:
-
-- **N2.5 y la ventana ampliada no estaban en el análisis normal**, solo al
-  reverificar a la fuerza. La construcción de la ventana pasa a un servicio
-  compartido, `ventana_evidencia.py`, que usan los dos recorridos.
-- **N5.3 y N5.5 se calculaban y el panel no las encontraba**: se guardan contra
-  el identificador del estado del arte, que no estaba entre las referencias
-  consultadas. Ahora se incluye, atado al análisis vigente.
-- **El resumen de N6 mezclaba ejecuciones**: contaba todas las brechas
-  históricas del proyecto aunque la pantalla mostrara solo las del último
-  análisis.
-- **`anotadores` era la constante 1**: un campo que decía contar y no contaba.
-  Ahora cuenta personas reales.
+- **`N2.6` «Brecha ya resuelta»**, nacida de ese hallazgo. Pregunta si la
+  brecha pide como pendiente algo que el artículo ya hizo. Como en `N2.5`, sin
+  un fragmento que lo demuestre no se acepta: decir que una brecha ya está
+  resuelta la invalida entera.
+- **Visor del artículo**: el PDF entraba al sistema y no volvía a salir. Ahora
+  se abre desde la pantalla de anotación, de modo que se juzga contra la misma
+  versión que el sistema analizó.
+- **Origen de cada revisión** (`0009`): si el veredicto se emitió leyendo el
+  artículo o con ayuda de una herramienta. Las dos formas cuentan igual en el
+  porcentaje; es un dato del procedimiento, y sin registrarlo se pierde.
+- **`N3.4` contaba mal**: marcaba solo el segundo elemento de cada pareja, así
+  que tres brechas idénticas daban 0.667 y el resultado dependía del orden.
+  Ahora marca los dos, con orden fijo y **versión de fórmula** en el detalle.
+- **`N2.4` y `N5.2` pasan a descriptivas.** Declaraban una dirección que nadie
+  había comprobado.
 
 ### Lo siguiente, en este orden
 
-1. **Fusionar `main`.** Todo vive en `CarlosDev` desde hace 35 commits.
-2. **Anotar las 5 brechas.** No cuesta cuota y desbloquea la mitad de la lista:
-   sin juicio humano no se puede calibrar nada.
-3. **Afinar métricas** — etapas 2 a 6 del plan, detalladas en la deuda de más
-   abajo. El versionado de fórmulas va primero: `N1.2`, `N2.2` y `N3.4` cambian
-   de significado numérico y mezclar mediciones viejas con nuevas falsearía el
-   historial.
+1. **Reverificar** (~5 llamadas) para ver si `N2.6` detecta las dos parciales.
+   Es el examen de la métrica nueva.
+2. **Fusionar `main`.**
+3. **Etapas 3–6 del plan de revisión**: `N1.2` con denominador real, `N2.1`
+   renombrada, `N2.2` con denominador corregido, pantalla ciega de anotación, y
+   calibración de `N3.2`, `N3.3`, `N5.3`, `N5.5` e IQR.
 
 ### Lo que se sabe que está mal y aún no se ha tocado
 
-- `N3.4` marca solo el segundo elemento de cada pareja duplicada: tres brechas
-  idénticas dan 0.667 en vez de 1.0, y el resultado depende del orden.
-- `N2.4` declara «mayor es mejor» y `N5.2` «menor es mejor», sin que ninguna de
-  las dos direcciones esté demostrada.
 - `N1.2` divide entre seis secciones teóricas y no entre las que el artículo
   realmente tiene.
 - El umbral de IQR `0.05` se aplica igual a métricas con escalas distintas.
+- La anotación se hace **debajo** del panel de métricas, así que quien anota ve
+  antes lo que dijo el sistema. Debería ser una pantalla ciega.
 - **Cero pruebas de frontend.** La integración continua pasa lint y compila,
   nada más. Todos los fallos de interfaz encontrados hasta ahora los vio una
   persona mirando la pantalla.
@@ -163,12 +180,12 @@ varios anotadores sobre la misma brecha.
 - **Anotación humana** (N6): pantalla de revisión con veredicto y justificación
   por brecha, guardando quién lo emitió
 - Síntesis de estado del arte
-- Siete niveles de métricas (22 en el catálogo), con distribución (mediana + IQR)
+- Siete niveles de métricas (23 en el catálogo), con distribución (mediana + IQR)
 - Exportación: matriz PDF/JSON, brechas CSV, estado del arte MD, panel PDF
 - Cuentas, sesión por token, aislamiento entre usuarios
 - Cola de trabajos con reintentos y recuperación de trabajadores caídos
 - Limitador de cuota propio (ventana deslizante) antes de chocar con la API
-- **417 pruebas automáticas**, integración continua en verde
+- **441 pruebas automáticas**, integración continua en verde
 - Esquema gobernado por Alembic, verificado desde base vacía
 
 ### Verificado con datos reales
@@ -384,7 +401,7 @@ Si el objetivo es **nivel académico sólido**, lo que más pesa:
 Si el objetivo es **proyecto profesional presentable**, lo que más pesa:
 
 - **A favor:** desplegado y accesible con HTTPS, migraciones con Alembic,
-  integración continua, 417 pruebas, aislamiento entre cuentas probado
+  integración continua, 441 pruebas, aislamiento entre cuentas probado
   endpoint por endpoint, cola de trabajos con reintentos, copias de seguridad
   programadas y un README que instala desde cero.
 - Lo que se echa en falta: dominio propio en lugar de un nombre derivado de la
