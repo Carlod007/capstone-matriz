@@ -5,6 +5,9 @@ estado se encuentra y qué falta. Escrito para que alguien que no ha visto el
 repositorio —persona o herramienta— pueda opinar con criterio sin tener que
 reconstruirlo leyendo código.
 
+**Si vienes a retomar el trabajo, empieza por la sección 0.** Dice dónde se
+quedó todo, qué se hizo lo último y qué toca ahora.
+
 **Actualizado:** 19 de agosto de 2026
 **Rama de trabajo:** `CarlosDev` · **Rama principal:** `main` (33 commits por
 detrás — todo el trabajo vive en `CarlosDev`, conviene fusionar antes de seguir)
@@ -12,6 +15,70 @@ detrás — todo el trabajo vive en `CarlosDev`, conviene fusionar antes de segu
 **Referencia de métricas:** [`Metricas.md`](Metricas.md), generado desde el
 catálogo del código. Es la fuente vigente; el PDF de especificación es anterior
 a N2.5.
+
+---
+
+## 0. Dónde nos quedamos
+
+*Esta sección se actualiza al cerrar cada avance. Es lo primero que hay que
+leer al retomar el proyecto o al abrir una conversación nueva.*
+
+**Última actualización:** 29 de agosto de 2026 · commit `ceef6b3`
+
+### Estado comprobado
+
+| | |
+|---|---|
+| Integración continua | verde, **417 pruebas** |
+| Servidor | `ceef6b3`, contenedores en marcha, HTTPS |
+| Respaldos | diarios, verificados |
+| Rama `main` | **35 commits por detrás** de `CarlosDev` |
+| Anotación humana (N6) | **0 de 5 brechas** |
+
+**La construcción está terminada.** El sistema hace de punta a punta lo que
+prometía: ingesta, RAG, brechas, verificación de fidelidad, detección de
+contradicciones, síntesis, métricas, exportaciones, cuentas, cola y despliegue.
+No hay funcionalidad pendiente de construir.
+
+### Lo último que se hizo
+
+Una revisión externa encontró cinco problemas reales, todos ciertos. Se
+corrigieron en una primera etapa:
+
+- **N2.5 y la ventana ampliada no estaban en el análisis normal**, solo al
+  reverificar a la fuerza. La construcción de la ventana pasa a un servicio
+  compartido, `ventana_evidencia.py`, que usan los dos recorridos.
+- **N5.3 y N5.5 se calculaban y el panel no las encontraba**: se guardan contra
+  el identificador del estado del arte, que no estaba entre las referencias
+  consultadas. Ahora se incluye, atado al análisis vigente.
+- **El resumen de N6 mezclaba ejecuciones**: contaba todas las brechas
+  históricas del proyecto aunque la pantalla mostrara solo las del último
+  análisis.
+- **`anotadores` era la constante 1**: un campo que decía contar y no contaba.
+  Ahora cuenta personas reales.
+
+### Lo siguiente, en este orden
+
+1. **Fusionar `main`.** Todo vive en `CarlosDev` desde hace 35 commits.
+2. **Anotar las 5 brechas.** No cuesta cuota y desbloquea la mitad de la lista:
+   sin juicio humano no se puede calibrar nada.
+3. **Afinar métricas** — etapas 2 a 6 del plan, detalladas en la deuda de más
+   abajo. El versionado de fórmulas va primero: `N1.2`, `N2.2` y `N3.4` cambian
+   de significado numérico y mezclar mediciones viejas con nuevas falsearía el
+   historial.
+
+### Lo que se sabe que está mal y aún no se ha tocado
+
+- `N3.4` marca solo el segundo elemento de cada pareja duplicada: tres brechas
+  idénticas dan 0.667 en vez de 1.0, y el resultado depende del orden.
+- `N2.4` declara «mayor es mejor» y `N5.2` «menor es mejor», sin que ninguna de
+  las dos direcciones esté demostrada.
+- `N1.2` divide entre seis secciones teóricas y no entre las que el artículo
+  realmente tiene.
+- El umbral de IQR `0.05` se aplica igual a métricas con escalas distintas.
+- **Cero pruebas de frontend.** La integración continua pasa lint y compila,
+  nada más. Todos los fallos de interfaz encontrados hasta ahora los vio una
+  persona mirando la pantalla.
 
 ---
 
