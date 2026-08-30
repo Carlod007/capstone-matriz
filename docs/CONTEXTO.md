@@ -59,12 +59,44 @@ corresponden a brechas correctas. Por eso **no se movió ningún umbral**: con
 cinco casos se puede detectar un umbral claramente mal puesto, y no había
 ninguno. Lo que había era una métrica que faltaba.
 
-### Lo último que se hizo
+### `N2.6`, y hasta dónde llega lo que demuestra
 
-- **`N2.6` «Brecha ya resuelta»**, nacida de ese hallazgo. Pregunta si la
-  brecha pide como pendiente algo que el artículo ya hizo. Como en `N2.5`, sin
-  un fragmento que lo demuestre no se acepta: decir que una brecha ya está
-  resuelta la invalida entera.
+De ese hallazgo salió una comprobación nueva: **¿la brecha pide como pendiente
+algo que el artículo ya hizo?** Como en `N2.5`, sin un fragmento que lo
+demuestre no se acepta — decir que una brecha ya está resuelta la invalida
+entera.
+
+Reverificado en modo real sobre las mismas cinco brechas:
+
+| Tu juicio | `N2.6` | `N2.1` |
+|---|---|---|
+| correcta | no | 1.000 |
+| **parcial** | **sí** | 0.833 |
+| **parcial** | **sí** | 0.875 |
+| correcta | no | 1.000 |
+| correcta | no | 1.000 |
+
+**Dos de dos, sin falsos positivos.** Y lo que más pesa: el juez señaló la
+frase exacta donde cada artículo anuncia su aportación —«*To overcome these
+limitations, a new empirical formulation was developed*» y «*To overcome the
+limitations of current hybrid models…, we proposed the EINN framework*»—. No
+acertó por casualidad: encontró la prueba correcta.
+
+**Lo que esto NO demuestra.** La métrica se escribió a partir de esos dos
+casos, así que detectarlos confirma que la implementación captura el patrón
+descrito, no que generalice. La prueba real es un proyecto con artículos que no
+ha visto, y es la primera pregunta que hará un tribunal.
+
+Lo defendible con estos datos: *se detectó un modo de fallo por revisión
+humana, se implementó una comprobación específica, y reprodujo el diagnóstico
+sobre los mismos casos*. Es un ciclo DSRM completo, declarando el alcance.
+
+`N2.1` del EINN bajó de 1.000 a 0.875 en esta corrida. No es un empeoramiento:
+la ventana incluye ahora los párrafos contiguos, se evalúan más afirmaciones y
+una quedó sin respaldo. Medir más fino baja los números.
+
+### Lo demás que se hizo
+
 - **Visor del artículo**: el PDF entraba al sistema y no volvía a salir. Ahora
   se abre desde la pantalla de anotación, de modo que se juzga contra la misma
   versión que el sistema analizó.
@@ -79,8 +111,9 @@ ninguno. Lo que había era una métrica que faltaba.
 
 ### Lo siguiente, en este orden
 
-1. **Reverificar** (~5 llamadas) para ver si `N2.6` detecta las dos parciales.
-   Es el examen de la métrica nueva.
+1. **Probar `N2.6` con artículos nuevos.** Es lo único que puede decir si
+   generaliza o solo reproduce los dos casos con los que se construyó. Un
+   proyecto de cinco artículos distintos, anotado igual.
 2. **Fusionar `main`.**
 3. **Etapas 3–6 del plan de revisión**: `N1.2` con denominador real, `N2.1`
    renombrada, `N2.2` con denominador corregido, pantalla ciega de anotación, y
@@ -177,8 +210,14 @@ varios anotadores sobre la misma brecha.
 - **Detección de contradicciones** (N2.5): afirmaciones a las que un fragmento
   lleva la contraria, incluidas las conclusiones, que no se verifican pero sí
   pueden ser incompatibles con lo que el artículo afirma
+- **Brecha ya resuelta** (N2.6): si la brecha pide como pendiente algo que el
+  propio artículo ya hizo. Es el único error que no se ve mirando afirmación
+  por afirmación, porque cada una está respaldada y lo que falla es el tiempo
+  verbal del conjunto
 - **Anotación humana** (N6): pantalla de revisión con veredicto y justificación
-  por brecha, guardando quién lo emitió
+  por brecha, guardando quién lo emitió y cómo se revisó
+- **Visor del artículo**: el PDF original se abre desde la pantalla de
+  anotación, para juzgar contra la misma versión que el sistema analizó
 - Síntesis de estado del arte
 - Siete niveles de métricas (23 en el catálogo), con distribución (mediana + IQR)
 - Exportación: matriz PDF/JSON, brechas CSV, estado del arte MD, panel PDF
@@ -201,10 +240,12 @@ Cinco artículos de ingeniería descargados de Scopus, en modo real:
 | N2.1 fidelidad | mediana 0.714 (IQR 0.333) |
 | N2.2 trazabilidad | mediana 0.625 |
 | N2.5 contradicciones | 1 detectada sobre 39 afirmaciones |
+| N2.6 brecha ya resuelta | 2 de 5, coincidiendo con las dos que un humano marcó como parciales |
 | N3.1 discriminabilidad | 0.399 |
 | N4.2 similitud semántica | mediana 0.905 (IQR 0.009) |
 | N4.1a–e ROUGE | no aplicable: resumen y abstract en idiomas distintos |
-| N5.2 reetiquetado | mediana 1.0 — *menor es mejor*: 4 de 5 brechas |
+| N5.2 reetiquetado | mediana 1.0 — *descriptiva*: 4 de 5 brechas |
+| **N6 acierto humano** | **0.80** — 3 correctas, 2 parciales (prueba piloto) |
 
 **La contradicción detectada**, porque ilustra lo que la capa aporta: la brecha
 afirmaba que omitir ciertos factores «resulta en una subestimación de la
@@ -391,9 +432,15 @@ Si el objetivo es **nivel académico sólido**, lo que más pesa:
 - La capa de medición v2 y la distinción entre afirmación evidencial e
   inferencial son el aporte real, y están documentadas en
   `Especificacion_Capa_Medicion_v2.pdf`.
-- **El punto flojo es N6**: sin conjunto anotado por expertos no se puede
-  afirmar que el sistema acierta, solo que es consistente. Un tribunal
-  preguntará por eso.
+- **El punto flojo sigue siendo N6, pero ya no está vacío.** Hay una prueba
+  piloto de cinco brechas con acierto 0.80, y de ella salió una métrica nueva
+  (`N2.6`) que reprodujo el diagnóstico humano. Lo que falta es alcance: cinco
+  casos, un anotador y sin acuerdo entre jueces. Un tribunal preguntará por
+  eso, y la respuesta honesta es declararlo como limitación en vez de
+  presentarlo como validación.
+- **`N2.6` está probada sobre los casos que la originaron.** Detectarlos
+  confirma que la implementación captura el patrón, no que generalice; hace
+  falta un proyecto con artículos que no haya visto.
 - La honestidad metodológica está cuidada: las métricas que no aplican se
   declaran no aplicables (ROUGE entre idiomas) y las cuasi-constantes se
   retiran.
@@ -426,7 +473,7 @@ Si el objetivo es **proyecto profesional presentable**, lo que más pesa:
 | Archivo | Contenido | Vigencia |
 |---|---|---|
 | `README.md` | Instalación desde cero, arranque, problemas frecuentes | al día |
-| `docs/Metricas.md` | **Las 22 métricas una por una**, con escala y dirección | se genera desde el catálogo |
+| `docs/Metricas.md` | **Las 23 métricas una por una**, con escala y dirección | se genera desde el catálogo |
 | `docs/Despliegue_Oracle_Cloud.pdf` | Qué se hizo en el servidor y qué falló | al día |
 | `docs/Plan_Fase_2.md` | Plan de los ocho pasos hacia el despliegue | histórico: se ejecutó entero |
 | `docs/Especificacion_Capa_Medicion_v2.pdf` | Por qué se rehízo la medición | **anterior a N2.5**: no es el listado actual |
