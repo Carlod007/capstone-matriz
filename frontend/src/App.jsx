@@ -1358,6 +1358,7 @@ function BrechasProyecto({ proyecto, goBack }) {
   const [ocupado, setOcupado] = useState(null); // "verificar" | "analizar"
   const [recarga, setRecarga] = useState(0);
   const avisar = useAviso();
+  const navegar = useNavigate();
 
   /**
    * Verifica la fidelidad de las brechas ya analizadas.
@@ -1613,14 +1614,25 @@ function BrechasProyecto({ proyecto, goBack }) {
         </div>
       </section>
 
-      {/* La revisión humana va antes de la lista de artículos: es lo único
-          del panel que puede decir si el sistema ACIERTA. Todo lo demás
-          compara al sistema consigo mismo. */}
+      {/* La revisión se hace en su propia pantalla, no aquí.
+          Estaba debajo del panel de métricas, así que quien bajaba a anotar ya
+          había visto que el sistema se daba un 1.000 de fidelidad. Juzgar
+          después de eso no es juzgar: es confirmar. Y entonces comparar las dos
+          columnas deja de medir el acierto del sistema para medir su eco. */}
       <Seccion
         titulo="Tu revisión de las brechas"
-        apoyo="Marca cada brecha después de leer el artículo. Es el único dato del panel que no sale del propio sistema, y el que permite decir si acierta y no solo si es consistente."
+        apoyo="Se hace en una pantalla aparte, sin las métricas a la vista, para que tu juicio no quede condicionado por el del sistema. Es el único dato que no sale del propio sistema."
+        acciones={
+          <Btn kind="primary" onClick={() => navegar(`/proyectos/${proyecto.id}/revisar`)}>
+            Abrir revisión
+          </Btn>
+        }
       >
-        <Validacion proyectoId={proyecto.id} onError={setErr} />
+        <p className="text-sm leading-relaxed text-tinta-media">
+          Allí verás cada brecha con su artículo y un enlace al PDF original.
+          El resultado aparece al terminar las {arts.length}, junto con la
+          comparación contra las métricas.
+        </p>
       </Seccion>
 
       <Seccion
@@ -1876,6 +1888,51 @@ function RutaBrechas() {
   return <BrechasProyecto proyecto={proyecto} goBack={volver} />;
 }
 
+/**
+ * Revisión a ciegas: solo las brechas y el artículo.
+ *
+ * Pantalla propia y no una sección de Resultados, que es donde estaba. Allí,
+ * quien bajaba a anotar ya había visto que el sistema se daba un 1.000 de
+ * fidelidad, y juzgar después de eso no es juzgar, es confirmar. La separación
+ * no es de maquetación: el valor de la anotación depende de haberse formado
+ * sin ver la del sistema.
+ */
+function RutaRevision() {
+  const { proyecto, estado } = useProyectoDeLaUrl();
+  const navegar = useNavigate();
+  const [err, setErr] = useState(null);
+
+  if (estado !== "listo") {
+    return (
+      <ProyectoNoDisponible
+        estado={estado}
+        onVolver={() => navegar("/proyectos")}
+      />
+    );
+  }
+
+  return (
+    <Page title="Revisión de las brechas" subtitle={proyecto.tema_principal}>
+      <Seccion
+        titulo="Tu juicio, sin ver el del sistema"
+        apoyo="Lee el artículo y decide si la brecha se sostiene. Las métricas no se muestran aquí a propósito: aparecen al terminar, junto con la comparación."
+        acciones={
+          <Btn
+            kind="gray"
+            onClick={() => navegar(`/proyectos/${proyecto.id}/brechas`)}
+          >
+            Volver a resultados
+          </Btn>
+        }
+      >
+        <Validacion proyectoId={proyecto.id} onError={setErr} />
+      </Seccion>
+
+      <ErrorModal error={err} onClose={() => setErr(null)} />
+    </Page>
+  );
+}
+
 /* ============== APP ============== */
 export default function App() {
   const [fontSize, setFontSize] = useState(16); // tamaño base
@@ -1988,6 +2045,7 @@ export default function App() {
       <Route path="/proyectos/nuevo" element={<CrearProyecto goBack={goList} />} />
       <Route path="/proyectos/:id/articulos" element={<RutaArticulos />} />
       <Route path="/proyectos/:id/brechas" element={<RutaBrechas />} />
+      <Route path="/proyectos/:id/revisar" element={<RutaRevision />} />
       {/* Cualquier otra dirección vuelve al inicio en lugar de dejar la
           pantalla en blanco, que es lo que más desconcierta. */}
       <Route path="*" element={<Navigate to="/" replace />} />

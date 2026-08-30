@@ -185,6 +185,65 @@ def retirar(brecha_id: str,
             "resumen": _resumen(db, proyecto.id, usuario.id, run_id)}
 
 
+@router.get("/{proyecto_id}/validacion/comparacion")
+def comparar_con_el_sistema(proyecto: Proyecto = Depends(proyecto_propio),
+                            usuario: Usuario = Depends(usuario_actual),
+                            db: Session = Depends(get_db)):
+    """El juicio humano junto a lo que midió el sistema, al terminar.
+
+    Se niega mientras queden brechas por revisar. Es el mismo motivo por el que
+    el acierto no se sirve antes: ver que una brecha sacó fidelidad 1.000
+    predispone a darla por buena, y entonces comparar las dos columnas ya no
+    mide el acierto del sistema sino su eco.
+    """
+    from app.models.metrica import Metrica
+
+    run = _ultimo_run(db, proyecto.id)
+    if not run:
+        raise HTTPException(status_code=400,
+                            detail="El proyecto no se ha analizado.")
+
+    resumen = _resumen(db, proyecto.id, usuario.id, run.id)
+    if not resumen["revision_completa"]:
+        raise HTTPException(
+            status_code=409,
+            detail="Faltan %d brechas por revisar. La comparación se muestra "
+                   "al terminar, para que el juicio no quede condicionado."
+                   % resumen["pendientes"])
+
+    filas = (db.query(ResultadoBrecha, Articulo)
+             .join(RunItem, RunItem.id == ResultadoBrecha.run_item_id)
+             .join(Articulo, Articulo.id == RunItem.articulo_id)
+             .filter(RunItem.run_id == run.id)
+             .order_by(Articulo.titulo.asc()).all())
+
+    ids = [rb.id for rb, _ in filas]
+    mias = {v.brecha_id: v for v in
+            db.query(ValidacionHumana)
+              .filter(ValidacionHumana.brecha_id.in_(ids or ["-"]),
+                      ValidacionHumana.usuario_id == usuario.id).all()}
+
+    CODIGOS = ("N2.1", "N2.2", "N2.5", "N2.6")
+    metricas: dict[str, dict] = {}
+    for m in (db.query(Metrica)
+                .filter(Metrica.proyecto_id == proyecto.id,
+                        Metrica.referencia_id.in_(ids or ["-"]),
+                        Metrica.codigo.in_(CODIGOS)).all()):
+        metricas.setdefault(m.referencia_id, {})[m.codigo] = m.valor
+
+    return {
+        "resumen": resumen,
+        "brechas": [{
+            "id": rb.id,
+            "articulo": art.titulo or "(sin título)",
+            "brecha": rb.brecha,
+            "veredicto": mias[rb.id].veredicto if rb.id in mias else None,
+            "justificacion": mias[rb.id].justificacion if rb.id in mias else None,
+            "metricas": metricas.get(rb.id, {}),
+        } for rb, art in filas],
+    }
+
+
 def _resumen(db: Session, proyecto_id: str, usuario_id: str,
              run_id: str) -> dict:
     """Cuanto ha anotado esta persona y con que resultado.
@@ -230,19 +289,39 @@ def _resumen(db: Session, proyecto_id: str, usuario_id: str,
         por_origen[origen if origen in ORIGENES else "sin_declarar"] += 1
 
     anotadas = len(filas)
+    pendientes = max(0, total_brechas - anotadas)
+    completa = total_brechas > 0 and pendientes == 0
+
+    # El resultado no se sirve hasta terminar, y la restricción vive aquí y no
+    # en la pantalla.
+    #
+    # Quien anota viendo su porcentaje acumulado deja de juzgar cada brecha por
+    # separado: con cuatro correctas seguidas cuesta poner la quinta en duda.
+    # El mismo razonamiento que aparta el panel de métricas de la revisión
+    # -saber que el sistema se dio un 1.000 predispone a darle la razón- se
+    # aplica al propio marcador.
+    #
+    # Ocultarlo en el frontend no bastaría: el dato habría viajado igual y
+    # cualquiera podría leerlo, así que la ceguera dejaría de ser una propiedad
+    # del procedimiento para ser una decisión de maquetación.
     acierto = (round(sum(PESOS[v] * n for v, n in conteo.items()) / anotadas, 4)
-               if anotadas else None)
+               if anotadas and completa else None)
 
     return {
         "anotadas": anotadas,
         "total": total_brechas,
-        "pendientes": max(0, total_brechas - anotadas),
+        "pendientes": pendientes,
+        # Distingue «no hay nada anotado» de «falta terminar»: sin esto, un
+        # acierto nulo no dice cuál de las dos cosas ocurre.
+        "revision_completa": completa,
         # Cómo se obtuvieron los veredictos. Las dos formas cuentan igual en el
         # acierto: el desglose describe el procedimiento, no pondera la calidad.
         "por_origen": por_origen,
-        "por_veredicto": conteo,
-        # None y no cero cuando no hay nada anotado: un cero aqui se leeria
-        # como «el sistema no acerto ninguna».
+        # También se reserva: saber que se llevan cuatro «correcta» condiciona
+        # la quinta tanto como el porcentaje.
+        "por_veredicto": conteo if completa else None,
+        # None y no cero: mientras falten brechas no hay resultado que dar, y
+        # un cero aquí se leería como «el sistema no acertó ninguna».
         "acierto": acierto,
         # Personas que realmente dejaron al menos un veredicto en este run. No
         # se presupone un anotador por el mero hecho de que exista el proyecto.

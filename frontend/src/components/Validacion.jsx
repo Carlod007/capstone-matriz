@@ -281,21 +281,42 @@ export default function Validacion({ proyectoId, onError }) {
   return (
     <div className="space-y-4">
       <div className="rounded-xl border border-borde bg-superficie p-4">
+        {/* Mientras falten brechas no hay resultado que enseñar. Quien anota
+            viendo su porcentaje acumulado deja de juzgar cada brecha por
+            separado: con cuatro correctas seguidas cuesta poner la quinta en
+            duda. El servidor tampoco lo envía, así que la ceguera es del
+            procedimiento y no de la maquetación. */}
         <div className="flex flex-wrap items-baseline gap-x-6 gap-y-2">
-          <div>
-            <div className="text-2xl font-semibold tabular-nums text-acento">
-              {r.acierto === null || r.acierto === undefined
-                ? "—"
-                : `${Math.round(r.acierto * 100)} %`}
+          {r.revision_completa ? (
+            <div>
+              <div className="text-2xl font-semibold tabular-nums text-acento">
+                {r.acierto === null || r.acierto === undefined
+                  ? "—"
+                  : `${Math.round(r.acierto * 100)} %`}
+              </div>
+              <div className="text-xs text-tinta-suave">
+                de acierto sobre las {r.total} brechas
+              </div>
             </div>
-            <div className="text-xs text-tinta-suave">
-              de acierto sobre lo que llevas revisado
+          ) : (
+            <div>
+              <div className="text-2xl font-semibold tabular-nums text-tinta">
+                {r.anotadas}
+                <span className="text-base font-normal text-tinta-suave">
+                  {" "}/ {r.total}
+                </span>
+              </div>
+              <div className="text-xs text-tinta-suave">revisadas</div>
             </div>
-          </div>
+          )}
           <div className="text-sm text-tinta-media">
-            {r.anotadas} de {r.total} brechas revisadas
-            {r.pendientes > 0 && (
-              <span className="text-tinta-suave"> · faltan {r.pendientes}</span>
+            {r.revision_completa ? (
+              <>Revisión terminada</>
+            ) : (
+              <>
+                Faltan {r.pendientes}. El resultado aparece al terminar, para
+                que tu juicio no quede condicionado por el marcador.
+              </>
             )}
           </div>
         </div>
@@ -305,9 +326,18 @@ export default function Validacion({ proyectoId, onError }) {
             pregunta que hace un tribunal. Decirlo antes vale más que
             defenderlo después. */}
         <p className="mt-3 border-t border-borde pt-3 text-xs leading-relaxed text-tinta-suave">
-          Este porcentaje sale del juicio humano, no del sistema. Se calcula
-          sobre las brechas que ya revisaste —«parcial» cuenta medio punto—,
-          así que mientras queden pendientes es provisional.{" "}
+          {r.revision_completa ? (
+            <>
+              Este porcentaje sale del juicio humano, no del sistema; «parcial»
+              cuenta medio punto.{" "}
+            </>
+          ) : (
+            <>
+              Aquí no se muestran las métricas del sistema a propósito: verlas
+              antes de decidir condiciona el juicio, y entonces compararlas
+              después no mide su acierto sino su eco.{" "}
+            </>
+          )}
           {r.anotadores === 0
             ? "Todavía no hay anotaciones humanas para esta ejecución."
             : r.anotadores === 1
@@ -330,6 +360,99 @@ export default function Validacion({ proyectoId, onError }) {
           />
         ))}
       </div>
+
+      {r.revision_completa && (
+        <Comparacion proyectoId={proyectoId} onError={onError} />
+      )}
+    </div>
+  );
+}
+
+/**
+ * El juicio humano junto a lo que midió el sistema.
+ *
+ * Solo al terminar. Es el premio de haber anotado a ciegas: hasta aquí las dos
+ * columnas se formaron sin verse, así que compararlas dice algo. Enseñarlas
+ * durante la revisión habría convertido la segunda en un espejo de la primera.
+ */
+function Comparacion({ proyectoId, onError }) {
+  const [datos, setDatos] = useState(null);
+  const [abierto, setAbierto] = useState(false);
+
+  useEffect(() => {
+    if (!abierto || datos) return;
+    (async () => {
+      try {
+        const r = await api(
+          `${API_BASE}/proyectos/${proyectoId}/validacion/comparacion`,
+        );
+        if (r.ok) setDatos(await r.json());
+      } catch (e) {
+        onError?.(e);
+      }
+    })();
+  }, [abierto, datos, proyectoId, onError]);
+
+  const etiqueta = {
+    correcta: "text-bien",
+    parcial: "text-aviso",
+    incorrecta: "text-mal",
+  };
+
+  return (
+    <div className="rounded-xl border border-acento-borde bg-acento-claro p-4">
+      <button
+        type="button"
+        onClick={() => setAbierto((v) => !v)}
+        className="text-sm font-medium text-acento-fuerte hover:underline"
+      >
+        {abierto ? "Ocultar" : "Ver"} tu juicio frente a las métricas
+      </button>
+
+      {abierto && datos && (
+        <div className="mt-3 overflow-x-auto">
+          <table className="w-full text-left text-xs">
+            <thead className="text-tinta-suave">
+              <tr>
+                <th className="py-1 pr-3 font-medium">Artículo</th>
+                <th className="py-1 pr-3 font-medium">Tú</th>
+                <th className="py-1 pr-3 font-medium tabular-nums">N2.1</th>
+                <th className="py-1 pr-3 font-medium tabular-nums">N2.5</th>
+                <th className="py-1 font-medium">N2.6</th>
+              </tr>
+            </thead>
+            <tbody className="text-tinta-media">
+              {datos.brechas.map((b) => (
+                <tr key={b.id} className="border-t border-acento-borde">
+                  <td className="max-w-[18rem] truncate py-1.5 pr-3">
+                    {b.articulo}
+                  </td>
+                  <td
+                    className={`py-1.5 pr-3 font-medium ${
+                      etiqueta[b.veredicto] || ""
+                    }`}
+                  >
+                    {b.veredicto || "—"}
+                  </td>
+                  <td className="py-1.5 pr-3 tabular-nums">
+                    {b.metricas?.["N2.1"]?.toFixed(3) ?? "—"}
+                  </td>
+                  <td className="py-1.5 pr-3 tabular-nums">
+                    {b.metricas?.["N2.5"]?.toFixed(3) ?? "—"}
+                  </td>
+                  <td className="py-1.5">
+                    {b.metricas?.["N2.6"] === 1 ? "ya resuelta" : "—"}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p className="mt-2 text-[11px] leading-relaxed text-acento-fuerte">
+            Donde tu veredicto y las métricas discrepan está la información
+            útil: o la métrica no ve algo, o lo ve y no sabemos leerlo.
+          </p>
+        </div>
+      )}
     </div>
   );
 }

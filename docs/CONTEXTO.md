@@ -95,6 +95,31 @@ sobre los mismos casos*. Es un ciclo DSRM completo, declarando el alcance.
 la ventana incluye ahora los párrafos contiguos, se evalúan más afirmaciones y
 una quedó sin respaldo. Medir más fino baja los números.
 
+### Revisión a ciegas
+
+La anotación estaba **debajo del panel de métricas**, así que quien bajaba a
+anotar ya había visto que el sistema se daba un 1.000 de fidelidad. Juzgar
+después de eso no es juzgar, es confirmar — y entonces comparar las dos
+columnas deja de medir el acierto del sistema para medir su eco.
+
+Pasa a una pantalla propia, `/proyectos/:id/revisar`, con solo la brecha, el
+artículo y el enlace al PDF.
+
+**La ceguera la impone el servidor.** Mientras falten brechas, el backend no
+envía el acierto ni el desglose por veredicto: devuelve `null`. Ocultarlo en el
+frontend no bastaría —el dato habría viajado igual y cualquiera podría leerlo—,
+y la ceguera dejaría de ser una propiedad del procedimiento para ser una
+decisión de maquetación.
+
+Se reserva también el conteo por veredicto: saber que se llevan cuatro
+«correcta» condiciona la quinta tanto como el porcentaje. Y si se retira un
+veredicto, el resultado vuelve a ocultarse; de lo contrario bastaría anotar
+todo y borrar uno para verlo.
+
+Al terminar aparece la comparación brecha por brecha contra `N2.1`, `N2.5` y
+`N2.6`. Es el momento en que las dos columnas se ven por primera vez, y solo
+entonces significan algo.
+
 ### Lo demás que se hizo
 
 - **Visor del artículo**: el PDF entraba al sistema y no volvía a salir. Ahora
@@ -115,16 +140,14 @@ una quedó sin respaldo. Medir más fino baja los números.
    generaliza o solo reproduce los dos casos con los que se construyó. Un
    proyecto de cinco artículos distintos, anotado igual.
 2. **Etapas 3–6 del plan de revisión**: `N1.2` con denominador real, `N2.1`
-   renombrada, `N2.2` con denominador corregido, pantalla ciega de anotación, y
-   calibración de `N3.2`, `N3.3`, `N5.3`, `N5.5` e IQR.
+   renombrada, `N2.2` con denominador corregido, y calibración de `N3.2`,
+   `N3.3`, `N5.3`, `N5.5` e IQR.
 
 ### Lo que se sabe que está mal y aún no se ha tocado
 
 - `N1.2` divide entre seis secciones teóricas y no entre las que el artículo
   realmente tiene.
 - El umbral de IQR `0.05` se aplica igual a métricas con escalas distintas.
-- La anotación se hace **debajo** del panel de métricas, así que quien anota ve
-  antes lo que dijo el sistema. Debería ser una pantalla ciega.
 - **Cero pruebas de frontend.** La integración continua pasa lint y compila,
   nada más. Todos los fallos de interfaz encontrados hasta ahora los vio una
   persona mirando la pantalla.
@@ -223,7 +246,7 @@ varios anotadores sobre la misma brecha.
 - Cuentas, sesión por token, aislamiento entre usuarios
 - Cola de trabajos con reintentos y recuperación de trabajadores caídos
 - Limitador de cuota propio (ventana deslizante) antes de chocar con la API
-- **441 pruebas automáticas**, integración continua en verde
+- **448 pruebas automáticas**, integración continua en verde
 - Esquema gobernado por Alembic, verificado desde base vacía
 
 ### Verificado con datos reales
@@ -447,7 +470,7 @@ Si el objetivo es **nivel académico sólido**, lo que más pesa:
 Si el objetivo es **proyecto profesional presentable**, lo que más pesa:
 
 - **A favor:** desplegado y accesible con HTTPS, migraciones con Alembic,
-  integración continua, 441 pruebas, aislamiento entre cuentas probado
+  integración continua, 448 pruebas, aislamiento entre cuentas probado
   endpoint por endpoint, cola de trabajos con reintentos, copias de seguridad
   programadas y un README que instala desde cero.
 - Lo que se echa en falta: dominio propio en lugar de un nombre derivado de la
