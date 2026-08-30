@@ -246,12 +246,12 @@ def comparar_con_el_sistema(proyecto: Proyecto = Depends(proyecto_propio),
 
 def _resumen(db: Session, proyecto_id: str, usuario_id: str,
              run_id: str) -> dict:
-    """Cuanto ha anotado esta persona y con que resultado.
+    """Cuanto ha anotado esta persona y, si termino, con que resultado.
 
-    El acierto se calcula sobre lo anotado, no sobre el total: mientras falten
-    brechas por revisar, dividir entre todas daria un numero que sube solo al
-    seguir anotando y que no significa nada. `pendientes` dice cuanto le falta
-    al dato para estar completo.
+    El avance -`anotadas`, `total`, `pendientes`- se sirve siempre; el
+    resultado, solo al terminar. Cuanto falta no condiciona el juicio, pero el
+    marcador si: ver el porcentaje acumulado empuja a confirmar la racha en vez
+    de juzgar cada brecha por separado.
     """
     filas = (db.query(ValidacionHumana.veredicto, ValidacionHumana.origen)
                .join(ResultadoBrecha,

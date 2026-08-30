@@ -9,8 +9,10 @@ sin motivo no permite corregir el sistema ni sostener la evaluacion.
 
 Estas pruebas fijan las decisiones que hacen util el dato: que el veredicto
 negativo exija explicacion, que cada persona solo pueda tocar el suyo, que el
-acierto se calcule sobre lo anotado y no sobre el total, y que nadie pueda
-anotar brechas de otra cuenta.
+resultado no se sirva hasta terminar de anotar, y que nadie pueda anotar
+brechas de otra cuenta.
+
+La ceguera en si se comprueba aparte, en `test_revision_ciega.py`.
 """
 
 import os
@@ -153,10 +155,15 @@ class TestAnotar:
 
 
 class TestElResumen:
-    def test_el_acierto_se_calcula_sobre_lo_anotado(self, cliente,
+    def test_el_progreso_si_se_ve_mientras_se_anota(self, cliente,
                                                     proyecto_con_brechas):
-        """Dividir entre el total daria un numero que sube solo al seguir
-        anotando, y que no significa nada mientras falten brechas."""
+        """Cuanto falta no condiciona el juicio; el resultado si.
+
+        Antes esta prueba comprobaba el acierto a mitad de anotar. Dejo de
+        tener sentido al hacer ciega la revision: el porcentaje acumulado
+        empuja a confirmar la racha en vez de juzgar cada brecha aparte, asi
+        que ya no se sirve hasta terminar. Lo que si se puede ver es el avance.
+        """
         pid = proyecto_con_brechas["proyecto"]
         b = proyecto_con_brechas["brechas"]
         _anotar(cliente, pid, b[0], "correcta")
@@ -166,18 +173,23 @@ class TestElResumen:
         assert resumen["anotadas"] == 2
         assert resumen["total"] == 4
         assert resumen["pendientes"] == 2
-        assert resumen["acierto"] == 0.5, "una de dos, no una de cuatro"
+        assert resumen["acierto"] is None, "a medias no hay resultado que dar"
 
     def test_parcial_vale_medio_punto(self, cliente, proyecto_con_brechas):
         """Contarla como acierto o como fallo completo falsea el resultado en
-        direcciones opuestas."""
+        direcciones opuestas.
+
+        Se anotan las cuatro porque el acierto solo se sirve al terminar: tres
+        correctas y una parcial dan 3.5 de 4.
+        """
         pid = proyecto_con_brechas["proyecto"]
         b = proyecto_con_brechas["brechas"]
-        _anotar(cliente, pid, b[0], "correcta")
-        r = _anotar(cliente, pid, b[1], "parcial", "acierta el problema, "
+        for bid in b[:3]:
+            _anotar(cliente, pid, bid, "correcta")
+        r = _anotar(cliente, pid, b[3], "parcial", "acierta el problema, "
                                                    "falla el matiz")
 
-        assert r.json()["resumen"]["acierto"] == 0.75
+        assert r.json()["resumen"]["acierto"] == 0.875
 
     def test_sin_anotar_el_acierto_no_es_cero(self, cliente,
                                               proyecto_con_brechas):
