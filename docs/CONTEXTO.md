@@ -9,8 +9,8 @@ reconstruirlo leyendo código.
 quedó todo, qué se hizo lo último y qué toca ahora.
 
 **Actualizado:** 30 de agosto de 2026
-**Rama de trabajo:** `CarlosDev` · **Rama principal:** `main` (35 commits por
-detrás — todo el trabajo vive en `CarlosDev`, conviene fusionar antes de seguir)
+**Rama de trabajo:** `CarlosDev` · **Rama principal:** `main`, al día
+(las dos apuntan al mismo commit)
 
 **Referencia de métricas:** [`Metricas.md`](Metricas.md), generado desde el
 catálogo del código. Es la fuente vigente; el PDF de especificación es anterior
@@ -31,7 +31,7 @@ leer al retomar el proyecto o al abrir una conversación nueva.*
 |---|---|
 | Pruebas | **441**, `alembic check` verde |
 | Migraciones | hasta `0009` |
-| Rama `main` | **35 commits por detrás** de `CarlosDev` |
+| Ramas | `main` y `CarlosDev` al mismo commit |
 | Anotación humana (N6) | **5 de 5**, prueba piloto |
 
 **La construcción está terminada.** No hay funcionalidad pendiente. Lo que
@@ -114,8 +114,7 @@ una quedó sin respaldo. Medir más fino baja los números.
 1. **Probar `N2.6` con artículos nuevos.** Es lo único que puede decir si
    generaliza o solo reproduce los dos casos con los que se construyó. Un
    proyecto de cinco artículos distintos, anotado igual.
-2. **Fusionar `main`.**
-3. **Etapas 3–6 del plan de revisión**: `N1.2` con denominador real, `N2.1`
+2. **Etapas 3–6 del plan de revisión**: `N1.2` con denominador real, `N2.1`
    renombrada, `N2.2` con denominador corregido, pantalla ciega de anotación, y
    calibración de `N3.2`, `N3.3`, `N5.3`, `N5.5` e IQR.
 
