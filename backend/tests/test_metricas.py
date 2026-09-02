@@ -6,6 +6,7 @@ import pytest
 from app.services.metricas import distribucion as D
 from app.services.metricas import niveles as N
 from app.services.metricas import texto as T
+from app.services.metricas.catalogo import ficha_para_version
 
 
 # ------------------------------------------------------------------ texto
@@ -102,28 +103,53 @@ class TestContenidoInformativo:
 
 # ------------------------------------------------------------------ niveles
 class TestN1:
-    def test_cobertura_seccional_completa(self):
-        # Se deriva de la constante para que anadir una seccion sustantiva no
-        # deje la prueba comprobando una definicion obsoleta.
-        from app.services.document_structure import SECCIONES_SUSTANTIVAS
+    def test_cada_version_conserva_su_explicacion(self):
+        v1 = ficha_para_version("N1.2", 1)
+        v2 = ficha_para_version("N1.2", 2)
+        legado = ficha_para_version("N1.2", None)
 
-        rec = [{"seccion": s} for s in SECCIONES_SUSTANTIVAS]
-        assert N.n1_2_cobertura_seccional(rec) == 1.0
+        assert "seis categorías" in v1.descripcion
+        assert "detectadas e indexadas" in v2.descripcion
+        assert "no quedó registrada" in legado.descripcion
+
+    def test_cobertura_seccional_completa(self):
+        disponibles = {"metodo", "resultados", "discusion"}
+        rec = [{"seccion": s} for s in disponibles]
+        valor, detalle = N.n1_2_cobertura_seccional(rec, disponibles)
+        assert valor == 1.0
+        assert detalle["n_recuperadas"] == detalle["n_disponibles"] == 3
 
     def test_cobertura_seccional_parcial(self):
-        from app.services.document_structure import SECCIONES_SUSTANTIVAS
+        disponibles = {"metodo", "resultados"}
+        rec = [{"seccion": "metodo"}, {"seccion": "introduccion"}]
+        valor, detalle = N.n1_2_cobertura_seccional(rec, disponibles)
+        assert valor == 0.5
+        assert detalle["secciones_recuperadas"] == ["metodo"]
 
-        rec = [{"seccion": SECCIONES_SUSTANTIVAS[0]}, {"seccion": "introduccion"}]
-        esperado = round(1.0 / len(SECCIONES_SUSTANTIVAS), 4)
-        assert N.n1_2_cobertura_seccional(rec) == esperado
+    def test_no_penaliza_secciones_que_el_articulo_no_tiene(self):
+        valor, detalle = N.n1_2_cobertura_seccional(
+            [{"seccion": "metodo"}], {"metodo"}
+        )
+        assert valor == 1.0
+        assert detalle["n_disponibles"] == 1
 
     def test_cobertura_seccional_solo_introduccion(self):
-        # El escenario que producia la implementacion anterior de M-10.
         rec = [{"seccion": "introduccion"}, {"seccion": "otro"}]
-        assert N.n1_2_cobertura_seccional(rec) == 0.0
+        valor, _ = N.n1_2_cobertura_seccional(rec, {"metodo", "resultados"})
+        assert valor == 0.0
 
     def test_cobertura_con_contexto_vacio(self):
-        assert N.n1_2_cobertura_seccional([]) == 0.0
+        valor, detalle = N.n1_2_cobertura_seccional([], {"metodo"})
+        assert valor == 0.0
+        assert detalle["n_recuperadas"] == 0
+
+    def test_sin_secciones_reconocibles_no_inventa_un_cero(self):
+        valor, detalle = N.n1_2_cobertura_seccional(
+            [{"seccion": "introduccion"}], {"introduccion", "otro"}
+        )
+        assert valor is None
+        assert detalle["motivo"]
+        assert detalle["n_disponibles"] == 0
 
     def test_diversidad_vectores_identicos_es_cero(self):
         v = [1.0, 0.0, 0.0]

@@ -73,6 +73,21 @@ class TestRecuperacion:
     def test_articulo_sin_indexar_devuelve_vacio(self, db, contexto_propio):
         assert recuperar_contexto(db, "inexistente-0000", contexto_propio) == []
 
+    def test_n12_usa_como_denominador_las_secciones_indexadas(
+        self, db, proyecto_indexado, contexto_propio
+    ):
+        from app.services.metricas import niveles as N
+
+        articulo_id = proyecto_indexado["pertinente"]
+        recuperados = recuperar_contexto(db, articulo_id, contexto_propio, k=8)
+        disponibles = N.secciones_sustantivas_indexadas(db, articulo_id)
+        valor, detalle = N.n1_2_cobertura_seccional(recuperados, disponibles)
+
+        esperadas = {r["seccion"] for r in recuperados} & disponibles
+        assert detalle["secciones_disponibles"] == sorted(disponibles)
+        assert detalle["secciones_recuperadas"] == sorted(esperadas)
+        assert valor == round(len(esperadas) / len(disponibles), 4)
+
 
 class TestIndexacion:
     def test_etiqueta_cada_fragmento_con_su_seccion(self, db, proyecto_indexado):

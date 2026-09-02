@@ -13,11 +13,17 @@ ese dato, un panel puede pintar de verde justamente lo que va mal.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass, asdict, replace
 
 ALTO = "alto"     # mejor cuanto mayor
 BAJO = "bajo"     # mejor cuanto menor
 NEUTRO = "neutro"  # descriptiva, no es una nota
+
+# Versiones que ya cambiaron respecto de su primera implementación formal.
+# El cálculo las importa desde aquí para que catálogo, persistencia y
+# documentación no puedan declarar números distintos.
+FORMULA_N1_2 = 2
+FORMULA_N3_4 = 2
 
 
 @dataclass(frozen=True)
@@ -31,7 +37,7 @@ class Ficha:
     descripcion: str
     interpretacion: str
     # Primera version formal para todas salvo las formulas que ya cambiaron.
-    version_formula: int = 1
+    version_formula: int | None = 1
 
     def dict(self) -> dict:
         return asdict(self)
@@ -39,9 +45,12 @@ class Ficha:
 
 CATALOGO: dict[str, Ficha] = {f.codigo: f for f in [
     Ficha("N1.2", "Cobertura seccional", "N1 Recuperación", "brecha", ALTO, "0 a 1",
-          "Qué proporción de las secciones sustantivas del artículo llegó al modelo.",
-          "Un valor bajo significa que el análisis se hizo leyendo poco más que la "
-          "introducción, que es la sección más parecida entre artículos distintos."),
+          "Qué proporción de las secciones sustantivas detectadas e indexadas "
+          "en ese artículo llegó al modelo.",
+          "Un valor bajo significa que el análisis dejó fuera secciones útiles que "
+          "sí estaban disponibles. Si no se reconoció ninguna sección sustantiva, "
+          "la métrica no es calculable.",
+          version_formula=FORMULA_N1_2),
 
     Ficha("N1.3", "Diversidad del contexto", "N1 Recuperación", "brecha", ALTO, "0 a 1",
           "Cuánto se diferencian entre sí los fragmentos entregados al modelo.",
@@ -146,7 +155,7 @@ CATALOGO: dict[str, Ficha] = {f.codigo: f for f in [
     Ficha("N3.4", "Redundancia", "N3 Especificidad", "run", BAJO, "0 a 1",
           "Proporción de brechas casi idénticas a otra del proyecto.",
           "Debería ser cero. Valores altos indican que el modelo repite hallazgos.",
-          version_formula=2),
+          version_formula=FORMULA_N3_4),
 
     Ficha("N4.1a", "ROUGE-1 precisión", "N4 Resumen", "brecha", ALTO, "0 a 1",
           "Qué proporción de las palabras del resumen aparece en el abstract.",
@@ -186,8 +195,50 @@ CATALOGO: dict[str, Ficha] = {f.codigo: f for f in [
 ]}
 
 
+# Definiciones históricas que sí quedaron documentadas. Una fila sin versión
+# no entra aquí: no se le atribuye retrospectivamente una fórmula conocida.
+HISTORICAS: dict[tuple[str, int], Ficha] = {
+    ("N1.2", 1): replace(
+        CATALOGO["N1.2"],
+        descripcion=(
+            "Qué proporción de las seis categorías sustantivas teóricas llegó "
+            "al modelo, aunque el artículo no contuviera todas."
+        ),
+        interpretacion=(
+            "Fórmula histórica: podía reducir el resultado por secciones que "
+            "el artículo no tenía. No debe compararse directamente con v2."
+        ),
+        version_formula=1,
+    ),
+}
+
+
 def ficha(codigo: str) -> Ficha | None:
     return CATALOGO.get(codigo)
+
+
+def ficha_para_version(codigo: str, version_formula: int | None) -> Ficha | None:
+    """Definición que corresponde a la fila medida, no siempre la actual."""
+    actual = CATALOGO.get(codigo)
+    if actual is None:
+        return None
+    if version_formula == actual.version_formula:
+        return actual
+    historica = HISTORICAS.get((codigo, version_formula))
+    if historica is not None:
+        return historica
+    return replace(
+        actual,
+        descripcion=(
+            "Medición anterior o ajena al versionado actual; su fórmula exacta "
+            "no quedó registrada."
+        ),
+        interpretacion=(
+            "No debe interpretarse con la definición vigente ni compararse "
+            "directamente con mediciones versionadas."
+        ),
+        version_formula=version_formula,
+    )
 
 
 def nombre(codigo: str) -> str:

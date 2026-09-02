@@ -29,7 +29,7 @@ leer al retomar el proyecto o al abrir una conversación nueva.*
 
 | | |
 |---|---|
-| Pruebas | **452** en verde contra MySQL real local, `alembic check` verde |
+| Pruebas | **456** en verde contra MySQL real local, `alembic check` verde |
 | Migraciones | hasta `0010` |
 | Ramas | `main` y `CarlosDev` al mismo commit |
 | Anotación humana (N6) | **5 de 5**, prueba piloto |
@@ -146,18 +146,18 @@ sigue vigente.
   guarda revisión del código, modelos, versiones de prompts y parámetros de
   recuperación. Cada métrica conserva además su versión de fórmula. Los datos
   anteriores quedan como legado/desconocido; no se les inventa procedencia.
+- **`N1.2` usa el artículo real (fórmula v2):** el denominador ya no son seis
+  categorías teóricas, sino las secciones sustantivas detectadas e indexadas
+  en cada PDF. Sin secciones reconocibles queda sin valor y explica el motivo.
 
 ### Lo siguiente, en este orden
 
-1. **Paso 3:** `N1.2` con el denominador real de cada artículo.
-2. **Paso 4:** precisar el alcance de `N2.1` y corregir el denominador de `N2.2`.
-3. **Paso 5:** dejar el IQR como descriptivo hasta disponer de calibración.
-4. **Paso 6:** añadir pruebas de comportamiento del frontend.
+1. **Paso 4:** precisar el alcance de `N2.1` y corregir el denominador de `N2.2`.
+2. **Paso 5:** dejar el IQR como descriptivo hasta disponer de calibración.
+3. **Paso 6:** añadir pruebas de comportamiento del frontend.
 
 ### Lo que se sabe que está mal y aún no se ha tocado
 
-- `N1.2` divide entre seis secciones teóricas y no entre las que el artículo
-  realmente tiene.
 - El umbral de IQR `0.05` se aplica igual a métricas con escalas distintas.
 - **Cero pruebas de frontend.** La integración continua pasa lint y compila,
   nada más. Todos los fallos de interfaz encontrados hasta ahora los vio una
@@ -258,7 +258,7 @@ varios anotadores sobre la misma brecha.
 - Cuentas, sesión por token, aislamiento entre usuarios
 - Cola de trabajos con reintentos y recuperación de trabajadores caídos
 - Limitador de cuota propio (ventana deslizante) antes de chocar con la API
-- **452 pruebas automáticas**, verificadas localmente contra MySQL real
+- **456 pruebas automáticas**, verificadas localmente contra MySQL real
 - Esquema gobernado por Alembic, verificado desde base vacía
 
 ### Verificado con datos reales
@@ -270,7 +270,7 @@ Cinco artículos de ingeniería descargados de Scopus, en modo real:
 | Extracción de resumen | 5/5 (era 0/5 antes de las correcciones) |
 | N4.ref abstract localizado | 5 de 5 |
 | N2.verificada | 5 de 5 |
-| N1.2 cobertura seccional | mediana 0.500 (IQR 0.167) |
+| N1.2 cobertura seccional v1 (histórica) | mediana 0.500 (IQR 0.167) |
 | N2.1 fidelidad | mediana 0.714 (IQR 0.333) |
 | N2.2 trazabilidad | mediana 0.625 |
 | N2.5 contradicciones | 1 detectada sobre 39 afirmaciones |
@@ -485,7 +485,7 @@ Si el objetivo es **nivel académico sólido**, lo que más pesa:
 Si el objetivo es **proyecto profesional presentable**, lo que más pesa:
 
 - **A favor:** desplegado y accesible con HTTPS, migraciones con Alembic,
-  integración continua, 452 pruebas, aislamiento entre cuentas probado
+  integración continua, 456 pruebas, aislamiento entre cuentas probado
   endpoint por endpoint, cola de trabajos con reintentos, copias de seguridad
   programadas y un README que instala desde cero.
 - Lo que se echa en falta: dominio propio en lugar de un nombre derivado de la

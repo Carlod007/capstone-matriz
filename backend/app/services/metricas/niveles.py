@@ -15,7 +15,7 @@ from __future__ import annotations
 import json
 import math
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Sequence
+from typing import Any, Collection, Dict, List, Sequence
 
 from sqlalchemy.orm import Session
 
@@ -23,6 +23,7 @@ from app.models.embedding_doc import EmbeddingDoc
 from app.services.document_structure import SECCIONES_SUSTANTIVAS
 from app.services.embedding_service import _cos, _embed_texts
 from app.services.metricas import texto as T
+from app.services.metricas.catalogo import FORMULA_N1_2, FORMULA_N3_4
 
 # Versión de la fórmula, guardada junto a cada medición que la use.
 #
@@ -32,24 +33,45 @@ from app.services.metricas import texto as T
 # proyecto ya ha pagado dos veces el precio de no poder distinguir mediciones
 # de distinto origen.
 #
-# v2: la redundancia marca los dos elementos de cada pareja duplicada. Antes
-# marcaba solo el segundo, con lo que tres brechas idénticas daban 0.667 y el
-# resultado dependía del orden de recorrido.
-FORMULA_N3_4 = 2
-
-
 # ================================================================= N1
-def n1_2_cobertura_seccional(recuperados: Sequence[dict]) -> float:
-    """Proporción de secciones sustantivas presentes en el contexto (N1.2).
+def secciones_sustantivas_indexadas(db: Session, articulo_id: str) -> set[str]:
+    """Secciones útiles que existen realmente en los fragmentos del artículo."""
+    filas = (
+        db.query(EmbeddingDoc.seccion)
+        .filter(EmbeddingDoc.articulo_id == articulo_id)
+        .distinct()
+        .all()
+    )
+    return {seccion for (seccion,) in filas if seccion in SECCIONES_SUSTANTIVAS}
 
-    Con la implementación anterior de la recuperación este valor sería casi
-    siempre 0: el contexto se tomaba del principio del documento y método,
-    resultados y discusión nunca entraban.
+
+def n1_2_cobertura_seccional(
+    recuperados: Sequence[dict],
+    secciones_articulo: Collection[str],
+) -> tuple[float | None, dict]:
+    """Cobertura de las secciones útiles disponibles en ese artículo (N1.2 v2).
+
+    v1 dividía siempre entre las seis categorías teóricas, incluso si el PDF
+    no contenía alguna. v2 usa solo las secciones detectadas e indexadas. Si no
+    hay ninguna, no existe denominador y devolver cero inventaría una carencia.
     """
-    if not recuperados:
-        return 0.0
-    presentes = {r.get("seccion") for r in recuperados} & set(SECCIONES_SUSTANTIVAS)
-    return round(len(presentes) / len(SECCIONES_SUSTANTIVAS), 4)
+    disponibles = set(secciones_articulo) & set(SECCIONES_SUSTANTIVAS)
+    recuperadas = (
+        {r.get("seccion") for r in recuperados} & disponibles
+    )
+    detalle = {
+        "formula": FORMULA_N1_2,
+        "secciones_disponibles": sorted(disponibles),
+        "secciones_recuperadas": sorted(recuperadas),
+        "n_disponibles": len(disponibles),
+        "n_recuperadas": len(recuperadas),
+    }
+    if not disponibles:
+        detalle["motivo"] = (
+            "no se detectaron secciones sustantivas en el artículo indexado"
+        )
+        return None, detalle
+    return round(len(recuperadas) / len(disponibles), 4), detalle
 
 
 def n1_3_diversidad_contexto(vectores: Sequence[Sequence[float]]) -> float:

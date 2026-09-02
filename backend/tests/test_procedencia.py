@@ -42,7 +42,7 @@ def test_cada_formula_toma_la_version_del_catalogo():
     normal = registrar_metrica(db, "p", "brecha", "b", "N1.2", 0.5)
     cambiada = registrar_metrica(db, "p", "run", "r", "N3.4", 0.0)
 
-    assert normal.version_formula == 1
+    assert normal.version_formula == 2
     assert cambiada.version_formula == 2
     assert cambiada.version_formula == FORMULA_N3_4
     assert normal.procedencia["prompts"]["analisis"] == 1

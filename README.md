@@ -418,7 +418,7 @@ Desde `backend/`, con el entorno activado:
 python -m pytest
 ```
 
-Son 452 pruebas y corren en modo simulado, sin gastar cuota. Las que
+Son 456 pruebas y corren en modo simulado, sin gastar cuota. Las que
 necesitan MySQL están marcadas con `bd` y **se saltan solas** si no hay
 conexión, de modo que la suite pasa igual en una máquina sin base de datos.
 
@@ -439,7 +439,7 @@ GitHub lo mismo que harías a mano:
 
 - levanta un MySQL vacío y construye el esquema con `alembic upgrade head`,
   de modo que una migración mal escrita se rompe ahí;
-- ejecuta `alembic check` y las 452 pruebas contra esa base recién creada,
+- ejecuta `alembic check` y las 456 pruebas contra esa base recién creada,
   sin los datos acumulados de una máquina de desarrollo;
 - instala el frontend con `npm ci`, pasa el lint y compila.
 
@@ -558,7 +558,7 @@ backend/
     routers/          endpoints HTTP
     services/         ingesta, RAG, verificación, métricas, límites de cuota
     utils/            extracción de texto y OCR
-  tests/              452 pruebas
+  tests/              456 pruebas
   storage/pdfs/       PDF subidos, en una carpeta por usuario (no se versionan)
 frontend/
   Caddyfile           servidor web, proxy a la API y HTTPS automático
@@ -674,8 +674,9 @@ precisión metodológica:**
   muestra pequeña, de una sola persona y sin acuerdo entre jueces.
 - **Probar N2.6 con artículos nuevos.** Detectó los dos casos que originaron la
   métrica, pero eso demuestra reproducción del patrón, no generalización.
-- **Corregir y calibrar la medición.** N1.2 necesita el denominador real, N2.2
-  un denominador coherente y el IQR debe dejar de usar un umbral universal.
+- **Precisar y calibrar la medición.** N1.2 ya usa las secciones realmente
+  disponibles; falta precisar N2.1, corregir el denominador de N2.2 y retirar
+  el umbral universal del IQR.
   La validación automática continúa desactivada hasta disponer de N6 suficiente
   para calibrarla.
 

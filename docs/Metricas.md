@@ -43,16 +43,16 @@ Qué fragmentos llegaron al modelo. Si aquí falla algo, todo lo demás mide sob
 
 ### N1.2 · Cobertura seccional
 
-**Qué mide.** Qué proporción de las secciones sustantivas del artículo llegó al modelo.
+**Qué mide.** Qué proporción de las secciones sustantivas detectadas e indexadas en ese artículo llegó al modelo.
 
-**Por qué importa.** Un valor bajo significa que el análisis se hizo leyendo poco más que la introducción, que es la sección más parecida entre artículos distintos.
+**Por qué importa.** Un valor bajo significa que el análisis dejó fuera secciones útiles que sí estaban disponibles. Si no se reconoció ninguna sección sustantiva, la métrica no es calculable.
 
 | | |
 |---|---|
 | Escala | 0 a 1 |
 | Dirección | ↑ mayor es mejor |
 | Se calcula sobre | cada brecha |
-| Versión de fórmula | v1 |
+| Versión de fórmula | v2 |
 
 ### N1.3 · Diversidad del contexto
 

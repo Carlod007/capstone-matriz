@@ -57,8 +57,8 @@ const GUIA_DESTACADAS = {
     lectura: "Más alto = brechas más distintas",
   },
   "N1.2": {
-    pregunta: "¿Cuánto del artículo llegó al modelo?",
-    lectura: "Más alto = más secciones sustantivas consideradas",
+    pregunta: "¿Qué parte de las secciones útiles disponibles llegó al modelo?",
+    lectura: "Más alto = cubrió más secciones detectadas en este artículo",
   },
   "N3.2": {
     pregunta: "¿La brecha usa cifras, nombres y métodos concretos?",
@@ -293,7 +293,11 @@ function Tarjeta({ metrica }) {
     ambito,
     veredicto,
   } = metrica;
-  const guia = GUIA_DESTACADAS[codigo] || {};
+  // La guía nueva de N1.2 solo describe v2. Aplicarla a un valor histórico
+  // haría que un número antiguo pareciera calculado con el denominador nuevo.
+  const guia = codigo === "N1.2" && metrica.version_formula !== 2
+    ? {}
+    : GUIA_DESTACADAS[codigo] || {};
   const alcance = {
     run: "Se calcula una vez por análisis completo",
     brecha: "Se calcula en cada brecha",
@@ -1237,6 +1241,14 @@ function DetalleMetrica({ metrica }) {
             </p>
             <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
               <DatoTecnico etiqueta="Código" valor={metrica.codigo} />
+              <DatoTecnico
+                etiqueta="Versión de fórmula"
+                valor={
+                  metrica.version_formula === null || metrica.version_formula === undefined
+                    ? "legado / desconocida"
+                    : `v${metrica.version_formula}`
+                }
+              />
               <DatoTecnico etiqueta="Ámbito" valor={textoAmbito(metrica.ambito)} />
               <DatoTecnico etiqueta="Dirección" valor={textoDireccion(metrica.mejor)} />
               <DatoTecnico etiqueta="Escala declarada" valor={metrica.rango || "—"} />

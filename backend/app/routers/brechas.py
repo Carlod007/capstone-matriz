@@ -7,7 +7,7 @@ from app.models.articulo import Articulo
 from app.models.metrica import Metrica
 from app.models.resultado_brecha import ResultadoBrecha
 from app.models.run_item import RunItem
-from app.services.metricas.catalogo import ficha
+from app.services.metricas.catalogo import ficha_para_version
 
 router = APIRouter(prefix="/articulos", tags=["brechas"])
 
@@ -62,7 +62,7 @@ def listar_brechas(
         if m.codigo == "N2.verificada":
             verificaciones[m.referencia_id] = m.detalle or {}
             continue
-        f = ficha(m.codigo)
+        f = ficha_para_version(m.codigo, m.version_formula)
         por_brecha.setdefault(m.referencia_id, []).append({
             "codigo": m.codigo,
             "version_formula": m.version_formula,

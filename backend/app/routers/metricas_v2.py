@@ -32,7 +32,7 @@ from app.models.run import Run, EstadoRun
 from app.models.run_item import RunItem
 from app.services import limitador, registro_api, verificacion
 from app.services.metricas import distribucion as D
-from app.services.metricas.catalogo import CATALOGO, ficha
+from app.services.metricas.catalogo import CATALOGO, ficha_para_version
 
 router = APIRouter(prefix="/proyectos", tags=["metricas-v2"])
 
@@ -121,7 +121,7 @@ def metricas_proyecto(
     ):
         clave = (codigo, version_formula, firma)
         d = D.describir(codigo, valores[clave])
-        f = ficha(codigo)
+        f = ficha_para_version(codigo, version_formula)
 
         # Solo se informa del motivo si no quedó ningún valor y todas las
         # mediciones descartadas coinciden en la razón. Con motivos distintos,

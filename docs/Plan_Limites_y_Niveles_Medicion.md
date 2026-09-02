@@ -3,10 +3,10 @@
 **Fecha de revisión:** 1 de septiembre de 2026
 **Estado:** propuesta de trabajo; este documento no implica que las tareas estén implementadas.
 
-**Progreso:** pasos 1 y 2 completados el 2 de septiembre de 2026. El versionado
-se verificó con migraciones desde una base MySQL vacía, `alembic check` y las
-452 pruebas sin omisiones. Los documentos históricos se conservaron sin
-reescribirlos.
+**Progreso:** pasos 1, 2 y 3 completados el 2 de septiembre de 2026. El
+versionado y N1.2 v2 se verificaron con migraciones desde una base MySQL vacía,
+`alembic check` y las 456 pruebas sin omisiones. Los documentos históricos se
+conservaron sin reescribirlos.
 
 Este documento reúne dos cosas que conviene mantener separadas:
 
@@ -96,6 +96,8 @@ versión fueron producidas.
 
 ### 3. Corregir N1.2: cobertura seccional
 
+**Estado:** completado y verificado localmente el 2 de septiembre de 2026;
+pendiente únicamente de publicación.
 **Esfuerzo:** bajo, aproximadamente un día.
 **Dependencias:** paso 2.
 
@@ -107,6 +109,12 @@ detectadas e indexadas en ese artículo. El numerador serán las que aparecieron
 en los fragmentos recuperados. Si no se detectó ninguna sección sustantiva, el
 resultado será no calculable y se conservará el motivo, no `0.0`. Registrar la
 nueva fórmula como N1.2 v2.
+
+**Implementación.** La fórmula toma como denominador las categorías
+sustantivas presentes en `embedding_doc` para ese artículo y como numerador su
+intersección con los fragmentos recuperados. Guarda ambas listas y sus conteos
+en el detalle. El catálogo y la interfaz explican esta lectura y la columna
+`version_formula` registra v2.
 
 **Criterio de terminado.** Las pruebas cubren artículos con estructuras
 distintas, ausencia de secciones reconocibles y una recuperación parcial. Los
@@ -302,9 +310,9 @@ en el panel.
 
 ### N1 — Recuperación
 
-- **N1.2 Cobertura seccional:** proporción de secciones sustantivas que estuvo
-  presente en el contexto entregado al modelo. Su denominador necesita la
-  corrección descrita en el paso 3.
+- **N1.2 Cobertura seccional:** proporción de las secciones sustantivas
+  detectadas e indexadas en ese artículo que estuvo presente en el contexto
+  entregado al modelo.
 - **N1.3 Diversidad del contexto:** mide si los fragmentos recuperados aportan
   contenido diferente o repiten la misma idea.
 

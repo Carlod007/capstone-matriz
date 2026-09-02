@@ -101,9 +101,12 @@ def _registrar_metricas(db, art, rb, res, texto, recuperados, ruta_pdf) -> None:
     resumen_txt = (res.get("resumen") or "").strip()
 
     # --- N1: calidad de la recuperación ---
+    secciones_articulo = N.secciones_sustantivas_indexadas(db, art.id)
+    valor_n12, detalle_n12 = N.n1_2_cobertura_seccional(
+        recuperados, secciones_articulo
+    )
     _metrica(db, art.proyecto_id, AMBITO_BRECHA, rb.id, "N1.2",
-             N.n1_2_cobertura_seccional(recuperados),
-             {"secciones": sorted({r["seccion"] for r in recuperados})})
+             valor_n12, detalle_n12)
 
     vectores = N.vectores_de(db, [r["embedding_id"] for r in recuperados])
     _metrica(db, art.proyecto_id, AMBITO_BRECHA, rb.id, "N1.3",
