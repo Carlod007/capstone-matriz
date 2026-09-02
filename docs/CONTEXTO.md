@@ -23,14 +23,14 @@ a N2.5 y N2.6.
 *Esta sección se actualiza al cerrar cada avance. Es lo primero que hay que
 leer al retomar el proyecto o al abrir una conversación nueva.*
 
-**Última actualización:** 30 de agosto de 2026
+**Última actualización:** 2 de septiembre de 2026
 
 ### Estado comprobado
 
 | | |
 |---|---|
-| Pruebas | **448** en verde contra MySQL real (CI #64), `alembic check` verde |
-| Migraciones | hasta `0009` |
+| Pruebas | **452** en verde contra MySQL real local, `alembic check` verde |
+| Migraciones | hasta `0010` |
 | Ramas | `main` y `CarlosDev` al mismo commit |
 | Anotación humana (N6) | **5 de 5**, prueba piloto |
 
@@ -142,15 +142,17 @@ sigue vigente.
   Ahora marca los dos, con orden fijo y **versión de fórmula** en el detalle.
 - **`N2.4` y `N5.2` pasan a descriptivas.** Declaraban una dirección que nadie
   había comprobado.
+- **Procedencia reproducible** (`0010`): cada ejecución y cada métrica nueva
+  guarda revisión del código, modelos, versiones de prompts y parámetros de
+  recuperación. Cada métrica conserva además su versión de fórmula. Los datos
+  anteriores quedan como legado/desconocido; no se les inventa procedencia.
 
 ### Lo siguiente, en este orden
 
-1. **Probar `N2.6` con artículos nuevos.** Es lo único que puede decir si
-   generaliza o solo reproduce los dos casos con los que se construyó. Un
-   proyecto de cinco artículos distintos, anotado igual.
-2. **Etapas 3–6 del plan de revisión**: `N1.2` con denominador real, `N2.1`
-   renombrada, `N2.2` con denominador corregido, y calibración de `N3.2`,
-   `N3.3`, `N5.3`, `N5.5` e IQR.
+1. **Paso 3:** `N1.2` con el denominador real de cada artículo.
+2. **Paso 4:** precisar el alcance de `N2.1` y corregir el denominador de `N2.2`.
+3. **Paso 5:** dejar el IQR como descriptivo hasta disponer de calibración.
+4. **Paso 6:** añadir pruebas de comportamiento del frontend.
 
 ### Lo que se sabe que está mal y aún no se ha tocado
 
@@ -256,7 +258,7 @@ varios anotadores sobre la misma brecha.
 - Cuentas, sesión por token, aislamiento entre usuarios
 - Cola de trabajos con reintentos y recuperación de trabajadores caídos
 - Limitador de cuota propio (ventana deslizante) antes de chocar con la API
-- **448 pruebas automáticas**, integración continua en verde
+- **452 pruebas automáticas**, verificadas localmente contra MySQL real
 - Esquema gobernado por Alembic, verificado desde base vacía
 
 ### Verificado con datos reales
@@ -483,7 +485,7 @@ Si el objetivo es **nivel académico sólido**, lo que más pesa:
 Si el objetivo es **proyecto profesional presentable**, lo que más pesa:
 
 - **A favor:** desplegado y accesible con HTTPS, migraciones con Alembic,
-  integración continua, 448 pruebas, aislamiento entre cuentas probado
+  integración continua, 452 pruebas, aislamiento entre cuentas probado
   endpoint por endpoint, cola de trabajos con reintentos, copias de seguridad
   programadas y un README que instala desde cero.
 - Lo que se echa en falta: dominio propio en lugar de un nombre derivado de la

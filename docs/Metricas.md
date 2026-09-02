@@ -52,6 +52,7 @@ Qué fragmentos llegaron al modelo. Si aquí falla algo, todo lo demás mide sob
 | Escala | 0 a 1 |
 | Dirección | ↑ mayor es mejor |
 | Se calcula sobre | cada brecha |
+| Versión de fórmula | v1 |
 
 ### N1.3 · Diversidad del contexto
 
@@ -64,6 +65,7 @@ Qué fragmentos llegaron al modelo. Si aquí falla algo, todo lo demás mide sob
 | Escala | 0 a 1 |
 | Dirección | ↑ mayor es mejor |
 | Se calcula sobre | cada brecha |
+| Versión de fórmula | v1 |
 
 ## N2 — Fidelidad
 
@@ -80,6 +82,7 @@ Si lo que dice la brecha se sostiene en el artículo. Es la capa que distingue e
 | Escala | 0 a 1 |
 | Dirección | ↑ mayor es mejor |
 | Se calcula sobre | cada brecha |
+| Versión de fórmula | v1 |
 
 ### N2.2 · Trazabilidad
 
@@ -92,6 +95,7 @@ Si lo que dice la brecha se sostiene en el artículo. Es la capa que distingue e
 | Escala | 0 a 1 |
 | Dirección | ↑ mayor es mejor |
 | Se calcula sobre | cada brecha |
+| Versión de fórmula | v1 |
 
 ### N2.4 · Composición evidencial
 
@@ -104,6 +108,7 @@ Si lo que dice la brecha se sostiene en el artículo. Es la capa que distingue e
 | Escala | 0 a 1 |
 | Dirección | descriptiva (no hay valor mejor) |
 | Se calcula sobre | cada brecha |
+| Versión de fórmula | v1 |
 
 ### N2.5 · Contradicciones
 
@@ -116,6 +121,7 @@ Si lo que dice la brecha se sostiene en el artículo. Es la capa que distingue e
 | Escala | 0 a 1 |
 | Dirección | ↓ menor es mejor |
 | Se calcula sobre | cada brecha |
+| Versión de fórmula | v1 |
 
 ### N2.6 · Brecha ya resuelta
 
@@ -128,6 +134,7 @@ Si lo que dice la brecha se sostiene en el artículo. Es la capa que distingue e
 | Escala | 0 o 1 |
 | Dirección | ↓ menor es mejor |
 | Se calcula sobre | cada brecha |
+| Versión de fórmula | v1 |
 
 ### N2.verificada · Verificación realizada
 
@@ -140,6 +147,7 @@ Si lo que dice la brecha se sostiene en el artículo. Es la capa que distingue e
 | Escala | 0 o 1 |
 | Dirección | ↑ mayor es mejor |
 | Se calcula sobre | cada brecha |
+| Versión de fórmula | v1 |
 
 ## N3 — Especificidad
 
@@ -156,6 +164,7 @@ Si las brechas distinguen un artículo de otro o son intercambiables.
 | Escala | 0 a 1 |
 | Dirección | ↑ mayor es mejor |
 | Se calcula sobre | el análisis completo |
+| Versión de fórmula | v1 |
 
 ### N3.2 · Densidad de anclajes
 
@@ -168,6 +177,7 @@ Si las brechas distinguen un artículo de otro o son intercambiables.
 | Escala | por 100 palabras |
 | Dirección | ↑ mayor es mejor |
 | Se calcula sobre | cada brecha |
+| Versión de fórmula | v1 |
 
 ### N3.3 · Contenido informativo
 
@@ -180,6 +190,7 @@ Si las brechas distinguen un artículo de otro o son intercambiables.
 | Escala | IDF medio |
 | Dirección | ↑ mayor es mejor |
 | Se calcula sobre | cada brecha |
+| Versión de fórmula | v1 |
 
 ### N3.4 · Redundancia
 
@@ -192,6 +203,7 @@ Si las brechas distinguen un artículo de otro o son intercambiables.
 | Escala | 0 a 1 |
 | Dirección | ↓ menor es mejor |
 | Se calcula sobre | el análisis completo |
+| Versión de fórmula | v2 |
 
 ## N4 — Resumen
 
@@ -208,6 +220,7 @@ Calidad del resumen generado frente al abstract.
 | Escala | 0 a 1 |
 | Dirección | ↑ mayor es mejor |
 | Se calcula sobre | cada brecha |
+| Versión de fórmula | v1 |
 
 ### N4.1b · ROUGE-1 recall
 
@@ -220,6 +233,7 @@ Calidad del resumen generado frente al abstract.
 | Escala | 0 a 1 |
 | Dirección | ↑ mayor es mejor |
 | Se calcula sobre | cada brecha |
+| Versión de fórmula | v1 |
 
 ### N4.1c · ROUGE-1 F1
 
@@ -232,6 +246,7 @@ Calidad del resumen generado frente al abstract.
 | Escala | 0 a 1 |
 | Dirección | ↑ mayor es mejor |
 | Se calcula sobre | cada brecha |
+| Versión de fórmula | v1 |
 
 ### N4.1d · ROUGE-2 F1
 
@@ -244,6 +259,7 @@ Calidad del resumen generado frente al abstract.
 | Escala | 0 a 1 |
 | Dirección | ↑ mayor es mejor |
 | Se calcula sobre | cada brecha |
+| Versión de fórmula | v1 |
 
 ### N4.1e · ROUGE-L F1
 
@@ -256,6 +272,7 @@ Calidad del resumen generado frente al abstract.
 | Escala | 0 a 1 |
 | Dirección | ↑ mayor es mejor |
 | Se calcula sobre | cada brecha |
+| Versión de fórmula | v1 |
 
 ### N4.2 · Similitud semántica
 
@@ -268,6 +285,7 @@ Calidad del resumen generado frente al abstract.
 | Escala | 0 a 1 |
 | Dirección | ↑ mayor es mejor |
 | Se calcula sobre | cada brecha |
+| Versión de fórmula | v1 |
 
 ### N4.4 · Densidad léxica
 
@@ -280,6 +298,7 @@ Calidad del resumen generado frente al abstract.
 | Escala | 0 a 1 |
 | Dirección | descriptiva (no hay valor mejor) |
 | Se calcula sobre | cada brecha |
+| Versión de fórmula | v1 |
 
 ### N4.ref · Abstract localizado
 
@@ -292,6 +311,7 @@ Calidad del resumen generado frente al abstract.
 | Escala | 0 o 1 |
 | Dirección | ↑ mayor es mejor |
 | Se calcula sobre | cada artículo |
+| Versión de fórmula | v1 |
 
 ## N5 — Síntesis
 
@@ -308,6 +328,7 @@ El estado del arte: qué cubre y si inventa citas.
 | Escala | 0 a 1 |
 | Dirección | descriptiva (no hay valor mejor) |
 | Se calcula sobre | cada brecha |
+| Versión de fórmula | v1 |
 
 ### N5.3 · Cobertura de la síntesis
 
@@ -320,6 +341,7 @@ El estado del arte: qué cubre y si inventa citas.
 | Escala | 0 a 1 |
 | Dirección | ↑ mayor es mejor |
 | Se calcula sobre | el proyecto completo |
+| Versión de fórmula | v1 |
 
 ### N5.5 · Citas sin correspondencia
 
@@ -332,6 +354,7 @@ El estado del arte: qué cubre y si inventa citas.
 | Escala | 0 a 1 |
 | Dirección | ↓ menor es mejor |
 | Se calcula sobre | el proyecto completo |
+| Versión de fórmula | v1 |
 
 ## N6 — Anclaje humano
 

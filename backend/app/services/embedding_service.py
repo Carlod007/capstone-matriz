@@ -40,6 +40,12 @@ EMBED_MODEL = os.getenv("EMBED_MODEL", "gemini-embedding-001").replace("models/"
 # modelo admite truncado por diseño, así que la pérdida de calidad es menor.
 EMBED_DIM = int(os.getenv("EMBED_DIM", "768"))
 
+# Parametros productivos de recuperacion. Se nombran para que el algoritmo y
+# la fotografia de procedencia lean la misma fuente y no puedan divergir.
+RECUPERACION_TOP_K = 8
+RECUPERACION_LAMBDA_DIVERSIDAD = 0.7
+RECUPERACION_MIN_SUSTANTIVOS = 3
+
 MOCK_DIM = EMBED_DIM
 _client = None
 
@@ -300,9 +306,9 @@ def recuperar_contexto(
     db: Session,
     articulo_id: str,
     contexto: Dict[str, Any],
-    k: int = 8,
-    lambda_diversidad: float = 0.7,
-    min_sustantivos: int = 3,
+    k: int = RECUPERACION_TOP_K,
+    lambda_diversidad: float = RECUPERACION_LAMBDA_DIVERSIDAD,
+    min_sustantivos: int = RECUPERACION_MIN_SUSTANTIVOS,
 ) -> List[Dict[str, Any]]:
     """Selecciona los fragmentos que se entregarán al modelo.
 

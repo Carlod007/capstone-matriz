@@ -14,8 +14,6 @@ brecha en lugar de dos.
 
 from __future__ import annotations
 
-import uuid
-
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
@@ -34,6 +32,7 @@ from app.models.run import Run
 from app.models.run_item import RunItem
 from app.services.ventana_evidencia import fragmentos_de_brecha
 from app.services.verificacion import verificar
+from app.services.registro_metricas import registrar_metrica
 
 router = APIRouter(prefix="/proyectos", tags=["verificacion"])
 
@@ -113,9 +112,10 @@ def verificar_proyecto(rehacer: bool = False,
          .delete(synchronize_session=False))
 
         def _add(codigo, valor, detalle=None):
-            db.add(Metrica(id=str(uuid.uuid4()), proyecto_id=proyecto_id,
-                           ambito=AMBITO_BRECHA, referencia_id=rb.id,
-                           codigo=codigo, valor=valor, detalle=detalle))
+            registrar_metrica(
+                db, proyecto_id, AMBITO_BRECHA, rb.id,
+                codigo, valor, detalle,
+            )
 
         if v.disponible:
             _add("N2.1", v.fidelidad,

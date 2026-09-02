@@ -3,9 +3,10 @@
 **Fecha de revisión:** 1 de septiembre de 2026
 **Estado:** propuesta de trabajo; este documento no implica que las tareas estén implementadas.
 
-**Progreso:** paso 1 completado el 2 de septiembre de 2026. README, CONTEXTO y
-comentarios operativos describen ahora el mismo estado vigente. Los documentos
-históricos se conservaron sin reescribirlos.
+**Progreso:** pasos 1 y 2 completados el 2 de septiembre de 2026. El versionado
+se verificó con migraciones desde una base MySQL vacía, `alembic check` y las
+452 pruebas sin omisiones. Los documentos históricos se conservaron sin
+reescribirlos.
 
 Este documento reúne dos cosas que conviene mantener separadas:
 
@@ -59,6 +60,8 @@ revisión de Alembic.
 
 ### 2. Versionar la procedencia de cada medición
 
+**Estado:** completado y verificado localmente el 2 de septiembre de 2026;
+pendiente únicamente de publicación.
 **Esfuerzo:** bajo a medio, uno o dos días.
 **Dependencias:** debe preceder los pasos 3 y 4.
 
@@ -78,6 +81,14 @@ como mínimo:
 La versión de fórmula debe poder consultarse por cada fila de `metrica`. Los
 datos antiguos se marcan `legacy` o `desconocida`; no se les inventa una versión
 por inferencia. Los resultados continúan vinculados a su `run`.
+
+**Implementación.** La revisión `0010` añade una fotografía técnica tanto a
+`run` como a cada `metrica`, porque una verificación o síntesis puede ejecutarse
+después del análisis bajo otro despliegue. Cada métrica guarda además su versión
+de fórmula. Las respuestas técnicas separan series por código, fórmula y
+procedencia; el CSV, JSON, Markdown y los PDF exportados identifican el run y/o
+la configuración que produjo sus datos. `APP_REVISION` se inyecta al desplegar;
+si no está definida queda como desconocida.
 
 **Criterio de terminado.** Dos mediciones con fórmulas o prompts distintos se
 pueden separar mediante una consulta y las exportaciones identifican con qué

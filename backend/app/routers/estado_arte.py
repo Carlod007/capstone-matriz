@@ -10,9 +10,9 @@ from app.models.run_item import RunItem
 from app.models.resultado_brecha import ResultadoBrecha
 from app.models.estado_arte import EstadoDelArte
 from app.models.articulo import Articulo
-from app.models.metrica import Metrica
 from app.services.gemini_service import synthesize_estado_arte
 from app.services.metricas import sintesis as S
+from app.services.registro_metricas import registrar_metrica
 
 router = APIRouter(prefix="/proyectos", tags=["estado_arte"])
 
@@ -123,10 +123,9 @@ def _medir_sintesis(db: Session, proyecto_id: str, rec: EstadoDelArte,
             # Que falle una métrica no debe impedir guardar el estado del arte:
             # mide sobre el resultado, no forma parte de él.
             valor, detalle = None, {"error": str(exc)[:200]}
-        db.add(Metrica(
-            id=str(uuid.uuid4()), proyecto_id=proyecto_id, ambito="proyecto",
-            referencia_id=rec.id, codigo=codigo, valor=valor, detalle=detalle,
-        ))
+        registrar_metrica(
+            db, proyecto_id, "proyecto", rec.id, codigo, valor, detalle
+        )
         salida[codigo] = {"valor": valor, "detalle": detalle}
     return salida
 

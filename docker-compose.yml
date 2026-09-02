@@ -59,6 +59,9 @@ services:
       REGISTRO_ABIERTO: ${REGISTRO_ABIERTO:-false}
       GEMINI_MODE: ${GEMINI_MODE:-mock}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      # Revision que queda fotografiada en cada nueva ejecucion. En el
+      # servidor se exporta con `git rev-parse --short HEAD` antes de levantar.
+      APP_REVISION: ${APP_REVISION:-}
       CORS_ORIGENES: ${CORS_ORIGENES:-http://localhost:8080}
       STORAGE_DIR: /app/storage/pdfs
     volumes:
@@ -89,6 +92,7 @@ services:
       JWT_SECRETO: ${JWT_SECRETO:?falta JWT_SECRETO en el .env}
       GEMINI_MODE: ${GEMINI_MODE:-mock}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      APP_REVISION: ${APP_REVISION:-}
       STORAGE_DIR: /app/storage/pdfs
     volumes:
       - pdfs:/app/storage/pdfs

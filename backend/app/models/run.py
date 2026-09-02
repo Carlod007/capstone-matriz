@@ -4,6 +4,7 @@ from sqlalchemy import (
     text,
 )
 from sqlalchemy.dialects.mysql import DECIMAL as MySQLDECIMAL
+from sqlalchemy.dialects.mysql import JSON as MySQLJSON
 from app.models.proyecto import Base
 import enum
 
@@ -44,6 +45,10 @@ class Run(Base):
     # un articulo suelto van en run_item.error_msg; este es para lo que impide
     # continuar, como quedarse sin cuota diaria a mitad del lote.
     error_msg: Mapped[str | None] = mapped_column(Text, nullable=True)
+    # Fotografia tecnica del pipeline en el momento de crear la ejecucion.
+    # Es nullable a proposito: las ejecuciones anteriores a la migracion no
+    # tienen procedencia demostrable y no debe inventarse retrospectivamente.
+    procedencia: Mapped[dict | None] = mapped_column(MySQLJSON, nullable=True)
 
     __table_args__ = (
         Index("idx_run_proy_estado", "proyecto_id", "estado"),

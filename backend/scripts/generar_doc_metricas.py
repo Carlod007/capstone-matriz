@@ -108,9 +108,10 @@ def main() -> None:
                 "**Por qué importa.** %s\n\n"
                 "| | |\n|---|---|\n"
                 "| Escala | %s |\n| Dirección | %s |\n| Se calcula sobre | %s |\n"
+                "| Versión de fórmula | v%s |\n"
                 % (f.codigo, f.nombre, f.descripcion, f.interpretacion,
                    f.rango, DIRECCION.get(f.mejor, f.mejor),
-                   AMBITO.get(f.ambito, f.ambito))
+                   AMBITO.get(f.ambito, f.ambito), f.version_formula)
             )
 
     # N6 no está en el catálogo: no la calcula el sistema, la aporta una

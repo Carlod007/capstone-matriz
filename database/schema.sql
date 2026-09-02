@@ -97,6 +97,7 @@ CREATE TABLE run (
   tokens_in     BIGINT DEFAULT 0,
   tokens_out    BIGINT DEFAULT 0,
   costo_estimado DECIMAL(10,2) DEFAULT 0.00,
+  procedencia   JSON NULL,
   CONSTRAINT fk_run_proyecto
     FOREIGN KEY (proyecto_id) REFERENCES proyecto(id)
     ON DELETE CASCADE ON UPDATE RESTRICT,
@@ -255,8 +256,10 @@ CREATE TABLE metrica (
   ambito        VARCHAR(16) NOT NULL,   -- brecha | articulo | run | proyecto
   referencia_id CHAR(36) NOT NULL,
   codigo        VARCHAR(32) NOT NULL,   -- N1.2, N3.1, N4.1c...
+  version_formula INT NULL,
   valor         FLOAT NULL,
   detalle       JSON NULL,
+  procedencia   JSON NULL,
   -- Microsegundos: con resolucion de segundos, dos mediciones del mismo
   -- codigo escritas en el mismo segundo empatan y ordenar por fecha no
   -- decide cual es la vigente.
@@ -266,6 +269,7 @@ CREATE TABLE metrica (
     ON DELETE CASCADE ON UPDATE RESTRICT,
   INDEX idx_metrica_ref (ambito, referencia_id),
   INDEX idx_metrica_codigo (codigo),
+  INDEX idx_metrica_codigo_version (codigo, version_formula),
   INDEX idx_metrica_proyecto (proyecto_id, codigo)
 ) ENGINE=InnoDB;
 

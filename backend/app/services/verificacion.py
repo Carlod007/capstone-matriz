@@ -37,6 +37,10 @@ from typing import Any, Dict, List, Sequence
 MODE = os.getenv("GEMINI_MODE", "mock").lower()
 VERIFICAR = os.getenv("VERIFICAR_FIDELIDAD", "1") not in ("0", "false", "False")
 
+# Primera version formal del prompt de verificacion. Los resultados anteriores
+# a la trazabilidad permanecen como legado, no se les asigna esta version.
+PROMPT_VERIFICACION_VERSION = 1
+
 EVIDENCIAL = "evidencial"
 INFERENCIAL = "inferencial"
 

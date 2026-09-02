@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Optional, List
+from typing import Optional, List, Any
 
 class RunCreate(BaseModel):
     # futuro: flags (usar_ocr, usar_crossref, etc.)
@@ -11,6 +11,7 @@ class RunOut(BaseModel):
     estado: str
     n_items_total: int
     n_items_ok: int
+    procedencia: dict[str, Any] | None = None
     class Config:
         from_attributes = True
 

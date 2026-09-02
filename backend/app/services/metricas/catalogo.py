@@ -30,6 +30,8 @@ class Ficha:
     rango: str
     descripcion: str
     interpretacion: str
+    # Primera version formal para todas salvo las formulas que ya cambiaron.
+    version_formula: int = 1
 
     def dict(self) -> dict:
         return asdict(self)
@@ -143,7 +145,8 @@ CATALOGO: dict[str, Ficha] = {f.codigo: f for f in [
 
     Ficha("N3.4", "Redundancia", "N3 Especificidad", "run", BAJO, "0 a 1",
           "Proporción de brechas casi idénticas a otra del proyecto.",
-          "Debería ser cero. Valores altos indican que el modelo repite hallazgos."),
+          "Debería ser cero. Valores altos indican que el modelo repite hallazgos.",
+          version_formula=2),
 
     Ficha("N4.1a", "ROUGE-1 precisión", "N4 Resumen", "brecha", ALTO, "0 a 1",
           "Qué proporción de las palabras del resumen aparece en el abstract.",

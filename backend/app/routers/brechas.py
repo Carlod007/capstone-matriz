@@ -65,6 +65,8 @@ def listar_brechas(
         f = ficha(m.codigo)
         por_brecha.setdefault(m.referencia_id, []).append({
             "codigo": m.codigo,
+            "version_formula": m.version_formula,
+            "procedencia": m.procedencia,
             "nombre": f.nombre if f else m.codigo,
             "valor": m.valor,
             "mejor": f.mejor if f else "neutro",

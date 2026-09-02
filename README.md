@@ -267,6 +267,17 @@ registrarse en ningún sitio: para `203.0.113.10` sería
 Los certificados viven en un volumen. Si lo borras, Caddy los vuelve a pedir, y
 Let's Encrypt limita cuántas veces se puede hacer eso por semana.
 
+Antes de reconstruir una versión nueva, exporta el commit para que las
+ejecuciones y métricas futuras conserven de qué código salieron:
+
+```bash
+export APP_REVISION=$(git rev-parse --short HEAD)
+docker compose up -d --build
+```
+
+Si se omite, el programa funciona igual, pero registra honestamente la revisión
+como desconocida.
+
 ### Copias de seguridad
 
 En el servidor, los datos ya no están también en tu equipo. `respaldar.sh`
@@ -407,7 +418,7 @@ Desde `backend/`, con el entorno activado:
 python -m pytest
 ```
 
-Son 448 pruebas y corren en modo simulado, sin gastar cuota. Las que
+Son 452 pruebas y corren en modo simulado, sin gastar cuota. Las que
 necesitan MySQL están marcadas con `bd` y **se saltan solas** si no hay
 conexión, de modo que la suite pasa igual en una máquina sin base de datos.
 
@@ -428,7 +439,7 @@ GitHub lo mismo que harías a mano:
 
 - levanta un MySQL vacío y construye el esquema con `alembic upgrade head`,
   de modo que una migración mal escrita se rompe ahí;
-- ejecuta `alembic check` y las 448 pruebas contra esa base recién creada,
+- ejecuta `alembic check` y las 452 pruebas contra esa base recién creada,
   sin los datos acumulados de una máquina de desarrollo;
 - instala el frontend con `npm ci`, pasa el lint y compila.
 
@@ -547,7 +558,7 @@ backend/
     routers/          endpoints HTTP
     services/         ingesta, RAG, verificación, métricas, límites de cuota
     utils/            extracción de texto y OCR
-  tests/              448 pruebas
+  tests/              452 pruebas
   storage/pdfs/       PDF subidos, en una carpeta por usuario (no se versionan)
 frontend/
   Caddyfile           servidor web, proxy a la API y HTTPS automático

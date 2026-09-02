@@ -34,6 +34,8 @@ from app.services.metricas import niveles as N
 from app.services.metricas import sintesis as S
 from app.services.verificacion import verificar
 from app.services.ventana_evidencia import fragmentos_de_brecha
+from app.services.procedencia import capturar_procedencia
+from app.services.registro_metricas import registrar_metrica
 
 from app.utils.text_extractor import extraer_con_diagnostico
 
@@ -48,15 +50,9 @@ from app.utils.text_extractor import extraer_con_diagnostico
 def _metrica(db, proyecto_id: str, ambito: str, referencia_id: str, codigo: str,
              valor: float | None, detalle: dict | None = None) -> None:
     """Registra una medición en el almacén genérico de métricas."""
-    db.add(Metrica(
-        id=str(uuid.uuid4()),
-        proyecto_id=proyecto_id,
-        ambito=ambito,
-        referencia_id=referencia_id,
-        codigo=codigo,
-        valor=None if valor is None else float(valor),
-        detalle=detalle,
-    ))
+    registrar_metrica(
+        db, proyecto_id, ambito, referencia_id, codigo, valor, detalle
+    )
 
 
 def _metricas_de_lote(db, run) -> None:
@@ -255,6 +251,7 @@ def crear_run(
         estado=EstadoRun.creado,
         n_items_total=len(arts),
         n_items_ok=0,
+        procedencia=capturar_procedencia(),
     )
     db.add(r)
     db.flush()
@@ -276,6 +273,7 @@ def crear_run(
         estado=r.estado.value,
         n_items_total=r.n_items_total,
         n_items_ok=r.n_items_ok,
+        procedencia=r.procedencia,
     )
 
 
@@ -301,6 +299,7 @@ def listar_runs(
             estado=x.estado.value,
             n_items_total=x.n_items_total,
             n_items_ok=x.n_items_ok,
+            procedencia=x.procedencia,
         )
         for x in rows
     ]
@@ -606,4 +605,5 @@ def _estado(run: Run) -> RunOut:
         estado=run.estado.value if hasattr(run.estado, "value") else run.estado,
         n_items_total=run.n_items_total,
         n_items_ok=run.n_items_ok,
+        procedencia=run.procedencia,
     )

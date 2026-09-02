@@ -13,6 +13,11 @@ MODE = os.getenv("GEMINI_MODE", "mock").lower()
 API_KEY = os.getenv("GEMINI_API_KEY", "")
 CHAT_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 
+# Se incrementan solo cuando cambia el contenido o la semantica del prompt.
+# La marca se fotografia al crear cada run; no se deduce leyendo datos viejos.
+PROMPT_ANALISIS_VERSION = 1
+PROMPT_SINTESIS_VERSION = 1
+
 # Prompt del sistema: salida estrictamente en JSON y regla clara de tipificación
 SYS_PROMPT = (
     "Eres un asistente para análisis bibliográfico. "
@@ -55,7 +60,15 @@ FEW_SHOTS = [
     }
 ]
 
-def _mk_rag_block(context_docs: list[str] | None, max_total_chars: int = 12000, per_doc_limit: int = 1500) -> str:
+RAG_MAX_TOTAL_CHARS = 12000
+RAG_PER_DOC_LIMIT = 1500
+
+
+def _mk_rag_block(
+    context_docs: list[str] | None,
+    max_total_chars: int = RAG_MAX_TOTAL_CHARS,
+    per_doc_limit: int = RAG_PER_DOC_LIMIT,
+) -> str:
     if not context_docs:
         return "Contexto recuperado (RAG): [sin fragmentos disponibles]"
     acc, total = [], 0

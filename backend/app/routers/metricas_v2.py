@@ -14,6 +14,7 @@ presentarlas igual fue lo que oculto el problema original.
 
 from __future__ import annotations
 
+import json
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -98,25 +99,34 @@ def metricas_proyecto(
         if m.referencia_id in referencias:
             ultima[(m.referencia_id, m.codigo)] = m
 
-    valores: dict[str, list] = {}
-    motivos: dict[str, list[str]] = {}
+    # La version forma parte de la identidad de la serie. Agrupar solo por
+    # codigo mezclaría en silencio valores producidos por formulas distintas.
+    valores: dict[tuple[str, int | None, str], list] = {}
+    motivos: dict[tuple[str, int | None, str], list[str]] = {}
+    procedencias: dict[tuple[str, int | None, str], dict | None] = {}
     for m in ultima.values():
-        valores.setdefault(m.codigo, []).append(m.valor)
+        firma = json.dumps(m.procedencia, sort_keys=True, separators=(",", ":"))
+        clave = (m.codigo, m.version_formula, firma)
+        valores.setdefault(clave, []).append(m.valor)
+        procedencias[clave] = m.procedencia
         # Cuando la medición se descartó, el porqué quedó guardado junto a ella.
         # La pantalla decía «no produjo valores», que es cierto y no explica
         # nada: el motivo estaba en la base desde el principio.
         if isinstance(m.detalle, dict) and m.detalle.get("motivo"):
-            motivos.setdefault(m.codigo, []).append(str(m.detalle["motivo"]))
+            motivos.setdefault(clave, []).append(str(m.detalle["motivo"]))
 
     salida = []
-    for codigo in sorted(valores):
-        d = D.describir(codigo, valores[codigo])
+    for codigo, version_formula, firma in sorted(
+        valores, key=lambda x: (x[0], -1 if x[1] is None else x[1], x[2])
+    ):
+        clave = (codigo, version_formula, firma)
+        d = D.describir(codigo, valores[clave])
         f = ficha(codigo)
 
         # Solo se informa del motivo si no quedó ningún valor y todas las
         # mediciones descartadas coinciden en la razón. Con motivos distintos,
         # resumirlos en uno sería elegir por el lector cuál vale.
-        razones = set(motivos.get(codigo, []))
+        razones = set(motivos.get(clave, []))
         motivo = razones.pop() if d.n == 0 and len(razones) == 1 else None
 
         salida.append({
@@ -129,10 +139,15 @@ def metricas_proyecto(
             "descripcion": f.descripcion if f else "",
             "interpretacion": f.interpretacion if f else "",
             "motivo_sin_datos": motivo,
+            "version_formula": version_formula,
+            "procedencia": procedencias[clave],
+            "procedencia_formula": (
+                "registrada" if version_formula is not None else "legado/desconocido"
+            ),
             # Cuántas mediciones se intentaron, hubieran dado valor o no. Sin
             # esto, «n=0» no distingue entre «no se midió nada» y «se midieron
             # cinco y ninguna aplicaba».
-            "n_intentos": len(valores[codigo]),
+            "n_intentos": len(valores[clave]),
         })
 
     estados = {}
@@ -150,6 +165,7 @@ def metricas_proyecto(
             "n_items_ok": run.n_items_ok,
             "tokens_in": run.tokens_in or 0,
             "tokens_out": run.tokens_out or 0,
+            "procedencia": run.procedencia,
         },
         "conteos": {
             "articulos": len(set(ids_articulo)),
@@ -184,15 +200,27 @@ def metricas_por_articulo(
 
     # Igual que arriba: se toma la medición más reciente de cada par.
     por_referencia: dict[str, dict] = {}
+    versiones_por_referencia: dict[str, dict] = {}
+    procedencias_por_referencia: dict[str, dict] = {}
     for m in (db.query(Metrica)
               .filter(Metrica.proyecto_id == proyecto_id)
               .order_by(Metrica.creado_en.asc()).all()):
         por_referencia.setdefault(m.referencia_id, {})[m.codigo] = m.valor
+        versiones_por_referencia.setdefault(m.referencia_id, {})[
+            m.codigo
+        ] = m.version_formula
+        procedencias_por_referencia.setdefault(m.referencia_id, {})[
+            m.codigo
+        ] = m.procedencia
 
     articulos = []
     for rb, ri, art in filas:
         metricas = dict(por_referencia.get(rb.id, {}))
         metricas.update(por_referencia.get(art.id, {}))
+        versiones = dict(versiones_por_referencia.get(rb.id, {}))
+        versiones.update(versiones_por_referencia.get(art.id, {}))
+        procedencias_metricas = dict(procedencias_por_referencia.get(rb.id, {}))
+        procedencias_metricas.update(procedencias_por_referencia.get(art.id, {}))
         articulos.append({
             "articulo_id": art.id,
             "titulo": art.titulo,
@@ -201,10 +229,14 @@ def metricas_por_articulo(
             "tipo_brecha": rb.tipo_brecha,
             "estado_validacion": rb.estado_validacion,
             "metricas": {c: v for c, v in sorted(metricas.items())},
+            "versiones_formula": {c: v for c, v in sorted(versiones.items())},
+            "procedencias_metricas": {
+                c: v for c, v in sorted(procedencias_metricas.items())
+            },
         })
 
     return {
-        "run": {"id": run.id},
+        "run": {"id": run.id, "procedencia": run.procedencia},
         "catalogo": {c: f.dict() for c, f in CATALOGO.items()},
         "articulos": articulos,
     }

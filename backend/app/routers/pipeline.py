@@ -10,6 +10,7 @@ from app.models.proyecto import Proyecto
 from app.models.articulo import Articulo
 from app.models.run import Run, EstadoRun
 from app.models.run_item import RunItem, EstadoRunItem
+from app.services.procedencia import capturar_procedencia
 
 router = APIRouter(prefix="/proyectos", tags=["pipeline"])
 
@@ -56,14 +57,16 @@ def analizar_todo(
         )
 
     run_id = str(uuid.uuid4())
-    db.add(Run(
+    run = Run(
         id=run_id,
         proyecto_id=proyecto.id,
         estado=EstadoRun.creado,
         n_items_total=len(arts),
         n_items_ok=0,
         genera_estado_arte=True,
-    ))
+        procedencia=capturar_procedencia(),
+    )
+    db.add(run)
     db.flush()
 
     for a in arts:
@@ -81,6 +84,7 @@ def analizar_todo(
         "estado": EstadoRun.creado.value,
         "n_items_total": len(arts),
         "n_items_ok": 0,
+        "procedencia": run.procedencia,
         "aviso": (
             "El análisis quedó en cola. Puedes cerrar esta página; consulta el "
             "avance en /proyectos/runs/%s." % run_id

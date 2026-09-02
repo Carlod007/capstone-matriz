@@ -1,6 +1,7 @@
 # app/routers/export.py
 import csv, io
 from datetime import datetime
+from xml.sax.saxutils import escape
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse, PlainTextResponse, JSONResponse
 from sqlalchemy.orm import Session
@@ -31,6 +32,7 @@ from app.models.estado_arte import EstadoDelArte
 from app.models.run import Run
 from app.models.articulo import Articulo  # <-- agregado
 from app.services import metrics
+from app.services.procedencia import resumen_procedencia
 
 router = APIRouter(prefix="/export", tags=["export"])
 
@@ -96,7 +98,7 @@ def export_brechas_csv(
     _proj_or_404(db, proyecto_id)
 
     q = (
-        db.query(ResultadoBrecha, RunItem)
+        db.query(ResultadoBrecha, RunItem, Run)
         .join(RunItem, RunItem.id == ResultadoBrecha.run_item_id)
         .join(Run, Run.id == RunItem.run_id)
         .filter(Run.proyecto_id == proyecto_id)
@@ -122,7 +124,12 @@ def export_brechas_csv(
             "proyecto_id",
             "articulo_id",
             "run_item_id",
+            "run_id",
             "vigente",
+            "pipeline_version",
+            "revision_codigo",
+            "modelo_generacion",
+            "prompt_analisis_version",
             "tipo_brecha",
             "brecha",
             "oportunidad",
@@ -139,7 +146,7 @@ def export_brechas_csv(
         ]
     )
 
-    for rb, ri in rows:
+    for rb, ri, run in rows:
         # Limpiar saltos de línea para que no rompan el CSV
         brecha = (rb.brecha or "").replace("\n", " ").replace("\r", " ")
         oportunidad = (rb.oportunidad or "").replace("\n", " ").replace("\r", " ")
@@ -149,7 +156,16 @@ def export_brechas_csv(
                 proyecto_id,
                 ri.articulo_id,
                 rb.run_item_id,
+                run.id,
                 "sí" if rb.id in vigentes else "no",
+                (run.procedencia or {}).get("pipeline", ""),
+                (run.procedencia or {}).get("revision_codigo", ""),
+                ((run.procedencia or {}).get("modelos") or {}).get(
+                    "generacion", ""
+                ),
+                ((run.procedencia or {}).get("prompts") or {}).get(
+                    "analisis", ""
+                ),
                 rb.tipo_brecha,
                 brecha,
                 oportunidad,
@@ -195,10 +211,13 @@ def export_estado_arte_md(
             status_code=404, detail="No existe estado del arte generado"
         )
 
+    run = db.query(Run).filter(Run.id == ea.run_id).first() if ea.run_id else None
+    procedencia = resumen_procedencia(run.procedencia if run else None)
     header = (
         f"# Estado del Arte\n\n"
         f"Proyecto: {proyecto_id}\n\n"
-        f"Versión: {ea.version}\nEstado: {ea.estado}\nFecha: {ea.created_at}\n\n---\n\n"
+        f"Versión: {ea.version}\nEstado: {ea.estado}\nFecha: {ea.created_at}\n\n"
+        f"Procedencia: {procedencia}\n\n---\n\n"
     )
     body = (ea.texto or "").strip()
     md = header + body + "\n"
@@ -411,6 +430,16 @@ def export_dashboard_pdf(
             f"Artículos objetivo: {pr.n_articulos_objetivo or '—'}", styles["Normal"]
         )
     )
+    run = (db.query(Run).filter(Run.proyecto_id == proyecto_id)
+           .order_by(Run.iniciado_en.desc(), Run.id).first())
+    elements.append(
+        Paragraph(
+            "Procedencia de la última ejecución registrada: " + escape(
+                resumen_procedencia(run.procedencia if run else None)
+            ),
+            styles["Normal"],
+        )
+    )
     elements.append(Spacer(1, 12))
 
     # --- Tabla de métricas principales (promedios) ---
@@ -597,7 +626,7 @@ def _matrix_rows(db: Session, proyecto_id: str):
         return []
 
     q = (
-        db.query(ResultadoBrecha, RunItem, Articulo)
+        db.query(ResultadoBrecha, RunItem, Articulo, Run)
         .join(RunItem, RunItem.id == ResultadoBrecha.run_item_id)
         .join(Run, Run.id == RunItem.run_id)
         .join(Articulo, Articulo.id == RunItem.articulo_id)
@@ -607,13 +636,15 @@ def _matrix_rows(db: Session, proyecto_id: str):
     )
     rows = q.all()
     result = []
-    for rb, ri, ar in rows:
+    for rb, ri, ar, run in rows:
         result.append(
             {
                 "titulo": ar.titulo or "(sin título)",
                 "doi": ar.doi or "—",
                 "brecha": rb.brecha or "",
                 "oportunidad": rb.oportunidad or "",
+                "run_id": run.id,
+                "procedencia": run.procedencia,
             }
         )
     return result
@@ -779,6 +810,21 @@ def export_matriz_pdf(
             )
         )
         elements.append(Spacer(1, 6))
+
+    # Puede haber filas vigentes de ejecuciones distintas si la ultima corrida
+    # fue parcial. Se informa la procedencia por run, sin atribuir una sola
+    # version a toda la matriz cuando los datos no permiten hacerlo.
+    procedencias = {r["run_id"]: r.get("procedencia") for r in rows}
+    elements.append(Paragraph("<b>Trazabilidad técnica</b>", styles["Heading3"]))
+    for run_id, procedencia in sorted(procedencias.items()):
+        elements.append(
+            Paragraph(
+                "Ejecución %s: %s"
+                % (escape(run_id), escape(resumen_procedencia(procedencia))),
+                styles["Normal"],
+            )
+        )
+    elements.append(Spacer(1, 6))
 
     elements.append(
         Paragraph(
