@@ -216,7 +216,8 @@ PDF → ingesta (texto + OCR si hace falta + detección de secciones)
 
 ### Modelo de datos
 
-16 tablas. `usuario` → `proyecto` → (`articulo`, `run`) → (`run_item`,
+15 tablas funcionales, más `alembic_version`. `usuario` → `proyecto` →
+(`articulo`, `run`) → (`run_item`,
 `archivo`) → (`resultado_brecha`, `embedding_doc`, `metrica`, `rag_log`,
 `estado_arte`, `resultado_resumen`, `articulo_meta`, `llamada_api`), y
 `validacion_humana` colgando de `resultado_brecha` y de `usuario`.
@@ -358,8 +359,8 @@ Chile West, con Docker Compose y Caddy. Coste cero y permanente.
 
 ### Deuda conocida, en orden de importancia
 
-1. **N6: el anclaje humano ya tiene dónde vivir, pero falta anotar.**
-   *(Herramienta construida; el dato depende de leer los artículos.)*
+1. **N6: el piloto está anotado; falta ampliar la evidencia.**
+   *(Cinco brechas, una persona y todavía sin acuerdo entre jueces.)*
 
    La pantalla «Tu revisión de las brechas» permite marcar cada una como
    correcta, parcial o incorrecta con su justificación, y guarda quién la
@@ -369,11 +370,12 @@ Chile West, con Docker Compose y Caddy. Coste cero y permanente.
    (brecha, persona) para poder medir el acuerdo entre jueces el día que haya
    más de uno.
 
-   **La limitación que queda es de método, no de código:** con un solo
-   anotador no hay acuerdo entre jueces. La pantalla lo dice en su cabecera en
-   lugar de esconderlo, porque es lo primero que pregunta un tribunal. Lo
-   defendible con un solo autor es anotar con protocolo escrito, antes de
-   mirar las métricas del sistema, y declarar la limitación.
+   El piloto de cinco brechas ya terminó: tres correctas y dos parciales, con
+   acierto ponderado 0.80. **La limitación que queda es de método, no de
+   código:** con un solo anotador no hay acuerdo entre jueces y cinco casos no
+   permiten generalizar. La pantalla lo declara en lugar de esconderlo. El
+   siguiente paso defendible es revisar artículos nuevos con el mismo protocolo
+   ciego y, después, incorporar un segundo juicio independiente.
 
    *No usar otro modelo de lenguaje para contrastar.* Validar un LLM con otro
    LLM es circular y anula el capítulo entero. Sirve para localizar pasajes;
@@ -451,8 +453,10 @@ una herramienta personal en un servicio de cara al público.
 | **Registro abierto y recuperación de contraseña** | `REGISTRO_ABIERTO` existe pero está en `false`, y no hay forma de recuperar una contraseña olvidada: hoy la resolvería el autor a mano. |
 | **Borrado de cuenta y de datos** | Un usuario debe poder irse con sus datos. Hoy se puede borrar un artículo, no una cuenta. |
 
-**No se empieza hasta que N6 esté anclado.** Sin saber si el sistema acierta,
-abrirlo a desconocidos es repartir un resultado que nadie ha comprobado.
+**No se empieza hasta que N6 supere el piloto actual.** Ya existe un primer
+anclaje, pero cinco casos y un solo anotador no justifican abrir el resultado a
+desconocidos. Antes hace falta probar artículos nuevos y ampliar el juicio
+humano.
 
 ---
 
@@ -484,7 +488,8 @@ Si el objetivo es **proyecto profesional presentable**, lo que más pesa:
   programadas y un README que instala desde cero.
 - Lo que se echa en falta: dominio propio en lugar de un nombre derivado de la
   IP, y observabilidad (hoy los fallos se ven mirando registros a mano).
-- Queda pendiente la deuda enumerada arriba, con N6 a la cabeza.
+- Queda pendiente la deuda enumerada arriba: ampliar N6, probar N2.6 con casos
+  nuevos y calibrar las métricas que todavía no tienen respaldo humano.
 
 ---
 

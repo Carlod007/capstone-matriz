@@ -148,8 +148,9 @@ contraseña de la base, el secreto de sesión y, si lo usas, la clave de la API.
 alembic upgrade head
 ```
 
-Debe terminar sin errores y dejar 13 tablas más `alembic_version`. Este es el
-único modo admitido de crear o actualizar el esquema; el detalle está en
+Debe terminar sin errores y dejar 15 tablas funcionales más
+`alembic_version`. Este es el único modo admitido de crear o actualizar el
+esquema; el detalle está en
 [`backend/migraciones/README`](backend/migraciones/README).
 
 ### 6. Preparar el frontend
@@ -172,8 +173,10 @@ backend local.
 
 ## Arrancar todo con Docker
 
-La vía corta. Un solo comando levanta las cuatro piezas, y lo que corre aquí
-es lo mismo que correrá en el servidor.
+La vía corta. Un solo comando levanta cinco servicios: MySQL, migraciones,
+backend, trabajador y frontend. El de migraciones termina al actualizar el
+esquema; los otros cuatro permanecen en ejecución. Lo que corre aquí es lo
+mismo que correrá en el servidor.
 
 Necesitas [Docker Desktop](https://www.docker.com/products/docker-desktop/)
 —gratis, sin cuenta— y nada más: ni Python, ni Node, ni MySQL instalados.
@@ -530,7 +533,7 @@ de dónde partir. Los PDF normales no lo necesitan.
 ## Estructura del repositorio
 
 ```
-docker-compose.yml    levanta las cuatro piezas con un comando
+docker-compose.yml    levanta los cinco servicios con un comando
 respaldar.sh          volcado diario de la base, con rotación
 backend/
   Dockerfile          imagen compartida por el backend y el trabajador
@@ -592,10 +595,11 @@ Ejecuta `alembic upgrade head` desde `backend/`.
 **Al desplegar, recargar una dirección profunda da 404**
 El frontend usa rutas propias (`/proyectos/<id>/brechas`). En desarrollo Vite
 las resuelve solo; un servidor estático necesita que todas las rutas
-desconocidas devuelvan `index.html`. En nginx:
+desconocidas devuelvan `index.html`. Caddy ya lo hace en
+`frontend/Caddyfile` con:
 
 ```bash
-try_files $uri /index.html;
+try_files {path} /index.html
 ```
 
 **El análisis se queda en 0 y no avanza**
@@ -651,14 +655,18 @@ Funciona de principio a fin, está medido y está desplegado: vive en un servido
 Oracle Cloud del nivel gratuito, con HTTPS, arranque automático y copia de
 seguridad diaria. Se entra desde el móvil o el ordenador con la laptop apagada.
 
-**Lo que falta no es código:**
+**Lo que falta no es una función esencial, sino mejorar la evidencia y la
+precisión metodológica:**
 
-- **Anclaje humano (N6).** La pantalla de revisión existe y guarda los
-  veredictos; falta leer los artículos y anotar. Sin eso, las métricas dicen si
-  el sistema es consistente, no si acierta.
-- **Calibrar la validación automática.** Está desactivada a propósito porque
-  sus umbrales estaban por debajo del piso de ruido. Se podrá calibrar cuando
-  haya anotación humana con la que comparar.
+- **Ampliar el anclaje humano (N6).** El piloto de cinco brechas está completo:
+  tres correctas y dos parciales, con acierto ponderado 0.80. Sigue siendo una
+  muestra pequeña, de una sola persona y sin acuerdo entre jueces.
+- **Probar N2.6 con artículos nuevos.** Detectó los dos casos que originaron la
+  métrica, pero eso demuestra reproducción del patrón, no generalización.
+- **Corregir y calibrar la medición.** N1.2 necesita el denominador real, N2.2
+  un denominador coherente y el IQR debe dejar de usar un umbral universal.
+  La validación automática continúa desactivada hasta disponer de N6 suficiente
+  para calibrarla.
 
 **Límites declarados, que conviene conocer antes de fiarse de un número:**
 

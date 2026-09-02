@@ -67,7 +67,7 @@ services:
       # disco no es comodidad, es requisito.
       - pdfs:/app/storage/pdfs
     # Se publica solo en la maquina local, no en internet: el navegador llega
-    # al backend a traves de nginx, y dejar el puerto abierto al exterior solo
+    # al backend a traves de Caddy, y dejar el puerto abierto al exterior solo
     # anadiria una puerta mas que vigilar. Sirve para depurar con curl desde el
     # propio servidor.
     ports:
@@ -107,7 +107,7 @@ services:
     build:
       context: ./frontend
       args:
-        # `/api` y no una dirección completa: nginx sirve la aplicación y hace
+        # `/api` y no una dirección completa: Caddy sirve la aplicación y hace
         # de intermediario hacia el backend por el mismo origen. Así el puerto
         # del backend no necesita estar abierto al exterior y no hay CORS que
         # configurar. Se incrusta al compilar, no se lee al arrancar.

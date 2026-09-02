@@ -1,4 +1,4 @@
-# Imagen del frontend: se compila con Node y se sirve con nginx.
+# Imagen del frontend: se compila con Node y se sirve con Caddy.
 #
 # Lo que llega al servidor son archivos estaticos, no Node: el navegador
 # recibe HTML, CSS y JavaScript ya compilados. Dejar Node en la imagen final
