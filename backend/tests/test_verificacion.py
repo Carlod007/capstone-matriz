@@ -135,14 +135,48 @@ class TestMetricas:
         # Y la fidelidad no debe salir alta por no tener nada que comprobar.
         assert v.fidelidad == 0.0
 
-    def test_trazabilidad(self):
+    def test_una_inferencia_sin_cita_no_reduce_la_trazabilidad_v2(self):
         v = self._v([
             {"texto": "A.", "tipo": "evidencial", "respaldada": True, "fragmento": 1,
              "cita": "una cita", "motivo": ""},
             {"texto": "B.", "tipo": "inferencial", "respaldada": None,
              "fragmento": None, "cita": None, "motivo": ""},
         ])
+        assert v.trazabilidad == 1.0
+        assert v.detalle_trazabilidad()["n_excluidas_inferenciales"] == 1
+
+    def test_una_evidencial_sin_fragmento_reduce_la_trazabilidad_v2(self):
+        v = self._v([
+            {"texto": "A.", "tipo": "evidencial", "respaldada": True,
+             "fragmento": 1, "cita": "una cita", "motivo": ""},
+            {"texto": "B.", "tipo": "evidencial", "respaldada": False,
+             "fragmento": None, "cita": None, "motivo": "no aparece"},
+        ])
         assert v.trazabilidad == 0.5
+        detalle = v.detalle_trazabilidad()
+        assert detalle["n_elegibles"] == 2
+        assert detalle["n_sin_fragmento_o_cita"] == 1
+
+    def test_sin_evidenciales_autonomas_la_trazabilidad_no_aplica(self):
+        v = self._v([
+            {"texto": "Por tanto falta validación externa.",
+             "tipo": "inferencial", "respaldada": None,
+             "fragmento": None, "cita": None, "motivo": "conclusión"},
+        ])
+        assert v.trazabilidad is None
+        detalle = v.detalle_trazabilidad()
+        assert detalle["n_elegibles"] == 0
+        assert "motivo" in detalle
+
+    def test_evidencial_dependiente_se_excluye_pero_queda_en_el_detalle(self):
+        v = self._v([
+            {"texto": "Esto limita su fiabilidad.", "tipo": "evidencial",
+             "respaldada": False, "fragmento": None, "cita": None,
+             "motivo": "sin sujeto"},
+        ])
+        assert v.trazabilidad is None
+        assert v.detalle_trazabilidad()["n_excluidas_dependientes_evidenciales"] == 1
+        assert v.resumen()["n_dependientes"] == 1
 
     def test_el_resumen_incluye_las_no_respaldadas(self):
         v = self._v([
@@ -235,10 +269,11 @@ class TestMedicionVigente:
 
 class TestCatalogo:
     def test_las_metricas_n2_estan_catalogadas(self):
-        from app.services.metricas.catalogo import CATALOGO
+        from app.services.metricas.catalogo import CATALOGO, FORMULA_N2_2
 
         for c in ("N2.1", "N2.2", "N2.4", "N2.verificada"):
             assert c in CATALOGO, "falta la ficha de %s" % c
+        assert CATALOGO["N2.2"].version_formula == FORMULA_N2_2 == 2
 
     def test_la_verificacion_cuenta_contra_la_cuota_diaria(self):
         from app.services.registro_api import OP_VERIFICACION, OPERACIONES_DE_GENERACION

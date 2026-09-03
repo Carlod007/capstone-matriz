@@ -119,9 +119,9 @@ def verificar_proyecto(rehacer: bool = False,
 
         if v.disponible:
             _add("N2.1", v.fidelidad,
-                 {"sin_respaldo": [a.texto for a in v.evidenciales
+                 {"sin_respaldo": [a.texto for a in v.evidenciales_autonomas
                                    if not a.respaldada][:10]})
-            _add("N2.2", v.trazabilidad)
+            _add("N2.2", v.trazabilidad, v.detalle_trazabilidad())
             _add("N2.4", v.equilibrio_evidencial)
             # El detalle guarda la frase y la cita que la desmiente, no solo el
             # número: una contradicción sin la prueba al lado no se puede
@@ -146,7 +146,8 @@ def verificar_proyecto(rehacer: bool = False,
             "estado": "verificada" if v.disponible else "no verificada",
             "motivo": None if v.disponible else v.motivo,
             "fidelidad": v.fidelidad if v.disponible else None,
-            "sin_respaldo": (sum(1 for a in v.evidenciales if not a.respaldada)
+            "sin_respaldo": (sum(1 for a in v.evidenciales_autonomas
+                                  if not a.respaldada)
                              if v.disponible else None),
             "contradicciones": (len(v.contradictorias) if v.disponible else None),
         })

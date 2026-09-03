@@ -163,6 +163,22 @@ class TestN1:
         assert N.n1_3_diversidad_contexto([[1.0, 0.0]]) == 0.0
 
 
+class TestN2:
+    def test_n21_declara_que_no_evalua_la_brecha_completa(self):
+        actual = ficha_para_version("N2.1", 1)
+        assert actual.nombre == "Respaldo de afirmaciones evidenciales"
+        assert "no la corrección total" in actual.interpretacion
+
+    def test_cada_version_de_n22_conserva_su_denominador(self):
+        v1 = ficha_para_version("N2.2", 1)
+        v2 = ficha_para_version("N2.2", 2)
+        legado = ficha_para_version("N2.2", None)
+
+        assert "todas las afirmaciones" in v1.descripcion
+        assert "evidenciales autónomas" in v2.descripcion
+        assert "no quedó registrada" in legado.descripcion
+
+
 class TestN3:
     def test_discriminabilidad_detecta_brechas_identicas(self):
         """El fallo que N3.1 existe para atrapar."""

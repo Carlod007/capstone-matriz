@@ -23,6 +23,7 @@ NEUTRO = "neutro"  # descriptiva, no es una nota
 # El cálculo las importa desde aquí para que catálogo, persistencia y
 # documentación no puedan declarar números distintos.
 FORMULA_N1_2 = 2
+FORMULA_N2_2 = 2
 FORMULA_N3_4 = 2
 
 
@@ -57,17 +58,21 @@ CATALOGO: dict[str, Ficha] = {f.codigo: f for f in [
           "Si es baja, el contexto repite la misma idea y desaprovecha la ventana "
           "disponible."),
 
-    Ficha("N2.1", "Fidelidad evidencial", "N2 Fidelidad", "brecha", ALTO, "0 a 1",
-          "Qué proporción de las afirmaciones comprobables de la brecha está "
-          "respaldada por algún fragmento del artículo.",
-          "Es la métrica central del sistema. Una afirmación que describe lo que el "
-          "artículo hace y no aparece en ningún fragmento es, por definición, una "
-          "alucinación."),
+    Ficha("N2.1", "Respaldo de afirmaciones evidenciales", "N2 Fidelidad", "brecha", ALTO, "0 a 1",
+          "Qué proporción de las afirmaciones evidenciales autónomas de la brecha "
+          "está respaldada por los fragmentos consultados del artículo.",
+          "Evalúa el respaldo de afirmaciones factuales, no la corrección total de "
+          "la brecha. Una conclusión puede ser discutible aunque sus evidencias "
+          "estén respaldadas, y una afirmación sin respaldo en la ventana puede "
+          "aparecer en otra parte del PDF."),
 
     Ficha("N2.2", "Trazabilidad", "N2 Fidelidad", "brecha", ALTO, "0 a 1",
-          "Proporción de afirmaciones que pueden vincularse a un fragmento citable.",
-          "Sin esto la herramienta no es auditable: el investigador no puede "
-          "comprobar de dónde sale cada frase."),
+          "Proporción de afirmaciones evidenciales autónomas que pueden vincularse "
+          "a un fragmento y una cita comprobables.",
+          "Mide si las afirmaciones factuales son auditables. Las inferencias se "
+          "excluyen porque no siempre requieren una cita propia; si no hay ninguna "
+          "afirmación elegible, la métrica no es calculable.",
+          version_formula=FORMULA_N2_2),
 
     Ficha("N2.4", "Composición evidencial", "N2 Fidelidad", "brecha", NEUTRO,
           "0 a 1",
@@ -207,6 +212,19 @@ HISTORICAS: dict[tuple[str, int], Ficha] = {
         interpretacion=(
             "Fórmula histórica: podía reducir el resultado por secciones que "
             "el artículo no tenía. No debe compararse directamente con v2."
+        ),
+        version_formula=1,
+    ),
+    ("N2.2", 1): replace(
+        CATALOGO["N2.2"],
+        descripcion=(
+            "Proporción de todas las afirmaciones de la brecha que podían "
+            "vincularse a un fragmento y una cita."
+        ),
+        interpretacion=(
+            "Fórmula histórica: incluía también inferencias que podían no "
+            "requerir cita y por eso podía reducir el resultado. No debe "
+            "compararse directamente con v2."
         ),
         version_formula=1,
     ),

@@ -29,7 +29,7 @@ leer al retomar el proyecto o al abrir una conversación nueva.*
 
 | | |
 |---|---|
-| Pruebas | **456** en verde contra MySQL real local, `alembic check` verde |
+| Pruebas | **461** en verde contra MySQL real local, `alembic check` verde |
 | Migraciones | hasta `0010` |
 | Ramas | `main` y `CarlosDev` al mismo commit |
 | Anotación humana (N6) | **5 de 5**, prueba piloto |
@@ -54,10 +54,11 @@ frases están en el texto y salen respaldadas una a una. Una de las dos brechas
 tenía `N2.1 = 1.000`.
 
 También se comprobó lo contrario: **ninguna métrica separa las correctas de las
-parciales**. `N2.2` incluso va al revés — sus dos valores más bajos
-corresponden a brechas correctas. Por eso **no se movió ningún umbral**: con
-cinco casos se puede detectar un umbral claramente mal puesto, y no había
-ninguno. Lo que había era una métrica que faltaba.
+parciales**. `N2.2` v1 incluso iba al revés — sus dos valores más bajos
+correspondían a brechas correctas—, antes de corregir su denominador. Por eso
+**no se movió ningún umbral**: con cinco casos se puede detectar un umbral
+claramente mal puesto, y no había ninguno. Lo que había era una métrica que
+faltaba.
 
 ### `N2.6`, y hasta dónde llega lo que demuestra
 
@@ -149,12 +150,17 @@ sigue vigente.
 - **`N1.2` usa el artículo real (fórmula v2):** el denominador ya no son seis
   categorías teóricas, sino las secciones sustantivas detectadas e indexadas
   en cada PDF. Sin secciones reconocibles queda sin valor y explica el motivo.
+- **`N2.1` declara su alcance y `N2.2` usa fórmula v2:** el respaldo se nombra
+  como lo que realmente es —afirmaciones evidenciales autónomas contrastadas
+  contra la ventana consultada— y no como corrección total de la brecha. La
+  trazabilidad ya no penaliza inferencias que no necesitan cita; si no hay
+  afirmaciones elegibles, queda sin valor. Las fórmulas históricas no se
+  mezclan con la actual.
 
 ### Lo siguiente, en este orden
 
-1. **Paso 4:** precisar el alcance de `N2.1` y corregir el denominador de `N2.2`.
-2. **Paso 5:** dejar el IQR como descriptivo hasta disponer de calibración.
-3. **Paso 6:** añadir pruebas de comportamiento del frontend.
+1. **Paso 5:** dejar el IQR como descriptivo hasta disponer de calibración.
+2. **Paso 6:** añadir pruebas de comportamiento del frontend.
 
 ### Lo que se sabe que está mal y aún no se ha tocado
 
@@ -258,7 +264,7 @@ varios anotadores sobre la misma brecha.
 - Cuentas, sesión por token, aislamiento entre usuarios
 - Cola de trabajos con reintentos y recuperación de trabajadores caídos
 - Limitador de cuota propio (ventana deslizante) antes de chocar con la API
-- **456 pruebas automáticas**, verificadas localmente contra MySQL real
+- **461 pruebas automáticas**, verificadas localmente contra MySQL real
 - Esquema gobernado por Alembic, verificado desde base vacía
 
 ### Verificado con datos reales
@@ -271,8 +277,8 @@ Cinco artículos de ingeniería descargados de Scopus, en modo real:
 | N4.ref abstract localizado | 5 de 5 |
 | N2.verificada | 5 de 5 |
 | N1.2 cobertura seccional v1 (histórica) | mediana 0.500 (IQR 0.167) |
-| N2.1 fidelidad | mediana 0.714 (IQR 0.333) |
-| N2.2 trazabilidad | mediana 0.625 |
+| N2.1 respaldo evidencial | mediana 0.714 (IQR 0.333) |
+| N2.2 trazabilidad v1 (histórica) | mediana 0.625 |
 | N2.5 contradicciones | 1 detectada sobre 39 afirmaciones |
 | N2.6 brecha ya resuelta | 2 de 5, coincidiendo con las dos que un humano marcó como parciales |
 | N3.1 discriminabilidad | 0.399 |
@@ -485,7 +491,7 @@ Si el objetivo es **nivel académico sólido**, lo que más pesa:
 Si el objetivo es **proyecto profesional presentable**, lo que más pesa:
 
 - **A favor:** desplegado y accesible con HTTPS, migraciones con Alembic,
-  integración continua, 456 pruebas, aislamiento entre cuentas probado
+  integración continua, 461 pruebas, aislamiento entre cuentas probado
   endpoint por endpoint, cola de trabajos con reintentos, copias de seguridad
   programadas y un README que instala desde cero.
 - Lo que se echa en falta: dominio propio en lugar de un nombre derivado de la

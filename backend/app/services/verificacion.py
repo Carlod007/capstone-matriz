@@ -34,6 +34,8 @@ import re
 from dataclasses import dataclass, field, asdict
 from typing import Any, Dict, List, Sequence
 
+from app.services.metricas.catalogo import FORMULA_N2_2
+
 MODE = os.getenv("GEMINI_MODE", "mock").lower()
 VERIFICAR = os.getenv("VERIFICAR_FIDELIDAD", "1") not in ("0", "false", "False")
 
@@ -248,6 +250,17 @@ class Verificacion:
         return [a for a in self.afirmaciones if a.tipo == EVIDENCIAL]
 
     @property
+    def evidenciales_autonomas(self) -> List[Afirmacion]:
+        """Afirmaciones factuales que se pueden evaluar sin contexto externo.
+
+        N2.1 y N2.2 comparten deliberadamente esta población elegible: ambas
+        describen afirmaciones que dicen qué hizo o encontró el artículo. Las
+        inferencias no tienen por qué citarse y las frases que perdieron su
+        sujeto no pueden evaluarse de forma honesta.
+        """
+        return [a for a in self.evidenciales if a.autonoma]
+
+    @property
     def inferenciales(self) -> List[Afirmacion]:
         return [a for a in self.afirmaciones if a.tipo == INFERENCIAL]
 
@@ -299,23 +312,52 @@ class Verificacion:
         excluyeron aparece en `resumen()`, para que el defecto se vea en lugar
         de quedar disimulado en el número.
         """
-        ev = [a for a in self.evidenciales if a.autonoma]
+        ev = self.evidenciales_autonomas
         if not ev:
             return 0.0
         return round(sum(1 for a in ev if a.respaldada) / len(ev), 4)
 
     @property
-    def trazabilidad(self) -> float:
-        """N2.2: proporción de afirmaciones vinculadas a un fragmento citable.
+    def trazabilidad(self) -> float | None:
+        """N2.2 v2: cobertura de cita entre evidenciales autónomas.
 
         Sin esto la herramienta no es auditable: el investigador no puede
-        comprobar de dónde sale cada frase.
+        comprobar de dónde sale cada afirmación factual. Las inferencias se
+        excluyen porque por diseño pueden ser conclusiones legítimas sin una
+        cita propia; incluirlas reducía el valor por algo que la métrica no
+        pretende exigir.
+
+        Sin afirmaciones elegibles no se inventa un cero: la trazabilidad no
+        es calculable para esa brecha.
         """
-        if not self.afirmaciones:
-            return 0.0
-        con_cita = sum(1 for a in self.afirmaciones
+        elegibles = self.evidenciales_autonomas
+        if not elegibles:
+            return None
+        con_cita = sum(1 for a in elegibles
                        if a.fragmento is not None and (a.cita or "").strip())
-        return round(con_cita / len(self.afirmaciones), 4)
+        return round(con_cita / len(elegibles), 4)
+
+    def detalle_trazabilidad(self) -> dict:
+        """Desglose auditable del denominador de N2.2 v2."""
+        elegibles = self.evidenciales_autonomas
+        con_cita = sum(1 for a in elegibles
+                       if a.fragmento is not None and (a.cita or "").strip())
+        detalle = {
+            "formula": FORMULA_N2_2,
+            "n_elegibles": len(elegibles),
+            "n_con_fragmento_y_cita": con_cita,
+            "n_sin_fragmento_o_cita": len(elegibles) - con_cita,
+            "n_excluidas_inferenciales": len(self.inferenciales),
+            "n_excluidas_dependientes_evidenciales": sum(
+                1 for a in self.evidenciales if not a.autonoma
+            ),
+        }
+        if not elegibles:
+            detalle["motivo"] = (
+                "La brecha no contiene afirmaciones evidenciales autónomas "
+                "que deban vincularse a una cita."
+            )
+        return detalle
 
     @property
     def equilibrio_evidencial(self) -> float:
@@ -335,9 +377,10 @@ class Verificacion:
             "motivo": self.motivo,
             "n_afirmaciones": len(self.afirmaciones),
             "n_evidenciales": len(self.evidenciales),
+            "n_evidenciales_autonomas": len(self.evidenciales_autonomas),
             "n_inferenciales": len(self.inferenciales),
-            "n_sin_respaldo": sum(1 for a in self.evidenciales
-                                  if a.autonoma and not a.respaldada),
+            "n_sin_respaldo": sum(1 for a in self.evidenciales_autonomas
+                                  if not a.respaldada),
             # Cuántas se descartaron por haber perdido el sujeto. Si esto sube,
             # el problema está en la descomposición, no en el modelo que
             # redactó la brecha.
@@ -350,6 +393,7 @@ class Verificacion:
             "cita_resuelta": self.cita_resuelta,
             "fidelidad": self.fidelidad,
             "trazabilidad": self.trazabilidad,
+            "detalle_trazabilidad": self.detalle_trazabilidad(),
             "equilibrio_evidencial": self.equilibrio_evidencial,
             "tasa_contradiccion": self.tasa_contradiccion,
             "afirmaciones": [a.dict() for a in self.afirmaciones],

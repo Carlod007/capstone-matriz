@@ -94,7 +94,7 @@ def _registrar_metricas(db, art, rb, res, texto, recuperados, ruta_pdf) -> None:
 
     Son "locales" porque no requieren llamadas adicionales al modelo: se
     apoyan en los embeddings ya generados durante la indexación. Las que
-    necesitan un juez (fidelidad evidencial, precisión del contexto) quedan
+    necesitan un juez (respaldo evidencial, precisión del contexto) quedan
     para el nivel N2.
     """
     brecha_txt = res.get("brecha", "") or ""
@@ -124,9 +124,10 @@ def _registrar_metricas(db, art, rb, res, texto, recuperados, ruta_pdf) -> None:
     ver = verificar(brecha_txt, ventana)
     if ver.disponible:
         _metrica(db, art.proyecto_id, AMBITO_BRECHA, rb.id, "N2.1", ver.fidelidad,
-                 {"sin_respaldo": [a.texto for a in ver.evidenciales
+                 {"sin_respaldo": [a.texto for a in ver.evidenciales_autonomas
                                    if not a.respaldada][:10]})
-        _metrica(db, art.proyecto_id, AMBITO_BRECHA, rb.id, "N2.2", ver.trazabilidad)
+        _metrica(db, art.proyecto_id, AMBITO_BRECHA, rb.id, "N2.2",
+                 ver.trazabilidad, ver.detalle_trazabilidad())
         _metrica(db, art.proyecto_id, AMBITO_BRECHA, rb.id, "N2.4",
                  ver.equilibrio_evidencial)
         _metrica(db, art.proyecto_id, AMBITO_BRECHA, rb.id, "N2.5",

@@ -71,11 +71,11 @@ Qué fragmentos llegaron al modelo. Si aquí falla algo, todo lo demás mide sob
 
 Si lo que dice la brecha se sostiene en el artículo. Es la capa que distingue esta herramienta de pedirle un resumen a un chatbot.
 
-### N2.1 · Fidelidad evidencial
+### N2.1 · Respaldo de afirmaciones evidenciales
 
-**Qué mide.** Qué proporción de las afirmaciones comprobables de la brecha está respaldada por algún fragmento del artículo.
+**Qué mide.** Qué proporción de las afirmaciones evidenciales autónomas de la brecha está respaldada por los fragmentos consultados del artículo.
 
-**Por qué importa.** Es la métrica central del sistema. Una afirmación que describe lo que el artículo hace y no aparece en ningún fragmento es, por definición, una alucinación.
+**Por qué importa.** Evalúa el respaldo de afirmaciones factuales, no la corrección total de la brecha. Una conclusión puede ser discutible aunque sus evidencias estén respaldadas, y una afirmación sin respaldo en la ventana puede aparecer en otra parte del PDF.
 
 | | |
 |---|---|
@@ -86,16 +86,16 @@ Si lo que dice la brecha se sostiene en el artículo. Es la capa que distingue e
 
 ### N2.2 · Trazabilidad
 
-**Qué mide.** Proporción de afirmaciones que pueden vincularse a un fragmento citable.
+**Qué mide.** Proporción de afirmaciones evidenciales autónomas que pueden vincularse a un fragmento y una cita comprobables.
 
-**Por qué importa.** Sin esto la herramienta no es auditable: el investigador no puede comprobar de dónde sale cada frase.
+**Por qué importa.** Mide si las afirmaciones factuales son auditables. Las inferencias se excluyen porque no siempre requieren una cita propia; si no hay ninguna afirmación elegible, la métrica no es calculable.
 
 | | |
 |---|---|
 | Escala | 0 a 1 |
 | Dirección | ↑ mayor es mejor |
 | Se calcula sobre | cada brecha |
-| Versión de fórmula | v1 |
+| Versión de fórmula | v2 |
 
 ### N2.4 · Composición evidencial
 

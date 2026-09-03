@@ -49,8 +49,8 @@ const DESTACADAS = ["N3.1", "N1.2", "N3.2", "N4.2"];
  */
 const GUIA_DESTACADAS = {
   "N2.1": {
-    pregunta: "¿Las afirmaciones de las brechas salen del artículo?",
-    lectura: "Más alto = mayor proporción respaldada por fragmentos citables",
+    pregunta: "¿Las afirmaciones factuales se apoyan en los fragmentos consultados?",
+    lectura: "Más alto = más afirmaciones evidenciales autónomas respaldadas; no evalúa por sí sola toda la brecha",
   },
   "N3.1": {
     pregunta: "¿Las brechas cambian entre artículos?",
@@ -823,17 +823,17 @@ export function PanelMetricas({ proyectoId }) {
             Resultado
           </div>
           <h3 className="mt-2 text-base font-semibold text-tinta">
-            Fidelidad evidencial
+            Respaldo de afirmaciones evidenciales
           </h3>
           <p className="mt-2 max-w-2xl text-sm leading-relaxed text-tinta-media">
-            ¿Las afirmaciones de las brechas salen del artículo? Todavía no se
-            ha comprobado. Se calcula con el botón «Verificar fidelidad», que
-            descompone cada brecha en afirmaciones y busca el fragmento que
-            sostiene cada una.
+            ¿Las afirmaciones factuales de las brechas se apoyan en los
+            fragmentos consultados? Todavía no se ha comprobado. Se calcula con
+            el botón «Verificar fidelidad», que descompone cada brecha y busca
+            el fragmento que sostiene cada afirmación evidencial.
           </p>
           <p className="mt-2 text-xs text-tinta-suave">
-            No tenerla no invalida lo de abajo, pero es lo que permite decir si
-            el análisis se apoya en los artículos o los está adornando.
+            Esta medición no decide si la brecha completa es correcta o valiosa:
+            las conclusiones también requieren revisión humana.
           </p>
         </div>
       )}
@@ -1508,10 +1508,17 @@ export function Fidelidad({ verificacion }) {
     n_sin_respaldo: sinRespaldo,
     n_dependientes: dependientes = 0,
     n_contradicciones: contradicciones = 0,
+    detalle_trazabilidad: detalleTrazabilidad,
   } = verificacion;
 
   const evidenciales = afirmaciones.filter((a) => a.tipo === "evidencial");
   const inferenciales = afirmaciones.filter((a) => a.tipo === "inferencial");
+  const trazabilidadV2 = detalleTrazabilidad?.formula === 2;
+  const explicacionTrazabilidad = trazabilidadV2
+    ? detalleTrazabilidad.n_elegibles > 0
+      ? `${detalleTrazabilidad.n_con_fragmento_y_cita} de ${detalleTrazabilidad.n_elegibles} afirmaciones evidenciales autónomas tienen fragmento y cita. Las inferencias no reducen esta métrica porque no siempre requieren una cita propia.`
+      : "No aplicable: esta brecha no contiene afirmaciones evidenciales autónomas que deban vincularse a una cita."
+    : "Fórmula anterior: calculaba qué parte de todas las afirmaciones tenía una cita, incluidas inferencias que podían no necesitarla. No debe compararse directamente con la fórmula v2.";
 
   return (
     <details
@@ -1523,7 +1530,7 @@ export function Fidelidad({ verificacion }) {
         {disponible ? (
           <span className="text-tinta-suave">
             {" "}· {Math.round((fidelidad ?? 0) * 100)}% de las afirmaciones
-            comprobables está respaldada
+            evidenciales autónomas está respaldada
             {sinRespaldo > 0 && (
               <span className="text-mal">
                 {" "}· {sinRespaldo} sin respaldo en los fragmentos
@@ -1560,12 +1567,19 @@ export function Fidelidad({ verificacion }) {
             contra el artículo completo. Una afirmación puede ser cierta y
             estar en otra página. */}
         {disponible && (
-          <p className="text-tinta-suave leading-relaxed">
-            Se comprueba contra los fragmentos que el modelo leyó y sus párrafos
-            contiguos, no contra el artículo completo. «Sin respaldo» significa
-            que ese extracto no la sostiene, no que sea falsa: conviene mirar el
-            artículo antes de descartarla.
-          </p>
+          <div className="space-y-2 text-tinta-suave leading-relaxed">
+            <p>
+              Se comprueba contra los fragmentos que el modelo leyó y sus
+              párrafos contiguos, no contra el artículo completo. «Sin respaldo»
+              significa que ese extracto no la sostiene, no que sea falsa:
+              conviene mirar el artículo antes de descartarla.
+            </p>
+            <p>
+              El respaldo mide afirmaciones factuales autónomas. No decide por
+              sí solo si la conclusión de la brecha es correcta, relevante o
+              novedosa; esa parte necesita revisión humana.
+            </p>
+          </div>
         )}
 
         {/* Lo primero después del alcance, porque es lo más grave que puede
@@ -1610,14 +1624,14 @@ export function Fidelidad({ verificacion }) {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
             {[
               [
-                "Fidelidad",
+                "Respaldo evidencial",
                 fidelidad,
-                "De las afirmaciones que se pueden comprobar, cuántas sostiene el texto del artículo. Es la medida central: 1.00 significa que ninguna se inventó.",
+                "De las afirmaciones factuales autónomas, cuántas sostienen los fragmentos consultados. Un 1.00 no evalúa las conclusiones ni el artículo completo.",
               ],
               [
                 "Trazabilidad",
                 trazabilidad,
-                "Qué parte de la brecha viene con una cita concreta detrás. Sin cita no puedes ir al artículo a comprobarlo tú.",
+                explicacionTrazabilidad,
               ],
               [
                 "Base factual",

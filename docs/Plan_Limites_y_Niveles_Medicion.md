@@ -3,9 +3,9 @@
 **Fecha de revisión:** 1 de septiembre de 2026
 **Estado:** propuesta de trabajo; este documento no implica que las tareas estén implementadas.
 
-**Progreso:** pasos 1, 2 y 3 completados el 2 de septiembre de 2026. El
-versionado y N1.2 v2 se verificaron con migraciones desde una base MySQL vacía,
-`alembic check` y las 456 pruebas sin omisiones. Los documentos históricos se
+**Progreso:** pasos 1 a 4 completados el 2 de septiembre de 2026. El versionado,
+N1.2 v2 y N2.2 v2 se verificaron con migraciones desde una base MySQL vacía,
+`alembic check` y las 461 pruebas sin omisiones. Los documentos históricos se
 conservaron sin reescribirlos.
 
 Este documento reúne dos cosas que conviene mantener separadas:
@@ -124,6 +124,8 @@ valores v1 y v2 no se mezclan en una misma distribución.
 
 **Esfuerzo:** bajo a medio, uno o dos días.
 **Dependencias:** paso 2.
+**Estado:** implementado. `N2.2` quedó registrado como fórmula v2 y las
+mediciones anteriores conservan su definición histórica.
 
 **Problema.** El nombre “fidelidad evidencial” puede interpretarse como una
 evaluación total de la brecha, aunque N2.1 solo evalúa afirmaciones evidenciales
@@ -318,11 +320,12 @@ en el panel.
 
 ### N2 — Fidelidad y trazabilidad
 
-- **N2.1 Fidelidad evidencial:** proporción de afirmaciones evidenciales
-  autónomas respaldadas por fragmentos. No evalúa por sí sola toda la validez
-  de la brecha.
-- **N2.2 Trazabilidad:** proporción de afirmaciones vinculadas a un fragmento y
-  una cita comprobable. Su denominador necesita la corrección del paso 4.
+- **N2.1 Respaldo de afirmaciones evidenciales:** proporción de afirmaciones
+  evidenciales autónomas respaldadas por los fragmentos consultados. No evalúa
+  por sí sola la corrección total de la brecha.
+- **N2.2 Trazabilidad:** proporción de afirmaciones evidenciales autónomas
+  vinculadas a un fragmento y una cita comprobable. La fórmula v2 excluye las
+  inferencias que no necesitan cita y queda sin valor si no hay elegibles.
 - **N2.4 Composición evidencial:** qué parte de la brecha describe hechos del
   artículo frente a inferencias. Es descriptiva; ni cero ni uno son
   universalmente mejores.
