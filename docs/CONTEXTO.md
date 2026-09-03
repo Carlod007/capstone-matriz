@@ -29,7 +29,7 @@ leer al retomar el proyecto o al abrir una conversación nueva.*
 
 | | |
 |---|---|
-| Pruebas | **461** en verde contra MySQL real local, `alembic check` verde |
+| Pruebas | **462** en verde contra MySQL real temporal, `alembic check` verde |
 | Migraciones | hasta `0010` |
 | Ramas | `main` y `CarlosDev` al mismo commit |
 | Anotación humana (N6) | **5 de 5**, prueba piloto |
@@ -156,15 +156,17 @@ sigue vigente.
   trazabilidad ya no penaliza inferencias que no necesitan cita; si no hay
   afirmaciones elegibles, queda sin valor. Las fórmulas históricas no se
   mezclan con la actual.
+- **El IQR vuelve a ser descriptivo:** se conservan mediana, P25, P75, IQR y
+  tamaño de muestra, pero se retiró el umbral universal `0.05`. Ya no se afirma
+  que una métrica «separa los casos» o es «casi constante» sin una calibración
+  específica contra revisión humana N6.
 
 ### Lo siguiente, en este orden
 
-1. **Paso 5:** dejar el IQR como descriptivo hasta disponer de calibración.
-2. **Paso 6:** añadir pruebas de comportamiento del frontend.
+1. **Paso 6:** añadir pruebas de comportamiento del frontend.
 
 ### Lo que se sabe que está mal y aún no se ha tocado
 
-- El umbral de IQR `0.05` se aplica igual a métricas con escalas distintas.
 - **Cero pruebas de frontend.** La integración continua pasa lint y compila,
   nada más. Todos los fallos de interfaz encontrados hasta ahora los vio una
   persona mirando la pantalla.
@@ -264,7 +266,7 @@ varios anotadores sobre la misma brecha.
 - Cuentas, sesión por token, aislamiento entre usuarios
 - Cola de trabajos con reintentos y recuperación de trabajadores caídos
 - Limitador de cuota propio (ventana deslizante) antes de chocar con la API
-- **461 pruebas automáticas**, verificadas localmente contra MySQL real
+- **462 pruebas automáticas**, verificadas localmente contra MySQL real
 - Esquema gobernado por Alembic, verificado desde base vacía
 
 ### Verificado con datos reales
@@ -302,12 +304,13 @@ los ocho originales: apareció al ampliar la ventana a los párrafos contiguos.
 No son anécdotas: explican por qué el código tiene la forma que tiene, y
 evitan que alguien "arregle" algo que ya se arregló por una razón.
 
-**Las métricas publicadas en el artículo académico no medían nada.** Tres
-causas apiladas: la referencia para ROUGE era la portada del PDF y no el
+**Las métricas publicadas en el artículo académico no medían lo declarado.**
+Tres causas apiladas: la referencia para ROUGE era la portada del PDF y no el
 resumen; se comparaba español contra inglés, donde ROUGE es cero por
-construcción; y varias métricas eran cuasi-constantes. Se rehízo la capa
-entera (v2, siete niveles) y las cuasi-constantes se retiran en lugar de
-exhibirse.
+construcción; y varias métricas devolvían prácticamente el mismo valor en los
+casos estudiados. Se rehízo la capa entera (v2, siete niveles). Aquellas
+métricas se retiraron tras revisar su diseño; el IQR actual se informa como
+descriptivo y no decide por sí solo qué conservar.
 
 **La "R" de RAG no existía.** `get_top_chunks()` devolvía los primeros ocho
 fragmentos por posición, así que el modelo solo leía resumen e introducción, y
@@ -485,13 +488,13 @@ Si el objetivo es **nivel académico sólido**, lo que más pesa:
   confirma que la implementación captura el patrón, no que generalice; hace
   falta un proyecto con artículos que no haya visto.
 - La honestidad metodológica está cuidada: las métricas que no aplican se
-  declaran no aplicables (ROUGE entre idiomas) y las cuasi-constantes se
-  retiran.
+  declaran no aplicables (ROUGE entre idiomas) y el IQR se muestra sin una
+  clasificación universal hasta disponer de calibración humana suficiente.
 
 Si el objetivo es **proyecto profesional presentable**, lo que más pesa:
 
 - **A favor:** desplegado y accesible con HTTPS, migraciones con Alembic,
-  integración continua, 461 pruebas, aislamiento entre cuentas probado
+  integración continua, 462 pruebas, aislamiento entre cuentas probado
   endpoint por endpoint, cola de trabajos con reintentos, copias de seguridad
   programadas y un README que instala desde cero.
 - Lo que se echa en falta: dominio propio en lugar de un nombre derivado de la

@@ -138,6 +138,17 @@ class TestEndpoints:
         assert metricas["N5.5"]["mediana"] == 0.0
         assert datos["estado_arte"]["version"] == 1
 
+    def test_el_iqr_se_sirve_sin_clasificacion_universal(
+            self, cliente, proyecto_con_sintesis_medida):
+        """La API describe la distribución, pero no emite un juicio sin N6."""
+        pid = proyecto_con_sintesis_medida["proyecto"]
+        datos = cliente.get("/proyectos/%s/metricas" % pid).json()
+        metrica = next(m for m in datos["metricas"] if m["codigo"] == "N5.3")
+
+        assert {"p25", "mediana", "p75", "iqr", "n"} <= set(metrica)
+        assert "discrimina" not in metrica
+        assert "veredicto" not in metrica
+
     def test_no_atribuye_la_sintesis_anterior_a_un_run_nuevo(
             self, db, cliente, proyecto_con_sintesis_medida):
         from app.models.run import EstadoRun, Run

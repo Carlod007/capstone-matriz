@@ -293,26 +293,26 @@ class TestIdiomaYRouge:
 
 # ------------------------------------------------------------ distribucion
 class TestDistribucion:
-    def test_detecta_una_metrica_cuasi_constante(self):
-        """El caso de la entropia: media razonable, sin ninguna dispersion."""
+    def test_describe_una_distribucion_estrecha_sin_juzgarla(self):
+        """Un IQR pequeño es un dato; sin calibración no es un veredicto."""
         d = D.describir("entropia_norm", [0.518, 0.521, 0.519, 0.520, 0.522, 0.518])
-        assert d.discrimina is False
-        assert "cuasi-constante" in d.veredicto
         assert d.iqr < 0.05
+        assert "discrimina" not in d.dict()
+        assert "veredicto" not in d.dict()
 
-    def test_acepta_una_metrica_que_discrimina(self):
+    def test_describe_una_distribucion_amplia(self):
         d = D.describir("N3.1", [0.10, 0.35, 0.52, 0.68, 0.81, 0.95])
-        assert d.discrimina is True
         assert d.iqr >= 0.05
 
-    def test_muestra_pequena_no_dictamina(self):
+    def test_muestra_pequena_conserva_sus_estadisticos(self):
         d = D.describir("x", [0.1, 0.9])
-        assert d.discrimina is False
-        assert "insuficiente" in d.veredicto
+        assert d.n == 2
+        assert d.mediana == pytest.approx(0.5)
+        assert d.iqr == pytest.approx(0.4)
 
     def test_sin_datos(self):
         d = D.describir("x", [])
-        assert d.n == 0 and d.veredicto == "sin datos"
+        assert d.n == 0
 
     def test_ignora_valores_no_numericos(self):
         d = D.describir("x", [0.1, None, "abc", 0.9, 0.5, 0.3, 0.7])

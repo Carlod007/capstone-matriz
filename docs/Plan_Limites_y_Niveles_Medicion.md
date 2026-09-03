@@ -3,10 +3,11 @@
 **Fecha de revisión:** 1 de septiembre de 2026
 **Estado:** propuesta de trabajo; este documento no implica que las tareas estén implementadas.
 
-**Progreso:** pasos 1 a 4 completados el 2 de septiembre de 2026. El versionado,
+**Progreso:** pasos 1 a 5 completados el 3 de septiembre de 2026. El versionado,
 N1.2 v2 y N2.2 v2 se verificaron con migraciones desde una base MySQL vacía,
-`alembic check` y las 461 pruebas sin omisiones. Los documentos históricos se
-conservaron sin reescribirlos.
+`alembic check` y las 462 pruebas sin omisiones. El paso 5 retiró la
+clasificación universal del IQR sin alterar sus estadísticos. Los documentos
+históricos se conservaron sin reescribirlos.
 
 Este documento reúne dos cosas que conviene mantener separadas:
 
@@ -147,6 +148,8 @@ decide por sí sola si la brecha completa es correcta.
 
 **Esfuerzo inmediato:** bajo, menos de un día.
 **Calibración definitiva:** depende de los pasos 8 y 9.
+**Estado:** solución inmediata implementada el 3 de septiembre de 2026; la
+calibración definitiva continúa pendiente.
 
 **Problema.** El mismo umbral `0.05` se usa para métricas con escalas y
 distribuciones distintas. La frase “discrimina” o “casi constante” puede parecer
@@ -155,6 +158,12 @@ una evaluación metodológica ya validada cuando no lo es.
 **Solución inmediata.** Mostrar mediana, P25, P75, IQR y tamaño de muestra, pero
 retirar la clasificación universal. Explicar que IQR es la amplitud del 50 %
 central de los resultados y no una nota de calidad.
+
+**Implementación.** El servidor conserva únicamente los estadísticos de la
+distribución y ya no emite `discrimina` ni un `veredicto` derivado del corte
+`0.05`. La interfaz reemplaza «separa los casos», «valores parecidos» y
+«muestra limitada» por «distribución descriptiva», mantiene visibles P25, P75,
+IQR y `n`, y declara que no existe un umbral común calibrado.
 
 **Solución definitiva.** Después de reunir N6 suficiente, definir reglas
 específicas por métrica o conservar el IQR únicamente como estadística

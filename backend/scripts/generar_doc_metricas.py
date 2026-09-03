@@ -68,9 +68,9 @@ una métrica, y aquí ya ha costado caro tener dos verdades para un mismo hecho.
 
 ## Cómo leer cualquiera de ellas
 
-**Mediana y recorrido intercuartílico, no promedio.** Con pocos artículos un
-caso extremo arrastra la media entera. Una mediana de 0.86 con dispersión nula
-y otra con dispersión amplia dicen cosas opuestas.
+**Mediana y recorrido intercuartílico, no solo promedio.** Con pocos artículos
+un caso extremo arrastra la media entera. P25 y P75 delimitan el 50 % central;
+su diferencia es el IQR y describe cuánto se separan esas mediciones.
 
 **La dirección no es la misma en todas.** `↓ menor es mejor` significa que un
 valor alto es un problema. Leerlas todas como «más es mejor» invierte el
@@ -80,9 +80,9 @@ sentido de varias.
 distintos, por ejemplo— se declara no aplicable. Un cero afirmaría que el
 resultado fue pésimo.
 
-**«Separa los casos» habla del instrumento, no del proyecto.** Dice si esa
-métrica distingue unos artículos de otros. Un resultado excelente y parejo en
-todos sale como «valores parecidos», y no es una mala noticia.
+**El IQR es descriptivo.** Un valor grande o pequeño no es bueno ni malo por sí
+solo. No se compara con un corte universal porque las métricas tienen escalas
+distintas y todavía falta calibrarlas con revisión humana N6.
 
 **No hay umbrales de calidad.** No existen valores calibrados que digan qué es
 bueno en este dominio: por eso el panel no pinta zonas verdes ni rojas. Eso es

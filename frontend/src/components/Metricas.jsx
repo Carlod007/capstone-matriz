@@ -12,9 +12,9 @@ import { useEffect, useState } from "react";
  * 1. Cada métrica se muestra con su nombre y su dirección de lectura. No
  *    todas mejoran al subir, y pintar de verde lo que va mal es peor que no
  *    pintar nada.
- * 2. Se muestra el rango intercuartílico junto a la mediana. Una media de
- *    0.86 con dispersión nula y otra con dispersión amplia dicen cosas
- *    opuestas, y presentarlas igual fue lo que ocultó el problema original.
+ * 2. Se muestra el rango intercuartílico junto a la mediana como descripción
+ *    de la muestra. No se compara con un umbral universal: sus escalas son
+ *    distintas y todavía no existe calibración suficiente contra N6.
  */
 
 import { api } from "../sesion";
@@ -44,8 +44,8 @@ const DESTACADAS = ["N3.1", "N1.2", "N3.2", "N4.2"];
  * Preguntas de lectura para las cuatro métricas que resumen el recorrido.
  *
  * No cambian ni clasifican el dato: traducen la descripción del catálogo a la
- * pregunta que se hace un investigador al leer el panel. Mediana, IQR, n y el
- * veredicto siguen llegando del servidor.
+ * pregunta que se hace un investigador al leer el panel. Mediana, IQR y n
+ * siguen llegando del servidor sin añadir una calificación.
  */
 const GUIA_DESTACADAS = {
   "N2.1": {
@@ -248,8 +248,8 @@ function GuiaLecturaMetricas() {
       texto: "Cantidad real de brechas, artículos o análisis que aportaron valores a esa métrica.",
     },
     {
-      titulo: "Separa los casos",
-      texto: "Dice si esa métrica distingue unos artículos de otros. Habla del instrumento, no de la calidad del proyecto: un resultado excelente y parejo en todos sale como «valores parecidos».",
+      titulo: "Sin umbral común",
+      texto: "Un IQR grande o pequeño no se califica como bueno o malo: cada métrica tiene una escala distinta y aún falta calibrarla con revisión humana.",
     },
   ];
 
@@ -291,7 +291,6 @@ function Tarjeta({ metrica }) {
     n,
     nivel,
     ambito,
-    veredicto,
   } = metrica;
   // La guía nueva de N1.2 solo describe v2. Aplicarla a un valor histórico
   // haría que un número antiguo pareciera calculado con el denominador nuevo.
@@ -390,7 +389,7 @@ function Tarjeta({ metrica }) {
           <div className="mt-3">
             <span
               className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-[3px] text-[11px] leading-none ${estado.etiqueta}`}
-              title={veredicto}
+              title={estado.texto}
             >
               <span className={`h-1.5 w-1.5 rounded-full ${estado.punto}`} aria-hidden="true" />
               {estado.texto}
@@ -777,8 +776,6 @@ export function PanelMetricas({ proyectoId }) {
   }
 
   const porCodigo = Object.fromEntries(datos.metricas.map((m) => [m.codigo, m]));
-  const discriminan = datos.metricas.filter((m) => m.discrimina);
-
   return (
     <div className="space-y-5">
       <div className="grid overflow-hidden rounded-xl border border-borde bg-superficie shadow-[var(--sombra-1)] sm:grid-cols-2 lg:grid-cols-4 sm:[&>*:nth-child(even)]:border-l lg:[&>*+*]:border-l">
@@ -808,7 +805,7 @@ export function PanelMetricas({ proyectoId }) {
             Estos indicadores describen el análisis; no forman una nota global.
           </p>
         </div>
-        <Etiqueta tono="azul">Mediana + variación de la muestra</Etiqueta>
+        <Etiqueta tono="azul">Mediana, P25, P75 e IQR</Etiqueta>
       </div>
 
       <GuiaLecturaMetricas />
@@ -853,8 +850,7 @@ export function PanelMetricas({ proyectoId }) {
             i
           </span>
           <span>
-            {discriminan.length} de {datos.metricas.length} métricas muestran
-            variación útil
+            {datos.metricas.length} métricas · IQR descriptivo, sin calificación
           </span>
         </div>
         <button
@@ -947,37 +943,12 @@ function estadoMetrica(metrica) {
       etiqueta: "bg-acento-claro text-acento-fuerte border-acento-borde",
     };
   }
-  // A partir de aquí el estado habla de la MÉTRICA como instrumento, no de la
-  // calidad del proyecto, y por eso ya no se pinta en verde y ámbar.
-  //
-  // Ese par de colores se leía como «bien» y «mal», y no lo era. Con los datos
-  // reales de un proyecto: la similitud semántica salía en ámbar con valores
-  // de 0.85 a 0.93 —resultados excelentes y consistentes— solo porque su IQR
-  // era pequeño; y la verificación de fidelidad, completa en las cinco
-  // brechas, salía también en ámbar. El color no acompañaba a la calidad: la
-  // contradecía justo donde el resultado era mejor.
-  //
-  // Que una métrica separe o no los casos importa para calibrar el
-  // instrumento, no para juzgar la investigación. Se dice en gris.
-  if (metrica.n < 5) {
-    return {
-      clave: "muestra-limitada",
-      texto: "Muestra limitada",
-      punto: "bg-aviso",
-      etiqueta: "bg-aviso-claro text-aviso border-aviso-borde",
-    };
-  }
-  if (metrica.discrimina) {
-    return {
-      clave: "variacion-util",
-      texto: "Separa los casos",
-      punto: "bg-tinta-suave",
-      etiqueta: "bg-hundido text-tinta-media border-borde",
-    };
-  }
+  // Una distribución se presenta como descripción, no como veredicto. El
+  // antiguo corte IQR=0.05 etiquetaba igual métricas con escalas distintas y
+  // no estaba calibrado contra N6.
   return {
-    clave: "poca-variacion",
-    texto: "Valores parecidos entre sí",
+    clave: "distribucion",
+    texto: "Distribución descriptiva",
     punto: "bg-tinta-suave",
     etiqueta: "bg-hundido text-tinta-media border-borde",
   };
@@ -1265,23 +1236,10 @@ function DetalleMetrica({ metrica }) {
                 </>
               )}
             </div>
-            <p className="mt-3 text-xs leading-relaxed text-tinta-suave">
-              <strong className="font-semibold text-tinta-media">Lectura técnica:</strong>{" "}
-              {metrica.veredicto}
-            </p>
-            {/* El veredicto del servidor aplica una regla general: con menos de
-                cinco valores dice «muestra insuficiente». Para una métrica de
-                lote eso contradice a la insignia de arriba, que dice que la
-                medición está completa. Las dos frases son ciertas y hablan de
-                cosas distintas, así que conviene decir cuál es cuál en vez de
-                dejar al lector eligiendo. */}
-            {(deLote || binaria) && (
-              <p className="mt-2 text-xs leading-relaxed text-tinta-suave">
-                Esa frase viene de la regla general del servidor, que cuenta
-                valores.{" "}
-                {deLote
-                  ? "Aquí solo puede haber uno, porque la métrica se calcula una vez por análisis; no es una muestra incompleta."
-                  : "Aquí cada medición vale 0 o 1, así que el recuento de arriba dice más que la dispersión."}
+            {!sinDatos && !deLote && !binaria && (
+              <p className="mt-3 text-xs leading-relaxed text-tinta-suave">
+                El IQR se informa como amplitud del 50 % central. No se compara
+                con un umbral universal ni se usa para calificar esta métrica.
               </p>
             )}
           </div>
@@ -1358,9 +1316,7 @@ export function TablaDistribuciones({ metricas }) {
               className="h-full min-h-9 rounded-lg border border-borde bg-superficie px-3 py-2 text-sm text-tinta outline-none focus:border-acento"
             >
               <option value="todas">Todas</option>
-              <option value="variacion-util">Separa los casos</option>
-              <option value="poca-variacion">Valores parecidos</option>
-              <option value="muestra-limitada">Muestra limitada</option>
+              <option value="distribucion">Distribución descriptiva</option>
               <option value="valor-unico">Valor único del análisis</option>
               <option value="recuento">Recuento (sí o no)</option>
               <option value="sin-datos">Sin datos</option>
