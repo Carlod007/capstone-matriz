@@ -432,6 +432,18 @@ Cinco de ellas (`tests/test_esquema.py`) comprueban que los modelos y la base
 sigan coincidiendo: si alguien cambia un modelo y olvida generar la
 migración, falla ahí y no en producción.
 
+Desde `frontend/`, la interfaz tiene seis pruebas de componentes y tres
+recorridos críticos en navegador:
+
+```bash
+npm test
+npm run test:e2e
+```
+
+La primera orden usa Vitest y React Testing Library. La segunda usa Playwright;
+en una instalación nueva hay que descargar Chromium una vez con
+`npx playwright install chromium`.
+
 ### Integración continua
 
 Cada `push` dispara [el flujo de CI](.github/workflows/ci.yml), que hace en
@@ -441,7 +453,8 @@ GitHub lo mismo que harías a mano:
   de modo que una migración mal escrita se rompe ahí;
 - ejecuta `alembic check` y las 462 pruebas contra esa base recién creada,
   sin los datos acumulados de una máquina de desarrollo;
-- instala el frontend con `npm ci`, pasa el lint y compila.
+- instala el frontend con `npm ci`, pasa el lint, ejecuta sus seis pruebas de
+  componentes, compila y completa tres recorridos críticos con Playwright.
 
 Si el distintivo de arriba está en rojo, el repositorio no está en
 condiciones de clonarse.
@@ -562,9 +575,11 @@ backend/
   storage/pdfs/       PDF subidos, en una carpeta por usuario (no se versionan)
 frontend/
   Caddyfile           servidor web, proxy a la API y HTTPS automático
+  e2e/                recorridos críticos de Playwright
   src/App.jsx         rutas y pantallas
   src/sesion.js       token de sesión y llamadas a la API
   src/components/     interfaz
+  src/test/           configuración y utilidades de pruebas de componentes
   src/index.css       tokens de diseño y tema oscuro
 database/
   schema.sql          referencia de lectura; el esquema lo gobierna Alembic

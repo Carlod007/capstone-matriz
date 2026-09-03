@@ -3,11 +3,13 @@
 **Fecha de revisión:** 1 de septiembre de 2026
 **Estado:** propuesta de trabajo; este documento no implica que las tareas estén implementadas.
 
-**Progreso:** pasos 1 a 5 completados el 3 de septiembre de 2026. El versionado,
+**Progreso:** pasos 1 a 6 completados el 3 de septiembre de 2026. El versionado,
 N1.2 v2 y N2.2 v2 se verificaron con migraciones desde una base MySQL vacía,
 `alembic check` y las 462 pruebas sin omisiones. El paso 5 retiró la
 clasificación universal del IQR sin alterar sus estadísticos. Los documentos
-históricos se conservaron sin reescribirlos.
+históricos se conservaron sin reescribirlos. El paso 6 añadió 6 pruebas de
+componentes y 3 recorridos críticos en navegador, todos incorporados a la
+integración continua.
 
 Este documento reúne dos cosas que conviene mantener separadas:
 
@@ -175,6 +177,8 @@ bueno o malo.
 
 ### 6. Añadir una base de pruebas del frontend
 
+**Estado:** completado el 3 de septiembre de 2026.
+
 **Esfuerzo:** medio, entre dos y cuatro días para la primera cobertura útil.
 **Dependencias:** ninguna, aunque conviene incorporar los cambios de los pasos
 3–5 a los casos de prueba.
@@ -196,6 +200,15 @@ Playwright para pocos recorridos críticos. Priorizar:
 veredicto antes de tiempo, si un nulo se muestra como cero o si un recorrido
 principal deja de funcionar. La revisión visual manual se conserva para diseño
 y accesibilidad.
+
+**Implementación realizada.** Vitest y React Testing Library cubren la
+distinción entre cero y dato no aplicable, la lectura descriptiva del IQR, el
+ocultamiento y revelado de la revisión ciega, y la sesión autenticada. Playwright
+recorre en navegador la creación de un proyecto, la eliminación confirmada de
+un artículo y la revisión ciega con apertura autenticada del PDF. Lint, pruebas
+de componentes, compilación y estos recorridos se ejecutan en CI. La cobertura
+de exportaciones, carga de archivos y estados de cuota queda como ampliación
+incremental; no condiciona esta primera red de seguridad.
 
 ### 7. Sacar los respaldos fuera de la instancia
 

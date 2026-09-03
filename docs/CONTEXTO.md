@@ -23,15 +23,16 @@ a N2.5 y N2.6.
 *Esta sección se actualiza al cerrar cada avance. Es lo primero que hay que
 leer al retomar el proyecto o al abrir una conversación nueva.*
 
-**Última actualización:** 2 de septiembre de 2026
+**Última actualización:** 3 de septiembre de 2026
 
 ### Estado comprobado
 
 | | |
 |---|---|
-| Pruebas | **462** en verde contra MySQL real temporal, `alembic check` verde |
+| Backend | **462 pruebas** en verde contra MySQL real temporal, `alembic check` verde |
+| Frontend | **6 pruebas de componentes + 3 recorridos en navegador**, lint y compilación en verde |
 | Migraciones | hasta `0010` |
-| Ramas | `main` y `CarlosDev` al mismo commit |
+| Rama de trabajo | `CarlosDev`; la integración en `main` sigue pendiente |
 | Anotación humana (N6) | **5 de 5**, prueba piloto |
 
 **La construcción está terminada.** No hay funcionalidad pendiente. Lo que
@@ -160,16 +161,22 @@ sigue vigente.
   tamaño de muestra, pero se retiró el umbral universal `0.05`. Ya no se afirma
   que una métrica «separa los casos» o es «casi constante» sin una calibración
   específica contra revisión humana N6.
+- **El frontend ya tiene una red de seguridad automática:** seis pruebas de
+  componentes fijan los estados de métricas, la revisión ciega y la sesión;
+  tres recorridos Playwright comprueban creación, eliminación y apertura
+  autenticada del PDF. La integración continua los ejecuta en cada `push`.
 
 ### Lo siguiente, en este orden
 
-1. **Paso 6:** añadir pruebas de comportamiento del frontend.
+1. **Paso 7:** sacar los respaldos fuera de la instancia de Oracle y comprobar
+   una restauración desde esa copia externa.
 
 ### Lo que se sabe que está mal y aún no se ha tocado
 
-- **Cero pruebas de frontend.** La integración continua pasa lint y compila,
-  nada más. Todos los fallos de interfaz encontrados hasta ahora los vio una
-  persona mirando la pantalla.
+- **Cobertura de frontend todavía inicial.** Ya protege los recorridos de mayor
+  riesgo conocidos, pero faltan casos automáticos para carga de archivos,
+  exportaciones y estados de error o cuota. El diseño y la accesibilidad siguen
+  requiriendo revisión visual humana.
 
 ---
 
@@ -266,7 +273,8 @@ varios anotadores sobre la misma brecha.
 - Cuentas, sesión por token, aislamiento entre usuarios
 - Cola de trabajos con reintentos y recuperación de trabajadores caídos
 - Limitador de cuota propio (ventana deslizante) antes de chocar con la API
-- **462 pruebas automáticas**, verificadas localmente contra MySQL real
+- **462 pruebas automáticas de backend**, verificadas localmente contra MySQL real
+- **6 pruebas de componentes y 3 recorridos críticos de frontend**
 - Esquema gobernado por Alembic, verificado desde base vacía
 
 ### Verificado con datos reales

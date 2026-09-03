@@ -3,7 +3,8 @@
 # Comprueba lo mismo que se comprueba a mano antes de un commit, pero sin
 # depender de que alguien se acuerde: que el esquema se crea desde cero con
 # Alembic, que la suite entera pasa contra una base real, y que el frontend
-# compila sin errores de lint.
+# compila sin errores de lint y conserva los recorridos principales del
+# navegador.
 #
 # Aquí no va el número de pruebas a propósito: es un dato que cambia con cada
 # commit y que nadie se acuerda de actualizar, así que a los pocos días miente.
@@ -117,5 +118,14 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      - name: Pruebas de componentes
+        run: npm test
+
       - name: Compilar
         run: npm run build
+
+      - name: Instalar navegador para las pruebas
+        run: npx playwright install --with-deps chromium
+
+      - name: Recorridos críticos en navegador
+        run: npm run test:e2e
