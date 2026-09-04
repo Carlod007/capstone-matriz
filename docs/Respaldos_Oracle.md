@@ -2,10 +2,9 @@
 
 **Estado:** scripts implementados y restauración temporal verificada el 3 de
 septiembre de 2026. El bucket, las reglas de ciclo de vida, los permisos de
-mínimo privilegio, las variables de la instancia, el cron y la primera carga
-externa quedaron verificados el 4 de septiembre. Falta desplegar la revisión
-del script, restaurar desde una descarga del bucket y conectar una alerta
-visible de fallo.
+mínimo privilegio, las variables de la instancia, el cron, el despliegue y dos
+cargas externas quedaron verificados el 4 de septiembre. Falta restaurar desde
+una descarga del bucket y conectar una alerta visible de fallo.
 
 ## Qué se protege
 
@@ -159,6 +158,8 @@ daily/2026-09-04/capstone_2026-09-04_010326.backup.tar
 
 La instancia quedó con las variables del bucket en `.env` y con el cron de las
 03:15 corregido para crear la carpeta de registro antes de redirigir la salida.
-La subida se probó con una copia temporal del script para no desplegar código
-sin confirmar. El repositorio de producción debe actualizarse antes de que el
-cron use esta versión de manera automática.
+Primero se probó una copia temporal del script y, después del resultado
+correcto, se desplegó la revisión `d938db1`. La versión definitiva generó y
+verificó un segundo objeto de 62 402 560 bytes. Tras reconstruir los
+contenedores, MySQL quedó saludable, backend, frontend y trabajador en
+ejecución, y el sitio público respondió HTTP 200.
