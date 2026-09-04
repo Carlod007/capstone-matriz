@@ -169,9 +169,9 @@ sigue vigente.
 ### Lo siguiente, en este orden
 
 1. **Paso 7:** sacar los respaldos fuera de la instancia de Oracle y comprobar
-   una restauración desde esa copia externa. El bucket, la retención y la
-   primera carga ya están verificados; falta repetir la restauración partiendo
-   de la copia externa y conectar una alerta visible de fallo.
+   una restauración desde esa copia externa. El bucket, la retención, dos
+   cargas y una restauración descargada ya están verificados; solo falta
+   conectar y probar una alerta visible de fallo.
 
 ### Lo que se sabe que está mal y aún no se ha tocado
 

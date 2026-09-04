@@ -212,11 +212,10 @@ incremental; no condiciona esta primera red de seguridad.
 
 ### 7. Sacar los respaldos fuera de la instancia
 
-**Estado:** en curso. El paquete completo y la restauración temporal se
-verificaron el 3 de septiembre de 2026. Object Storage, los permisos y la
-retención quedaron activos; la primera carga externa se verificó por tamaño el
-4 de septiembre. Falta restaurar desde una descarga externa y activar una
-alerta visible de fallo.
+**Estado:** en curso. Object Storage, los permisos, la retención, dos cargas y
+una restauración completa desde un paquete descargado del bucket se verificaron
+el 4 de septiembre de 2026. Solo falta activar y probar una alerta visible de
+fallo.
 
 **Esfuerzo:** medio, uno o dos días más una prueba de restauración.
 **Dependencias:** credenciales de un almacenamiento externo.

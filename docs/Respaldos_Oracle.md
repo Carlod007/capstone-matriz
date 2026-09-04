@@ -2,9 +2,9 @@
 
 **Estado:** scripts implementados y restauración temporal verificada el 3 de
 septiembre de 2026. El bucket, las reglas de ciclo de vida, los permisos de
-mínimo privilegio, las variables de la instancia, el cron, el despliegue y dos
-cargas externas quedaron verificados el 4 de septiembre. Falta restaurar desde
-una descarga del bucket y conectar una alerta visible de fallo.
+mínimo privilegio, las variables de la instancia, el cron, el despliegue, dos
+cargas externas y una restauración desde el bucket quedaron verificados el 4
+de septiembre. Solo falta conectar una alerta visible de fallo.
 
 ## Qué se protege
 
@@ -137,8 +137,8 @@ instancia real, usando exclusivamente recursos temporales:
 - todos los PDF relativos presentes y con SHA-256 correcto;
 - base y archivos temporales eliminados al finalizar.
 
-Esta prueba valida la creación y restauración del paquete. El paso 7 solo queda
-cerrado después de repetirla con un paquete descargado desde el bucket.
+Esta prueba validó inicialmente la creación y restauración del formato. La
+misma comprobación se repitió después con un paquete descargado del bucket.
 
 ## Evidencia de la primera carga externa
 
@@ -163,3 +163,20 @@ correcto, se desplegó la revisión `d938db1`. La versión definitiva generó y
 verificó un segundo objeto de 62 402 560 bytes. Tras reconstruir los
 contenedores, MySQL quedó saludable, backend, frontend y trabajador en
 ejecución, y el sitio público respondió HTTP 200.
+
+## Evidencia de restauración desde Object Storage
+
+Se descargó desde la consola el primer objeto de `daily/`. El archivo recibido
+medía 62 402 560 bytes, exactamente lo mismo que el paquete local y el tamaño
+consultado mediante la API de Object Storage. Se copió temporalmente a la
+instancia y se ejecutó `restaurar_respaldo.sh`:
+
+- las dos sumas SHA-256 fueron correctas;
+- se restauraron 2 proyectos, 5 artículos, 5 archivos y 5 brechas;
+- todos los PDF relativos existían y coincidían con su hash;
+- la base de prueba y la carpeta temporal se eliminaron automáticamente;
+- la base, los PDF y los servicios de producción no se modificaron.
+
+Con esto queda comprobada la cadena completa: producción, paquete, bucket,
+descarga y restauración aislada. El único criterio pendiente del paso 7 es que
+una falla produzca una alerta visible.
