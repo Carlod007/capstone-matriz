@@ -305,6 +305,8 @@ solo recibe permiso para crear y comprobar objetos, no para leerlos ni borrarlos
 
 La configuración de Object Storage, alertas, retención y la prueba mensual está
 en [`docs/Respaldos_Oracle.md`](docs/Respaldos_Oracle.md).
+En producción, OCI Notifications envía un correo si el proceso de respaldo
+falla; una prueba desde la propia instancia confirmó la entrega.
 
 Para comprobar un paquete ya descargado del bucket sin tocar producción:
 

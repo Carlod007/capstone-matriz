@@ -212,10 +212,10 @@ incremental; no condiciona esta primera red de seguridad.
 
 ### 7. Sacar los respaldos fuera de la instancia
 
-**Estado:** en curso. Object Storage, los permisos, la retención, dos cargas y
-una restauración completa desde un paquete descargado del bucket se verificaron
-el 4 de septiembre de 2026. Solo falta activar y probar una alerta visible de
-fallo.
+**Estado:** completado el 4 de septiembre de 2026. Se verificaron Object
+Storage, los permisos mínimos, la retención, dos cargas, una restauración
+completa desde un paquete descargado del bucket y una alerta por correo
+publicada desde la instancia y entregada por OCI Notifications.
 
 **Esfuerzo:** medio, uno o dos días más una prueba de restauración.
 **Dependencias:** credenciales de un almacenamiento externo.

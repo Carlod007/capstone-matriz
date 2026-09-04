@@ -1,10 +1,9 @@
 # Respaldos externos en Oracle Cloud
 
-**Estado:** scripts implementados y restauración temporal verificada el 3 de
-septiembre de 2026. El bucket, las reglas de ciclo de vida, los permisos de
-mínimo privilegio, las variables de la instancia, el cron, el despliegue, dos
-cargas externas y una restauración desde el bucket quedaron verificados el 4
-de septiembre. Solo falta conectar una alerta visible de fallo.
+**Estado:** completado y verificado. Los scripts y la restauración temporal se
+validaron el 3 de septiembre de 2026. El bucket, la retención, los permisos de
+mínimo privilegio, el cron, dos cargas externas, una restauración desde el
+bucket y la alerta por correo quedaron comprobados el 4 de septiembre.
 
 ## Qué se protege
 
@@ -50,23 +49,23 @@ copia con otros recursos de la cuenta:
    empieza por `weekly/` después de 28 días.
 4. Grupo dinámico `capstone-respaldos-instancia`, limitado por OCID a la única
    instancia existente de Capstone. No se creó ni reemplazó ninguna instancia.
-5. Política `capstone-respaldos-policy`, con estos dos permisos mínimos:
+5. Tema de OCI Notifications `capstone-respaldos-alertas`, con una suscripción
+   por correo confirmada. La dirección personal no se publica en el repositorio.
+6. Política `capstone-respaldos-policy`, con estos tres permisos mínimos:
 
    ```text
    Allow dynamic-group capstone-respaldos-instancia to manage objects in tenancy where all {target.bucket.name='capstone-respaldos', any {request.permission='OBJECT_CREATE', request.permission='OBJECT_INSPECT'}}
    Allow service objectstorage-sa-valparaiso-1 to manage object-family in tenancy where all {target.bucket.name='capstone-respaldos', any {request.permission='BUCKET_INSPECT', request.permission='BUCKET_READ', request.permission='OBJECT_INSPECT', request.permission='OBJECT_DELETE'}}
+   Allow dynamic-group capstone-respaldos-instancia to use ons-topics in tenancy where request.operation='PublishMessage'
    ```
 
 La primera sentencia permite a la instancia crear objetos y comprobar su
 existencia y tamaño solo en ese bucket; no le permite descargarlos, modificarlos
 ni borrarlos. La segunda permite al servicio de Object Storage aplicar las dos
-reglas de eliminación solo dentro del mismo bucket. No alcanza la base MySQL,
-los PDF del volumen Docker ni ningún dato de la aplicación.
-
-OCI Notifications no está creado todavía. Es una mejora independiente para
-recibir un correo si falla el cron; requiere indicar y confirmar la dirección
-destinataria. El respaldo y la retención funcionan sin ese tema, pero el paso 7
-no cumple aún su criterio de alerta visible.
+reglas de eliminación solo dentro del mismo bucket. La tercera permite a la
+instancia publicar mensajes, pero no administrar temas ni suscripciones porque
+la condición limita la operación a `PublishMessage`. Ninguna de estas reglas
+alcanza la base MySQL, los PDF del volumen Docker ni otros datos funcionales.
 
 La regla del grupo dinámico será:
 
@@ -82,7 +81,7 @@ Después de crear los recursos se agregan al `.env` de producción:
 OCI_RESPALDOS_BUCKET=capstone-respaldos
 OCI_RESPALDOS_NAMESPACE=axhhd4zawgua
 RESPALDO_EXTERNO_REQUERIDO=true
-OCI_RESPALDOS_TOPIC_OCID=
+OCI_RESPALDOS_TOPIC_OCID=<OCID_DEL_TEMA>
 ```
 
 No se agrega una clave OCI: la imagen oficial de OCI CLI usa
@@ -177,6 +176,22 @@ instancia y se ejecutó `restaurar_respaldo.sh`:
 - la base de prueba y la carpeta temporal se eliminaron automáticamente;
 - la base, los PDF y los servicios de producción no se modificaron.
 
-Con esto queda comprobada la cadena completa: producción, paquete, bucket,
-descarga y restauración aislada. El único criterio pendiente del paso 7 es que
-una falla produzca una alerta visible.
+## Evidencia de la alerta visible
+
+El 4 de septiembre de 2026 se creó el tema
+`capstone-respaldos-alertas`, se confirmó una suscripción por correo y se
+guardó su OCID únicamente en el `.env` privado de la instancia. La política IAM
+se amplió con una sola operación autorizada: `PublishMessage`.
+
+La prueba se publicó desde la instancia mediante `instance_principal`, el mismo
+mecanismo que usa `respaldar.sh` cuando captura un error. Oracle Monitoring
+registró:
+
+- 1 mensaje publicado;
+- 1 mensaje entregado al endpoint de correo;
+- 0 mensajes fallidos en el intervalo comprobado.
+
+El mensaje indicaba explícitamente que era una prueba y que no se había
+detectado ningún fallo. Con esto queda verificada la cadena completa:
+producción, paquete, bucket, descarga, restauración aislada y aviso visible. El
+paso 7 queda cerrado sin modificar la base ni los datos de la aplicación.

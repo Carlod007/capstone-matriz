@@ -168,10 +168,10 @@ sigue vigente.
 
 ### Lo siguiente, en este orden
 
-1. **Paso 7:** sacar los respaldos fuera de la instancia de Oracle y comprobar
-   una restauración desde esa copia externa. El bucket, la retención, dos
-   cargas y una restauración descargada ya están verificados; solo falta
-   conectar y probar una alerta visible de fallo.
+1. **Paso 8:** validar N2.6 con artículos y anotaciones que no se hayan usado
+   para construir sus reglas. El paso 7 ya quedó cerrado: bucket externo,
+   retención, restauración aislada y alerta de fallo por correo fueron
+   verificados de extremo a extremo.
 
 ### Lo que se sabe que está mal y aún no se ha tocado
 
@@ -508,7 +508,9 @@ Si el objetivo es **proyecto profesional presentable**, lo que más pesa:
   endpoint por endpoint, cola de trabajos con reintentos, copias de seguridad
   programadas y un README que instala desde cero.
 - Lo que se echa en falta: dominio propio en lugar de un nombre derivado de la
-  IP, y observabilidad (hoy los fallos se ven mirando registros a mano).
+  IP y observabilidad general del servicio. Los fallos del respaldo ya generan
+  un correo; el resto de la aplicación todavía depende principalmente de sus
+  registros.
 - Queda pendiente la deuda enumerada arriba: ampliar N6, probar N2.6 con casos
   nuevos y calibrar las métricas que todavía no tienen respaldo humano.
 
