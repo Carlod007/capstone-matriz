@@ -1,0 +1,164 @@
+# Respaldos externos en Oracle Cloud
+
+**Estado:** scripts implementados y restauración temporal verificada el 3 de
+septiembre de 2026. El bucket, las reglas de ciclo de vida, los permisos de
+mínimo privilegio, las variables de la instancia, el cron y la primera carga
+externa quedaron verificados el 4 de septiembre. Falta desplegar la revisión
+del script, restaurar desde una descarga del bucket y conectar una alerta
+visible de fallo.
+
+## Qué se protege
+
+Cada ejecución de `respaldar.sh` construye un único paquete que contiene:
+
+- un volcado transaccional de MySQL;
+- el volumen de PDF originales;
+- la revisión de la aplicación y la fecha UTC;
+- sumas SHA-256 de ambos contenidos.
+
+No incluye `.env`. Sus secretos deben conservarse fuera del servidor, por
+ejemplo en un gestor de contraseñas. Los certificados de Caddy tampoco se
+incluyen porque pueden emitirse otra vez.
+
+El paquete local queda con permisos `600`. Object Storage cifra los objetos en
+tránsito y en reposo. La copia externa protege frente a la pérdida completa de
+la instancia, pero no frente a la pérdida o cancelación de toda la cuenta de
+Oracle.
+
+## Frecuencia y conservación
+
+- `daily/`: una copia cada día; Object Storage elimina las de más de 7 días.
+- `weekly/`: cada domingo se duplica la copia bajo este prefijo; se elimina
+  después de 28 días.
+- Localmente se conservan los siete días más recientes.
+- Una vez al mes se descarga un paquete del bucket y se ejecuta una
+  restauración temporal completa.
+
+Los nombres llevan fecha y hora y no se reutilizan. La instancia no necesita
+permisos para leer, sobrescribir o borrar respaldos.
+
+## Recursos creados en la consola
+
+Los nombres propuestos son deliberadamente específicos para no mezclar esta
+copia con otros recursos de la cuenta:
+
+1. Bucket privado Standard `capstone-respaldos`, sin acceso público, sin
+   versionado y con cifrado administrado por Oracle. Vive en la región
+   `sa-valparaiso-1` y el namespace es `axhhd4zawgua`.
+2. Regla habilitada `eliminar-diarios-7d`: elimina objetos cuyo nombre empieza
+   por `daily/` después de 7 días.
+3. Regla habilitada `eliminar-semanales-28d`: elimina objetos cuyo nombre
+   empieza por `weekly/` después de 28 días.
+4. Grupo dinámico `capstone-respaldos-instancia`, limitado por OCID a la única
+   instancia existente de Capstone. No se creó ni reemplazó ninguna instancia.
+5. Política `capstone-respaldos-policy`, con estos dos permisos mínimos:
+
+   ```text
+   Allow dynamic-group capstone-respaldos-instancia to manage objects in tenancy where all {target.bucket.name='capstone-respaldos', any {request.permission='OBJECT_CREATE', request.permission='OBJECT_INSPECT'}}
+   Allow service objectstorage-sa-valparaiso-1 to manage object-family in tenancy where all {target.bucket.name='capstone-respaldos', any {request.permission='BUCKET_INSPECT', request.permission='BUCKET_READ', request.permission='OBJECT_INSPECT', request.permission='OBJECT_DELETE'}}
+   ```
+
+La primera sentencia permite a la instancia crear objetos y comprobar su
+existencia y tamaño solo en ese bucket; no le permite descargarlos, modificarlos
+ni borrarlos. La segunda permite al servicio de Object Storage aplicar las dos
+reglas de eliminación solo dentro del mismo bucket. No alcanza la base MySQL,
+los PDF del volumen Docker ni ningún dato de la aplicación.
+
+OCI Notifications no está creado todavía. Es una mejora independiente para
+recibir un correo si falla el cron; requiere indicar y confirmar la dirección
+destinataria. El respaldo y la retención funcionan sin ese tema, pero el paso 7
+no cumple aún su criterio de alerta visible.
+
+La regla del grupo dinámico será:
+
+```text
+ALL {instance.id = '<OCID_DE_LA_INSTANCIA>'}
+```
+
+## Variables del servidor
+
+Después de crear los recursos se agregan al `.env` de producción:
+
+```dotenv
+OCI_RESPALDOS_BUCKET=capstone-respaldos
+OCI_RESPALDOS_NAMESPACE=axhhd4zawgua
+RESPALDO_EXTERNO_REQUERIDO=true
+OCI_RESPALDOS_TOPIC_OCID=
+```
+
+No se agrega una clave OCI: la imagen oficial de OCI CLI usa
+`instance_principal`. Está fijada por digest en `.env.example` para que el cron
+no cambie silenciosamente de versión.
+
+## Activación y comprobación
+
+Después del despliegue se ejecuta manualmente una vez:
+
+```bash
+mkdir -p respaldos
+./respaldar.sh
+```
+
+Debe aparecer un paquete en `daily/AAAA-MM-DD/`, su tamaño remoto debe coincidir
+con el local y `respaldos/ULTIMO_EXITO_EXTERNO` debe registrar el éxito.
+
+El cron definitivo es:
+
+```cron
+15 3 * * * cd /home/ubuntu/capstone-matriz && mkdir -p respaldos && ./respaldar.sh >> respaldos/registro.log 2>&1
+```
+
+## Restauración mensual
+
+La cuenta administradora descarga un paquete desde Object Storage. La instancia
+no puede descargarlo por sí sola: esta separación evita que una intrusión en el
+servidor permita leer o borrar los respaldos.
+
+Después de copiar el paquete a una ruta temporal del servidor:
+
+```bash
+bash ./restaurar_respaldo.sh /ruta/capstone_FECHA.backup.tar
+```
+
+El script comprueba las sumas, restaura MySQL bajo un nombre nuevo, extrae los
+PDF a una carpeta temporal y verifica cada archivo contra el hash registrado en
+la base. Muestra los conteos principales y elimina automáticamente la base y la
+carpeta temporales. Nunca modifica producción.
+
+## Evidencia de la primera prueba
+
+Antes de conectar Object Storage se probó el formato completo contra la
+instancia real, usando exclusivamente recursos temporales:
+
+- paquete: 59 MB;
+- proyectos restaurados: 2;
+- artículos: 5;
+- archivos registrados: 5;
+- brechas: 5;
+- todos los PDF relativos presentes y con SHA-256 correcto;
+- base y archivos temporales eliminados al finalizar.
+
+Esta prueba valida la creación y restauración del paquete. El paso 7 solo queda
+cerrado después de repetirla con un paquete descargado desde el bucket.
+
+## Evidencia de la primera carga externa
+
+El 4 de septiembre de 2026 la instancia existente creó y subió, mediante su
+identidad dinámica, el objeto:
+
+```text
+daily/2026-09-04/capstone_2026-09-04_010326.backup.tar
+```
+
+- tamaño local calculado: 62 402 560 bytes;
+- tamaño mostrado en la consola: 59.51 MiB;
+- la consulta posterior a Object Storage devolvió exactamente el tamaño local;
+- clase de almacenamiento: Standard;
+- no se reinició la aplicación ni se modificó la base;
+- el servidor conserva solo una copia local tras aplicar su rotación.
+
+La instancia quedó con las variables del bucket en `.env` y con el cron de las
+03:15 corregido para crear la carpeta de registro antes de redirigir la salida.
+La subida se probó con una copia temporal del script para no desplegar código
+sin confirmar. El repositorio de producción debe actualizarse antes de que el
+cron use esta versión de manera automática.

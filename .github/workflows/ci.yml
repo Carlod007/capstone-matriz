@@ -72,6 +72,10 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      - name: Validar scripts operativos
+        working-directory: .
+        run: bash -n respaldar.sh restaurar_respaldo.sh
+
       - uses: actions/setup-python@v7
         with:
           python-version: "3.13"

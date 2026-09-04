@@ -281,7 +281,9 @@ como desconocida.
 ### Copias de seguridad
 
 En el servidor, los datos ya no están también en tu equipo. `respaldar.sh`
-vuelca la base comprimida y conserva los últimos siete días:
+crea un paquete con la base, los PDF originales y sus sumas SHA-256. Conserva
+los últimos siete días localmente y, cuando Object Storage está configurado,
+sube una copia diaria y otra semanal cada domingo:
 
 ```bash
 ./respaldar.sh
@@ -297,19 +299,21 @@ El `mkdir -p` no sobra: la shell abre el fichero de registro **antes** de
 ejecutar el script, así que en una instalación recién hecha la redirección
 falla y la tarea no llega a arrancar — y en el cron, falla en silencio.
 
-Los volcados no se versionan: contienen correos y hashes de contraseña.
+Los paquetes no se versionan: contienen correos, hashes de contraseña y los PDF
+subidos. Quedan con permisos `600` y el bucket debe ser privado. La instancia
+solo recibe permiso para crear y comprobar objetos, no para leerlos ni borrarlos.
 
-**Dos límites que conviene tener presentes.** Los respaldos viven en la misma
-máquina que la base: protegen de un borrado accidental o de una migración que
-salga mal, pero **no de perder la instancia**. Bájalos de vez en cuando:
+La configuración de Object Storage, alertas, retención y la prueba mensual está
+en [`docs/Respaldos_Oracle.md`](docs/Respaldos_Oracle.md).
+
+Para comprobar un paquete ya descargado del bucket sin tocar producción:
 
 ```bash
-scp -i TU_CLAVE ubuntu@TU_IP:capstone-matriz/respaldos/*.sql.gz .
+bash ./restaurar_respaldo.sh /ruta/capstone_FECHA.backup.tar
 ```
 
-Y un respaldo que nunca se ha restaurado no es un respaldo, es un archivo del
-que se supone algo. El procedimiento para comprobarlo sobre una base aparte,
-sin tocar la real, está al final de `respaldar.sh`.
+El procedimiento restaura una base y una carpeta de PDF temporales, verifica
+conteos y hashes, y los elimina al terminar.
 
 ---
 
