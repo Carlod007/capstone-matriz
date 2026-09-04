@@ -234,6 +234,12 @@ falla de respaldo produce una alerta visible.
 
 ### 8. Validar N2.6 con datos no usados para construirla
 
+**Estado:** soporte técnico implementado el 4 de septiembre de 2026; pendiente
+ejecutar la evaluación con artículos nuevos. El flujo congela las predicciones,
+las oculta hasta cerrar las etiquetas, bloquea cambios posteriores y calcula la
+matriz de confusión con intervalos de Wilson. Véase
+[`Protocolo_Validacion_N26.md`](Protocolo_Validacion_N26.md).
+
 **Esfuerzo:** medio en código, pero varios días de lectura y anotación.
 **Dependencias:** congelar antes la versión del verificador y del prompt.
 

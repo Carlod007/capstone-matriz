@@ -31,7 +31,7 @@ from app.database import Base  # noqa: E402
 from app.models import (  # noqa: E402,F401
     archivo, articulo, articulo_meta, embedding_doc, estado_arte, llamada_api,
     metrica, proyecto, rag_log, resultado_brecha, resultado_resumen, run,
-    run_item, usuario, validacion_humana,
+    run_item, usuario, validacion_humana, validacion_n26,
 )
 
 config = context.config

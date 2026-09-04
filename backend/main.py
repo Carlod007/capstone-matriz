@@ -16,6 +16,7 @@ from app.routers import metrics
 from app.routers import metricas_v2
 from app.routers import verificacion_rt
 from app.routers import validacion
+from app.routers import validacion_n26
 from app.routers import lectura
 from app.routers import export
 from app.routers import metrics_plots
@@ -45,6 +46,7 @@ from app.models.metrica import Metrica
 from app.models.llamada_api import LlamadaAPI
 from app.models.usuario import Usuario
 from app.models.validacion_humana import ValidacionHumana
+from app.models.validacion_n26 import LoteValidacionN26, ItemValidacionN26
 
 # -------------------------------
 # CONFIGURACION
@@ -145,6 +147,7 @@ app.include_router(metricas_v2.router)
 app.include_router(metricas_v2.router_global)
 app.include_router(verificacion_rt.router)
 app.include_router(validacion.router)
+app.include_router(validacion_n26.router)
 app.include_router(lectura.router)
 app.include_router(export.router)
 app.include_router(metrics_plots.router)

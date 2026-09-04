@@ -424,7 +424,7 @@ Desde `backend/`, con el entorno activado:
 python -m pytest
 ```
 
-Son 462 pruebas y corren en modo simulado, sin gastar cuota. Las que
+Son 466 pruebas y corren en modo simulado, sin gastar cuota. Las que
 necesitan MySQL están marcadas con `bd` y **se saltan solas** si no hay
 conexión, de modo que la suite pasa igual en una máquina sin base de datos.
 
@@ -438,7 +438,7 @@ Cinco de ellas (`tests/test_esquema.py`) comprueban que los modelos y la base
 sigan coincidiendo: si alguien cambia un modelo y olvida generar la
 migración, falla ahí y no en producción.
 
-Desde `frontend/`, la interfaz tiene seis pruebas de componentes y tres
+Desde `frontend/`, la interfaz tiene ocho pruebas de componentes y tres
 recorridos críticos en navegador:
 
 ```bash
@@ -457,9 +457,9 @@ GitHub lo mismo que harías a mano:
 
 - levanta un MySQL vacío y construye el esquema con `alembic upgrade head`,
   de modo que una migración mal escrita se rompe ahí;
-- ejecuta `alembic check` y las 462 pruebas contra esa base recién creada,
+- ejecuta `alembic check` y las 466 pruebas contra esa base recién creada,
   sin los datos acumulados de una máquina de desarrollo;
-- instala el frontend con `npm ci`, pasa el lint, ejecuta sus seis pruebas de
+- instala el frontend con `npm ci`, pasa el lint, ejecuta sus ocho pruebas de
   componentes, compila y completa tres recorridos críticos con Playwright.
 
 Si el distintivo de arriba está en rojo, el repositorio no está en
@@ -577,7 +577,7 @@ backend/
     routers/          endpoints HTTP
     services/         ingesta, RAG, verificación, métricas, límites de cuota
     utils/            extracción de texto y OCR
-  tests/              462 pruebas
+  tests/              466 pruebas
   storage/pdfs/       PDF subidos, en una carpeta por usuario (no se versionan)
 frontend/
   Caddyfile           servidor web, proxy a la API y HTTPS automático
@@ -591,6 +591,7 @@ database/
   schema.sql          referencia de lectura; el esquema lo gobierna Alembic
 docs/
   CONTEXTO.md         qué es, cómo está, qué falta: la visión de conjunto
+  Protocolo_Validacion_N26.md  cómo probar N2.6 sin contaminar la muestra
   Plan_Fase_2.md      los ocho pasos hacia el despliegue
   *.pdf               especificación de métricas y plan de evolución
 ```
@@ -693,12 +694,14 @@ precisión metodológica:**
 - **Ampliar el anclaje humano (N6).** El piloto de cinco brechas está completo:
   tres correctas y dos parciales, con acierto ponderado 0.80. Sigue siendo una
   muestra pequeña, de una sola persona y sin acuerdo entre jueces.
-- **Probar N2.6 con artículos nuevos.** Detectó los dos casos que originaron la
-  métrica, pero eso demuestra reproducción del patrón, no generalización.
+- **Probar N2.6 con artículos nuevos.** Ya existe un flujo ciego que congela la
+  versión, registra etiquetas binarias y calcula una matriz de confusión con
+  incertidumbre. Falta ejecutarlo sobre datos no usados para construirla.
 - **Precisar y calibrar la medición.** N1.2 ya usa las secciones realmente
   disponibles; N2.1 declara que solo mide afirmaciones evidenciales autónomas
-  y N2.2 v2 excluye inferencias que no requieren cita. Falta retirar el umbral
-  universal del IQR.
+  y N2.2 v2 excluye inferencias que no requieren cita. El umbral universal del
+  IQR ya se retiró; ahora es descriptivo y falta calibrarlo contra evidencia
+  humana suficiente.
   La validación automática continúa desactivada hasta disponer de N6 suficiente
   para calibrarla.
 

@@ -8,7 +8,7 @@ reconstruirlo leyendo código.
 **Si vienes a retomar el trabajo, empieza por la sección 0.** Dice dónde se
 quedó todo, qué se hizo lo último y qué toca ahora.
 
-**Actualizado:** 30 de agosto de 2026
+**Actualizado:** 4 de septiembre de 2026
 **Rama de trabajo:** `CarlosDev` · **Rama principal:** `main`, al día
 (las dos apuntan al mismo commit)
 
@@ -23,20 +23,39 @@ a N2.5 y N2.6.
 *Esta sección se actualiza al cerrar cada avance. Es lo primero que hay que
 leer al retomar el proyecto o al abrir una conversación nueva.*
 
-**Última actualización:** 3 de septiembre de 2026
+**Última actualización:** 4 de septiembre de 2026
 
 ### Estado comprobado
 
 | | |
 |---|---|
-| Backend | **462 pruebas** en verde contra MySQL real temporal, `alembic check` verde |
-| Frontend | **6 pruebas de componentes + 3 recorridos en navegador**, lint y compilación en verde |
-| Migraciones | hasta `0010` |
+| Backend | **466 pruebas** en verde contra MySQL 8 temporal, migración `0001→0011` y `alembic check` verdes |
+| Frontend | **8 pruebas de componentes + 3 recorridos en navegador**; las 8, lint y compilación están en verde |
+| Migraciones | hasta `0011` |
 | Rama de trabajo | `CarlosDev`; la integración en `main` sigue pendiente |
 | Anotación humana (N6) | **5 de 5**, prueba piloto |
 
-**La construcción está terminada.** No hay funcionalidad pendiente. Lo que
-queda es afinar la medición con evidencia.
+La función esencial está terminada. Lo que queda es afinar la medición con
+evidencia; el soporte para la primera validación externa de N2.6 ya está
+implementado y falta ejecutarlo con artículos nuevos.
+
+### Validación externa de N2.6
+
+N6 no sirve como verdad de referencia específica para N2.6: `correcta`,
+`parcial` o `incorrecta` juzga la brecha completa y una parcial puede deberse a
+otras causas. Por eso existe un flujo separado en
+`/proyectos/:id/validar-n26`, con una pregunta binaria: si la brecha presenta
+como pendiente algo que el artículo ya realizó.
+
+Al comenzar, el servidor congela las predicciones N2.6, su fórmula y su
+procedencia. Mientras se etiqueta no envía las predicciones al navegador. Al
+cerrar bloquea las respuestas y muestra verdaderos positivos, falsos positivos,
+falsos negativos y verdaderos negativos, además de exactitud, sensibilidad,
+especificidad y precisión con intervalos de Wilson del 95 %. Sin denominador,
+una proporción queda sin valor; con menos de 20 casos se declara exploratoria.
+
+El protocolo está en [`Protocolo_Validacion_N26.md`](Protocolo_Validacion_N26.md).
+Implementarlo no consume cuota; analizar y verificar el nuevo conjunto sí.
 
 ### El resultado de anotar, y lo que destapó
 
@@ -161,17 +180,17 @@ sigue vigente.
   tamaño de muestra, pero se retiró el umbral universal `0.05`. Ya no se afirma
   que una métrica «separa los casos» o es «casi constante» sin una calibración
   específica contra revisión humana N6.
-- **El frontend ya tiene una red de seguridad automática:** seis pruebas de
+- **El frontend ya tiene una red de seguridad automática:** ocho pruebas de
   componentes fijan los estados de métricas, la revisión ciega y la sesión;
   tres recorridos Playwright comprueban creación, eliminación y apertura
   autenticada del PDF. La integración continua los ejecuta en cada `push`.
 
 ### Lo siguiente, en este orden
 
-1. **Paso 8:** validar N2.6 con artículos y anotaciones que no se hayan usado
-   para construir sus reglas. El paso 7 ya quedó cerrado: bucket externo,
-   retención, restauración aislada y alerta de fallo por correo fueron
-   verificados de extremo a extremo.
+1. **Completar el paso 8:** desplegar el flujo ya implementado y validar N2.6
+   con un proyecto nuevo de cinco artículos no usados para construir sus reglas.
+   Después, ampliar a 20–30 artículos de varios dominios sin ajustar el prompt
+   entre la congelación y el cierre.
 
 ### Lo que se sabe que está mal y aún no se ha tocado
 
@@ -235,11 +254,13 @@ PDF → ingesta (texto + OCR si hace falta + detección de secciones)
 
 ### Modelo de datos
 
-15 tablas funcionales, más `alembic_version`. `usuario` → `proyecto` →
+17 tablas funcionales, más `alembic_version`. `usuario` → `proyecto` →
 (`articulo`, `run`) → (`run_item`,
 `archivo`) → (`resultado_brecha`, `embedding_doc`, `metrica`, `rag_log`,
 `estado_arte`, `resultado_resumen`, `articulo_meta`, `llamada_api`), y
-`validacion_humana` colgando de `resultado_brecha` y de `usuario`.
+`validacion_humana` colgando de `resultado_brecha` y de `usuario`. La
+validación específica de N2.6 usa `lote_validacion_n26` e
+`item_validacion_n26`: separa el lote ciego de sus etiquetas por brecha.
 
 **Todo cuelga del proyecto**, y el proyecto tiene dueño: esa única columna
 (`proyecto.usuario_id`) es la que separa las cuentas.

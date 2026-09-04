@@ -14,6 +14,7 @@ import { useCallback, useEffect, useState } from "react";
  */
 
 import { api } from "../sesion";
+import { abrirPdfArticulo } from "../utils/abrirPdf";
 
 const API_BASE = import.meta.env.VITE_API_BASE || "http://127.0.0.1:8000";
 
@@ -49,30 +50,6 @@ const VEREDICTOS = [
  * leyendo el artículo y decidiendo a la vez, y eso pide dos ventanas, no un
  * recuadro pequeño debajo del formulario.
  */
-async function abrirPdf(articuloId, setEstado) {
-  setEstado("abriendo");
-  try {
-    const r = await api(`${API_BASE}/articulos/${articuloId}/pdf`);
-    if (!r.ok) {
-      const cuerpo = await r.json().catch(() => null);
-      setEstado(cuerpo?.detail || `No se pudo abrir (error ${r.status})`);
-      return;
-    }
-    const url = URL.createObjectURL(await r.blob());
-    const ventana = window.open(url, "_blank", "noopener");
-    if (!ventana) {
-      setEstado("El navegador bloqueó la ventana. Permite las emergentes.");
-    } else {
-      setEstado(null);
-    }
-    // El objeto se libera tarde: revocarlo de inmediato cancelaría la carga
-    // en la pestaña que acaba de abrirse.
-    setTimeout(() => URL.revokeObjectURL(url), 60_000);
-  } catch {
-    setEstado("No se pudo abrir el artículo.");
-  }
-}
-
 function Fila({ brecha, proyectoId, onCambio, onError }) {
   const [veredicto, setVeredicto] = useState(brecha.veredicto || null);
   const [motivo, setMotivo] = useState(brecha.justificacion || "");
@@ -132,7 +109,7 @@ function Fila({ brecha, proyectoId, onCambio, onError }) {
         <div className="mt-1.5 flex flex-wrap items-center gap-2">
           <button
             type="button"
-            onClick={() => abrirPdf(brecha.articulo_id, setPdf)}
+            onClick={() => abrirPdfArticulo(brecha.articulo_id, setPdf)}
             className="rounded-lg border border-acento-borde bg-acento-claro px-2.5 py-1 text-xs font-medium text-acento-fuerte transition-colors hover:border-acento"
           >
             {pdf === "abriendo" ? "Abriendo…" : "Leer el artículo (PDF)"}

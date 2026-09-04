@@ -29,6 +29,7 @@ import {
 import { useAviso } from "./components/avisos";
 import Login from "./components/Login";
 import Validacion from "./components/Validacion";
+import ValidacionN26 from "./components/ValidacionN26";
 import {
   alExpirar,
   api,
@@ -1636,6 +1637,20 @@ function BrechasProyecto({ proyecto, goBack }) {
       </Seccion>
 
       <Seccion
+        titulo="Validación metodológica de N2.6"
+        apoyo="Comprueba con datos nuevos si el detector identifica correctamente cuándo una brecha pide algo que el artículo ya hizo. La revisión se realiza a ciegas."
+        acciones={
+          <Btn kind="blue" onClick={() => navegar(`/proyectos/${proyecto.id}/validar-n26`)}>
+            Validar N2.6
+          </Btn>
+        }
+      >
+        <p className="text-sm leading-relaxed text-tinta-media">
+          Esta evaluación es independiente de la revisión general: produce una matriz de confusión y muestra la incertidumbre del resultado sin cambiar ninguna métrica.
+        </p>
+      </Seccion>
+
+      <Seccion
         titulo={`Artículos analizados (${arts.length})`}
         apoyo="Abre cualquiera para ver su brecha, su oportunidad y los fragmentos del artículo en los que se apoyó el análisis."
         acciones={
@@ -1933,6 +1948,32 @@ function RutaRevision() {
   );
 }
 
+function RutaValidacionN26() {
+  const { proyecto, estado } = useProyectoDeLaUrl();
+  const navegar = useNavigate();
+  const [err, setErr] = useState(null);
+
+  if (estado !== "listo") {
+    return <ProyectoNoDisponible estado={estado} onVolver={() => navegar("/proyectos")} />;
+  }
+
+  return (
+    <Page
+      title="Validación de N2.6"
+      subtitle="Comprueba, sin ver la respuesta del sistema, si cada brecha pide algo que el artículo ya realizó."
+    >
+      <Seccion
+        titulo="Evaluación con datos no usados"
+        apoyo="No mide si la brecha es buena en general. Mide únicamente el error concreto que N2.6 intenta detectar."
+        acciones={<Btn kind="gray" onClick={() => navegar(`/proyectos/${proyecto.id}/brechas`)}>Volver a resultados</Btn>}
+      >
+        <ValidacionN26 proyectoId={proyecto.id} onError={setErr} />
+      </Seccion>
+      <ErrorModal error={err} onClose={() => setErr(null)} />
+    </Page>
+  );
+}
+
 /* ============== APP ============== */
 export default function App() {
   const [fontSize, setFontSize] = useState(16); // tamaño base
@@ -2046,6 +2087,7 @@ export default function App() {
       <Route path="/proyectos/:id/articulos" element={<RutaArticulos />} />
       <Route path="/proyectos/:id/brechas" element={<RutaBrechas />} />
       <Route path="/proyectos/:id/revisar" element={<RutaRevision />} />
+      <Route path="/proyectos/:id/validar-n26" element={<RutaValidacionN26 />} />
       {/* Cualquier otra dirección vuelve al inicio en lugar de dejar la
           pantalla en blanco, que es lo que más desconcierta. */}
       <Route path="*" element={<Navigate to="/" replace />} />
