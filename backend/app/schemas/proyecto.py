@@ -25,6 +25,15 @@ class ProyectoOut(BaseModel):
     # mismo hecho es exactamente lo que dejó la columna de arriba mintiendo.
     tiene_estado_arte: bool = False
 
+    # A diferencia del campo anterior, este solo es cierto si la síntesis
+    # pertenece al último análisis completado. Así una versión antigua no se
+    # presenta como resultado de una reejecución que aún está terminando.
+    tiene_estado_arte_actual: bool = False
+
+    # sin_analizar | analizando | generando_estado_arte | resultados_listos |
+    # estado_arte_fallido | analisis_listo
+    estado_proceso: str = "sin_analizar"
+
     # Resumen para la tarjeta del listado. Se calcula en el servidor con una
     # consulta agrupada por proyecto; antes la pantalla pedía los artículos y
     # el estado del arte de cada proyecto por separado, y las brechas no las

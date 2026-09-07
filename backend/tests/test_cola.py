@@ -281,6 +281,7 @@ class TestEncolado:
         assert r.status_code == 200
         d = r.json()
         assert d["estado"] == EstadoRun.creado.value
+        assert d["fase"] == "analizando"
         assert d["n_items_ok"] == 0
         assert d["n_items_total"] == 3
 
@@ -322,6 +323,7 @@ class TestReenganche:
         assert d is not None
         assert d["id"] == lote["run"]
         assert d["n_items_total"] == 3
+        assert d["fase"] == "analizando"
 
     def test_avisa_de_que_nadie_lo_esta_procesando(self, cliente, lote):
         """Un trabajo encolado sin trabajador en marcha se queda quieto para
@@ -352,6 +354,60 @@ class TestReenganche:
         r = cliente.get("/proyectos/%s/run_activo" % lote["proyecto"])
         assert r.status_code == 200
         assert r.json() is None
+
+    def test_sigue_activo_mientras_se_genera_la_sintesis(self, cliente, lote,
+                                                          db):
+        from app.models.estado_arte import EstadoDelArte
+        from app.models.run import EstadoRun, Run
+
+        run = db.query(Run).filter(Run.id == lote["run"]).first()
+        run.estado = EstadoRun.completado
+        run.finalizado_en = datetime.now()
+        run.genera_estado_arte = True
+        db.commit()
+
+        activo = cliente.get(
+            "/proyectos/%s/run_activo" % lote["proyecto"]).json()
+        assert activo["id"] == lote["run"]
+        assert activo["fase"] == "generando_estado_arte"
+
+        estado = cliente.get("/proyectos/runs/%s" % lote["run"]).json()
+        assert estado["estado"] == "completado"
+        assert estado["fase"] == "generando_estado_arte"
+
+        eid = str(uuid.uuid4())
+        db.add(EstadoDelArte(id=eid, proyecto_id=lote["proyecto"],
+                             run_id=lote["run"], version=1,
+                             texto="Sintesis terminada"))
+        db.commit()
+        try:
+            terminado = cliente.get(
+                "/proyectos/runs/%s" % lote["run"]).json()
+            assert terminado["fase"] == "resultados_listos"
+            assert cliente.get(
+                "/proyectos/%s/run_activo" % lote["proyecto"]).json() is None
+        finally:
+            db.rollback()
+            db.query(EstadoDelArte).filter(EstadoDelArte.id == eid).delete()
+            db.commit()
+
+    def test_el_fallo_de_sintesis_conserva_el_analisis(self, cliente, lote,
+                                                        db):
+        from app.models.run import EstadoRun, Run
+        from app.services.estado_proceso import PREFIJO_FALLO_ESTADO_ARTE
+
+        run = db.query(Run).filter(Run.id == lote["run"]).first()
+        run.estado = EstadoRun.completado
+        run.finalizado_en = datetime.now()
+        run.genera_estado_arte = True
+        run.error_msg = PREFIJO_FALLO_ESTADO_ARTE + " prueba"
+        db.commit()
+
+        estado = cliente.get("/proyectos/runs/%s" % lote["run"]).json()
+        assert estado["estado"] == "completado"
+        assert estado["fase"] == "estado_arte_fallido"
+        assert cliente.get(
+            "/proyectos/%s/run_activo" % lote["proyecto"]).json() is None
 
     def test_no_muestra_el_de_otra_cuenta(self, cliente, lote):
         """Sin sesion no se alcanza, como el resto."""

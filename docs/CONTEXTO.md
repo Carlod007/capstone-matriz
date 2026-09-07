@@ -23,14 +23,14 @@ a N2.5 y N2.6.
 *Esta sección se actualiza al cerrar cada avance. Es lo primero que hay que
 leer al retomar el proyecto o al abrir una conversación nueva.*
 
-**Última actualización:** 4 de septiembre de 2026
+**Última actualización:** 7 de septiembre de 2026
 
 ### Estado comprobado
 
 | | |
 |---|---|
-| Backend | **466 pruebas** en verde contra MySQL 8 temporal, migración `0001→0011` y `alembic check` verdes |
-| Frontend | **8 pruebas de componentes + 3 recorridos en navegador**; las 8, lint y compilación están en verde |
+| Backend | **474 pruebas** en verde contra MySQL 8 temporal, migración `0001→0011` y `alembic check` verdes |
+| Frontend | **17 pruebas de componentes y lógica visual + 5 recorridos en navegador**; pruebas, lint y compilación en verde |
 | Migraciones | hasta `0011` |
 | Rama de trabajo | `CarlosDev`; la integración en `main` sigue pendiente |
 | Anotación humana (N6) | **5 de 5**, prueba piloto |
@@ -252,6 +252,13 @@ PDF → ingesta (texto + OCR si hace falta + detección de secciones)
     → medición (7 niveles de métricas)
 ```
 
+La ejecución visible separa tres fases que antes se confundían:
+**Analizando artículos → Generando estado del arte → Resultados listos**. El
+`run` se cierra cuando terminan los artículos para conservar sus brechas aunque
+falle la síntesis; la interfaz deriva la fase final comprobando si existe un
+`estado_arte` ligado a ese mismo `run`. No se guarda un segundo indicador que
+pueda quedar desactualizado. Durante la síntesis las brechas ya se pueden abrir.
+
 ### Modelo de datos
 
 17 tablas funcionales, más `alembic_version`. `usuario` → `proyecto` →
@@ -295,9 +302,11 @@ varios anotadores sobre la misma brecha.
 - Exportación: matriz PDF/JSON, brechas CSV, estado del arte MD, panel PDF
 - Cuentas, sesión por token, aislamiento entre usuarios
 - Cola de trabajos con reintentos y recuperación de trabajadores caídos
+- Eliminación completa de proyectos con advertencia proporcional, bloqueo
+  durante trabajos activos y retirada de sus PDF del almacenamiento
 - Limitador de cuota propio (ventana deslizante) antes de chocar con la API
-- **462 pruebas automáticas de backend**, verificadas localmente contra MySQL real
-- **6 pruebas de componentes y 3 recorridos críticos de frontend**
+- **474 pruebas automáticas de backend**, verificadas localmente contra MySQL real
+- **17 pruebas de componentes y lógica visual y 5 recorridos críticos de frontend**
 - Esquema gobernado por Alembic, verificado desde base vacía
 
 ### Verificado con datos reales
@@ -525,7 +534,7 @@ Si el objetivo es **nivel académico sólido**, lo que más pesa:
 Si el objetivo es **proyecto profesional presentable**, lo que más pesa:
 
 - **A favor:** desplegado y accesible con HTTPS, migraciones con Alembic,
-  integración continua, 462 pruebas, aislamiento entre cuentas probado
+  integración continua, 474 pruebas, aislamiento entre cuentas probado
   endpoint por endpoint, cola de trabajos con reintentos, copias de seguridad
   programadas y un README que instala desde cero.
 - Lo que se echa en falta: dominio propio en lugar de un nombre derivado de la

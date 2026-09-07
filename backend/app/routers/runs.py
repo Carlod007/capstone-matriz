@@ -19,6 +19,7 @@ from app.models.archivo import Archivo
 from app.models.resultado_brecha import ResultadoBrecha
 from app.models.proyecto import Proyecto
 from app.models.resultado_resumen import ResultadoResumen  # modelo de resúmenes
+from app.models.estado_arte import EstadoDelArte
 from app.schemas.run import RunCreate, RunOut, RunItemOut
 
 from app.models.rag_log import RagLog
@@ -36,6 +37,7 @@ from app.services.verificacion import verificar
 from app.services.ventana_evidencia import fragmentos_de_brecha
 from app.services.procedencia import capturar_procedencia
 from app.services.registro_metricas import registrar_metrica
+from app.services.estado_proceso import GENERANDO_ESTADO_ARTE, fase_run
 
 from app.utils.text_extractor import extraer_con_diagnostico
 
@@ -271,14 +273,7 @@ def crear_run(
         )
     db.commit()
 
-    return RunOut.model_construct(
-        id=run_id,
-        proyecto_id=proyecto_id,
-        estado=r.estado.value,
-        n_items_total=r.n_items_total,
-        n_items_ok=r.n_items_ok,
-        procedencia=r.procedencia,
-    )
+    return _estado(r, db, False)
 
 
 # ----------------------------
@@ -296,17 +291,12 @@ def listar_runs(
         .order_by((Run.iniciado_en == None).asc(), Run.iniciado_en.desc())
         .all()
     )
-    return [
-        RunOut.model_construct(
-            id=x.id,
-            proyecto_id=x.proyecto_id,
-            estado=x.estado.value,
-            n_items_total=x.n_items_total,
-            n_items_ok=x.n_items_ok,
-            procedencia=x.procedencia,
-        )
-        for x in rows
-    ]
+    con_sintesis = {
+        rid for (rid,) in db.query(EstadoDelArte.run_id)
+                              .filter(EstadoDelArte.run_id.in_([x.id for x in rows]))
+                              .all()
+    }
+    return [_estado(x, db, x.id in con_sintesis) for x in rows]
 
 
 @router.get("/{proyecto_id}/run_activo")
@@ -327,7 +317,25 @@ def run_activo(
              .order_by(Run.iniciado_en.desc())
              .first())
     if run is None:
-        return None
+        # Al terminar los artículos, el run se cierra antes de generar la
+        # síntesis. Durante ese intervalo sigue siendo un proceso activo para
+        # quien vuelve a abrir la pantalla, aunque `run.estado` ya diga
+        # "completado".
+        candidato = (db.query(Run)
+                       .filter(Run.proyecto_id == proyecto.id,
+                               Run.estado == EstadoRun.completado)
+                       .order_by(Run.finalizado_en.desc(), Run.id.desc())
+                       .first())
+        if candidato is None:
+            return None
+        tiene_sintesis = db.query(EstadoDelArte.id).filter(
+            EstadoDelArte.run_id == candidato.id).first() is not None
+        if fase_run(candidato, tiene_sintesis) != GENERANDO_ESTADO_ARTE:
+            return None
+        run = candidato
+
+    tiene_sintesis = db.query(EstadoDelArte.id).filter(
+        EstadoDelArte.run_id == run.id).first() is not None
 
     return {
         "id": run.id,
@@ -335,6 +343,7 @@ def run_activo(
         "estado": run.estado.value,
         "n_items_total": run.n_items_total,
         "n_items_ok": cola.contar_ok(db, run.id),
+        "fase": fase_run(run, tiene_sintesis),
         # Un trabajo encolado sin trabajador en marcha se queda quieto para
         # siempre y nada lo delata. Decirlo aquí evita que parezca lentitud.
         "en_marcha": db.query(RunItem.id).filter(
@@ -562,7 +571,7 @@ def estado_run(run: Run = Depends(run_propio), db: Session = Depends(get_db)):
     trabajador cayó a mitad, el contador podría haberse quedado corto.
     """
     run.n_items_ok = cola.contar_ok(db, run.id)
-    return _estado(run)
+    return _estado(run, db)
 
 
 @router.post("/runs/{run_id}/process_next", response_model=RunOut)
@@ -582,7 +591,7 @@ def process_next_item(
     if item is None:
         if not cola.quedan_pendientes(db, run.id):
             cerrar_run(db, run)
-        return _estado(run)
+        return _estado(run, db)
 
     cola.marcar_en_progreso(db, run)
     try:
@@ -599,15 +608,21 @@ def process_next_item(
         cerrar_run(db, run)
 
     db.refresh(run)
-    return _estado(run)
+    return _estado(run, db)
 
 
-def _estado(run: Run) -> RunOut:
+def _estado(run: Run, db: Session,
+            tiene_estado_arte: bool | None = None) -> RunOut:
+    if tiene_estado_arte is None:
+        tiene_estado_arte = db.query(EstadoDelArte.id).filter(
+            EstadoDelArte.run_id == run.id).first() is not None
     return RunOut.model_construct(
         id=run.id,
         proyecto_id=run.proyecto_id,
         estado=run.estado.value if hasattr(run.estado, "value") else run.estado,
         n_items_total=run.n_items_total,
         n_items_ok=run.n_items_ok,
+        fase=fase_run(run, tiene_estado_arte),
+        error_msg=run.error_msg,
         procedencia=run.procedencia,
     )

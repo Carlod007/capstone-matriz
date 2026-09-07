@@ -31,6 +31,12 @@ import Login from "./components/Login";
 import Validacion from "./components/Validacion";
 import ValidacionN26 from "./components/ValidacionN26";
 import {
+  destinoProyecto,
+  presentarAvance,
+  presentarBorradoProyecto,
+  presentarProyecto,
+} from "./estadoProceso";
+import {
   alExpirar,
   api,
   cerrarSesion,
@@ -459,9 +465,12 @@ function Lista({ goCreate, goProyecto }) {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [err, setErr] = useState(null);
+  const avisar = useAviso();
 
   // modal SOTA
   const [sotaModal, setSotaModal] = useState({ open: false, data: null });
+  const [confirmarEliminar, setConfirmarEliminar] = useState(null);
+  const [eliminando, setEliminando] = useState(false);
 
   async function load() {
     setLoading(true);
@@ -477,11 +486,6 @@ function Lista({ goCreate, goProyecto }) {
           ...p,
           articulos_count: p.n_articulos ?? 0,
           brechas_count: p.n_brechas ?? 0,
-          // `tiene_estado_arte` y no `estado_arte_generado`: esa columna del
-          // proyecto no la actualiza nadie y es siempre falsa. Usarla hizo
-          // desaparecer el «Generado» y el enlace «ver» de un proyecto que sí
-          // tenía su síntesis.
-          tiene_sota: !!p.tiene_estado_arte,
         }))
       );
     } catch (e) {
@@ -503,6 +507,47 @@ function Lista({ goCreate, goProyecto }) {
       setErr(e);
     }
   }
+
+  async function eliminarProyecto(proyecto) {
+    if (!proyecto) return;
+    setEliminando(true);
+    try {
+      const r = await api(`${API_BASE}/proyectos/${proyecto.id}`, {
+        method: "DELETE",
+      });
+      if (!r.ok) {
+        const detail = await leerDetalle(r);
+        const motivo =
+          (detail && (detail.detail || detail.message)) ||
+          `No se pudo eliminar el proyecto (error ${r.status})`;
+        avisar(motivo, r.status === 409 ? "aviso" : "mal", 7000);
+        return;
+      }
+      const resultado = await r.json();
+      setRows((actuales) => actuales.filter((p) => p.id !== proyecto.id));
+      setConfirmarEliminar(null);
+      if (resultado.pdf_no_borrados > 0) {
+        avisar(
+          "El proyecto se eliminó, pero algunos archivos no pudieron retirarse del servidor.",
+          "aviso",
+          8000,
+        );
+      } else {
+        avisar("Proyecto eliminado", "bien");
+      }
+    } catch (e) {
+      setErr(e);
+    } finally {
+      setEliminando(false);
+    }
+  }
+
+  const vistaBorrado = confirmarEliminar
+    ? presentarBorradoProyecto(confirmarEliminar)
+    : null;
+  const borradoBloqueado = ["analizando", "generando_estado_arte"].includes(
+    confirmarEliminar?.estado_proceso
+  );
 
   return (
     <Page
@@ -558,8 +603,14 @@ function Lista({ goCreate, goProyecto }) {
               {rows.map((p) => {
                 const articulos = p.articulos_count ?? 0;
                 const objetivo = p.n_articulos_objetivo ?? "—";
-                const listo = p.tiene_sota;
                 const brechas = p.brechas_count ?? 0;
+                const vista = presentarProyecto(p);
+                const colorEstado = {
+                  bien: "text-bien",
+                  aviso: "text-aviso",
+                  acento: "text-acento",
+                  neutro: "text-tinta-suave",
+                }[vista.tono];
 
                 return (
                   <article
@@ -585,18 +636,18 @@ function Lista({ goCreate, goProyecto }) {
                                 {articulos} {articulos === 1 ? "artículo" : "artículos"} incorporados
                               </span>
                               <span className="hidden h-5 w-px bg-borde sm:block" />
-                              {listo ? (
+                              {vista.puedeVerSintesis ? (
                                 <button
                                   type="button"
                                   onClick={() => verSOTA(p.id)}
                                   className="rounded-lg bg-bien-claro px-3 py-1.5 text-left text-bien transition-colors hover:bg-bien-borde"
                                   title="Ver el estado del arte generado"
                                 >
-                                  <Estado tono="bien">Estado del arte listo · ver</Estado>
+                                  <Estado tono={vista.tono}>{vista.etiqueta}</Estado>
                                 </button>
                               ) : (
                                 <span className="rounded-lg bg-hundido px-3 py-1.5">
-                                  <Estado tono="neutro">Estado del arte pendiente</Estado>
+                                  <Estado tono={vista.tono}>{vista.etiqueta}</Estado>
                                 </span>
                               )}
                             </div>
@@ -648,27 +699,30 @@ function Lista({ goCreate, goProyecto }) {
                           <IndicadorProyecto
                             tipo="analisis"
                             label="Estado del análisis"
-                            valor={listo ? "Generado" : "Pendiente"}
-                            apoyo={listo ? "Síntesis del estado del arte disponible" : "Aún falta analizar los artículos"}
-                            ayuda="Indica si ya puedes revisar la síntesis y sus resultados."
+                            valor={vista.valor}
+                            apoyo={vista.apoyo}
+                            ayuda="Distingue el análisis de los artículos de la síntesis final del estado del arte."
                           />
                         </div>
                       </div>
 
                       <div className="mt-6 flex flex-col gap-4 border-t border-borde pt-5 sm:flex-row sm:items-center sm:justify-between">
                         <div className="flex items-start gap-3 text-sm text-tinta-media">
-                          <span className="mt-0.5 shrink-0 text-bien">
+                          <span className={`mt-0.5 shrink-0 ${colorEstado}`}>
                             <Icono tipo="libro" className="h-5 w-5" />
                           </span>
                           <p className="leading-relaxed">
-                            {listo
-                              ? "Puedes revisar la matriz de brechas y la síntesis generada."
-                              : "Sube tus artículos para comenzar a construir la matriz de brechas."}
+                            {vista.mensaje}
                           </p>
                         </div>
-                        <Btn kind="yellow" onClick={() => goProyecto(p)}>
-                          Abrir proyecto <span aria-hidden="true" className="ml-1 text-lg leading-none">›</span>
-                        </Btn>
+                        <div className="flex shrink-0 items-center gap-2">
+                          <Btn kind="danger" onClick={() => setConfirmarEliminar(p)}>
+                            Eliminar
+                          </Btn>
+                          <Btn kind="yellow" onClick={() => goProyecto(p)}>
+                            {vista.accion} <span aria-hidden="true" className="ml-1 text-lg leading-none">›</span>
+                          </Btn>
+                        </div>
                       </div>
                     </div>
                   </article>
@@ -711,6 +765,90 @@ function Lista({ goCreate, goProyecto }) {
           </div>
         ) : (
           <div className="text-tinta-suave">Cargando…</div>
+        )}
+      </Modal>
+
+      <Modal
+        open={!!confirmarEliminar}
+        onClose={() => !eliminando && setConfirmarEliminar(null)}
+        title="Eliminar proyecto"
+        footer={
+          <>
+            <Btn
+              kind="gray"
+              disabled={eliminando}
+              onClick={() => setConfirmarEliminar(null)}
+            >
+              Cancelar
+            </Btn>
+            <Btn
+              kind="danger"
+              disabled={eliminando || borradoBloqueado}
+              onClick={() => eliminarProyecto(confirmarEliminar)}
+            >
+              {eliminando ? "Eliminando…" : "Eliminar proyecto"}
+            </Btn>
+          </>
+        }
+      >
+        {confirmarEliminar && vistaBorrado && (
+          <div className="space-y-4 text-sm">
+            <div className="flex items-start gap-3">
+              <span
+                className={`grid h-10 w-10 shrink-0 place-items-center rounded-lg ${
+                  borradoBloqueado || vistaBorrado.nivel === "alto"
+                    ? "bg-mal-claro text-mal"
+                    : vistaBorrado.nivel === "medio"
+                      ? "bg-aviso-claro text-aviso"
+                      : "bg-hundido text-tinta-suave"
+                }`}
+              >
+                <Icono tipo="documento" className="h-5 w-5" />
+              </span>
+              <div className="min-w-0">
+                <p className="font-medium text-tinta">¿Seguro que quieres eliminarlo?</p>
+                <p className="mt-1 break-words text-tinta-media">
+                  {confirmarEliminar.tema_principal || "(Sin tema)"}
+                </p>
+              </div>
+            </div>
+
+            {borradoBloqueado ? (
+              <div className="rounded-lg border border-mal-borde bg-mal-claro px-3.5 py-3 leading-relaxed text-tinta-media">
+                <p className="font-medium text-mal">No se puede eliminar ahora.</p>
+                <p className="mt-1">
+                  El análisis o la síntesis siguen en curso. Espera a que el
+                  proceso termine para no interrumpir la generación de resultados.
+                </p>
+              </div>
+            ) : (
+              <div
+                className={`rounded-lg border px-3.5 py-3 leading-relaxed ${
+                  vistaBorrado.nivel === "alto"
+                    ? "border-mal-borde bg-mal-claro"
+                    : vistaBorrado.nivel === "medio"
+                      ? "border-aviso-borde bg-aviso-claro"
+                      : "border-borde bg-hundido"
+                }`}
+              >
+                <p
+                  className={`font-medium ${
+                    vistaBorrado.nivel === "alto"
+                      ? "text-mal"
+                      : vistaBorrado.nivel === "medio"
+                        ? "text-aviso"
+                        : "text-tinta"
+                  }`}
+                >
+                  {vistaBorrado.titulo}
+                </p>
+                <p className="mt-1 text-tinta-media">{vistaBorrado.detalle}</p>
+                <p className="mt-2 font-medium text-tinta">
+                  {vistaBorrado.aviso}
+                </p>
+              </div>
+            )}
+          </div>
         )}
       </Modal>
 
@@ -1082,10 +1220,10 @@ function SubirArticulos({ proyecto, goBack }) {
     // bastante espaciado para no castigar al servidor durante los minutos
     // que dura un lote.
     const INTERVALO = 2000;
-    // Cuántas consultas seguidas puede pasar sin que nada avance antes de
-    // sospechar que no hay ningún trabajador en marcha. Treinta segundos: un
-    // artículo puede tardar más, pero no sin que ninguno esté siquiera
-    // tomado.
+    // Tras treinta segundos sin cambiar el contador se explica que el artículo
+    // puede tardar. El contador solo se mueve al terminar uno: no permite
+    // concluir que el trabajador esté detenido ni justifica mostrar comandos
+    // internos a quien usa la aplicación.
     const VUELTAS_SIN_SENAL = 15;
 
     let quieto = 0;
@@ -1102,25 +1240,29 @@ function SubirArticulos({ proyecto, goBack }) {
       quieto = hecho === ultimo ? quieto + 1 : 0;
       ultimo = hecho;
 
-      setFase({
-        etapa: "Analizando artículos",
-        hecho,
-        total: estado.n_items_total ?? total,
-        detalle:
-          quieto >= VUELTAS_SIN_SENAL
-            ? "Sin avance. Comprueba que el trabajador esté en marcha: python trabajador.py"
-            : "Puedes cerrar esta página; el análisis sigue en el servidor.",
-      });
+      const vista = presentarAvance(
+        estado,
+        total,
+        quieto >= VUELTAS_SIN_SENAL,
+      );
 
-      if (estado.estado === "completado") {
-        avisar("Análisis completado", "bien");
+      if (vista.termino) {
+        if (vista.exito) {
+          avisar("Resultados listos", "bien");
+        } else if (vista.soloSintesis) {
+          avisar(
+            "El análisis terminó y las brechas están listas, pero no se pudo generar la síntesis final.",
+            "aviso",
+            8000,
+          );
+        } else {
+          avisar("El análisis no pudo completarse.", "mal");
+        }
         goBack();
         return;
       }
-      if (estado.estado === "fallido") {
-        avisar("El análisis no pudo completarse.", "mal");
-        return;
-      }
+
+      setFase(vista);
       await new Promise((r) => setTimeout(r, INTERVALO));
     }
   }
@@ -1338,8 +1480,9 @@ function SubirArticulos({ proyecto, goBack }) {
               />
 
               <p className="text-xs text-tinta-suave mt-4 leading-relaxed">
-                Puede tardar unos minutos. El proceso avanza artículo por
-                artículo, así que no se pierde lo ya hecho si algo falla.
+                {fase.etapa === "Generando estado del arte"
+                  ? "Esta es la última etapa. Las brechas ya están guardadas y no se perderán si la síntesis falla."
+                  : "Puede tardar unos minutos. El proceso avanza artículo por artículo, así que no se pierde lo ya hecho si algo falla."}
               </p>
             </div>
           </div>
@@ -1358,8 +1501,39 @@ function BrechasProyecto({ proyecto, goBack }) {
   const [err, setErr] = useState(null);
   const [ocupado, setOcupado] = useState(null); // "verificar" | "analizar"
   const [recarga, setRecarga] = useState(0);
+  const [estadoProceso, setEstadoProceso] = useState(proyecto.estado_proceso);
   const avisar = useAviso();
   const navegar = useNavigate();
+
+  // Si se entra a Resultados mientras se redacta la síntesis, la pantalla se
+  // actualiza sola cuando termina. Las brechas ya son consultables durante la
+  // espera; no se devuelve al usuario a la carga de archivos.
+  useEffect(() => {
+    if (estadoProceso !== "generando_estado_arte") return undefined;
+
+    let vivo = true;
+    let temporizador;
+    const consultar = async () => {
+      try {
+        const actual = await jget(`${API_BASE}/proyectos/${proyecto.id}`);
+        if (!vivo) return;
+        setEstadoProceso(actual.estado_proceso);
+        if (actual.estado_proceso !== "generando_estado_arte") {
+          setRecarga((v) => v + 1);
+          return;
+        }
+      } catch {
+        // Un fallo aislado de red no invalida los resultados ya visibles.
+      }
+      if (vivo) temporizador = setTimeout(consultar, 2000);
+    };
+
+    temporizador = setTimeout(consultar, 2000);
+    return () => {
+      vivo = false;
+      clearTimeout(temporizador);
+    };
+  }, [estadoProceso, proyecto.id]);
 
   /**
    * Verifica la fidelidad de las brechas ya analizadas.
@@ -1419,6 +1593,7 @@ function BrechasProyecto({ proyecto, goBack }) {
   async function reanalizar() {
     setErr(null);
     setOcupado("analizar");
+    setEstadoProceso("analizando");
     try {
       const encolado = await jpost(
         `${API_BASE}/proyectos/${proyecto.id}/analizar_todo`, {});
@@ -1426,27 +1601,51 @@ function BrechasProyecto({ proyecto, goBack }) {
 
       for (;;) {
         const estado = await jget(`${API_BASE}/proyectos/runs/${runId}`);
-        if (estado.estado === "completado") break;
-        if (estado.estado === "fallido") {
+        const vista = presentarAvance(estado, estado.n_items_total);
+        setEstadoProceso(estado.fase || "analizando");
+        setOcupado(
+          estado.fase === "generando_estado_arte" ? "sintesis" : "analizar"
+        );
+
+        if (vista.termino && vista.exito) break;
+        if (vista.termino && vista.soloSintesis) {
+          avisar(
+            "Las brechas nuevas están listas, pero no se pudo generar la síntesis final.",
+            "aviso",
+            8000,
+          );
+          setEstadoProceso("estado_arte_fallido");
+          setRecarga((v) => v + 1);
+          return;
+        }
+        if (vista.termino) {
           avisar("El análisis no pudo completarse.", "mal");
           return;
         }
         await new Promise((r) => setTimeout(r, 2000));
       }
 
-      avisar("Análisis completado", "bien");
+      setEstadoProceso("resultados_listos");
+      avisar("Resultados listos", "bien");
       setRecarga((v) => v + 1);
     } catch (e) {
       const enCurso = e?.detail?.detail?.run_id || e?.detail?.run_id;
       if (enCurso) {
+        setEstadoProceso("analizando");
         avisar("Ya hay un análisis en curso para este proyecto.", "aviso");
         return;
       }
+      setEstadoProceso(proyecto.estado_proceso);
       setErr(e);
     } finally {
       setOcupado(null);
     }
   }
+
+  const vistaProceso = presentarProyecto({
+    ...proyecto,
+    estado_proceso: estadoProceso,
+  });
 
   // Matriz
   const [mx, setMx] = useState({
@@ -1509,6 +1708,30 @@ function BrechasProyecto({ proyecto, goBack }) {
       subtitle={proyecto.tema_principal}
       ancho="max-w-[92rem]"
     >
+      {(estadoProceso === "generando_estado_arte" ||
+        estadoProceso === "estado_arte_fallido") && (
+        <div
+          className={`mb-6 flex items-start gap-3 rounded-xl border px-4 py-3 text-sm ${
+            estadoProceso === "estado_arte_fallido"
+              ? "border-aviso-borde bg-aviso-claro text-aviso"
+              : "border-acento-borde bg-acento-claro text-acento-fuerte"
+          }`}
+          role="status"
+        >
+          <span className="mt-0.5 shrink-0">
+            <Icono
+              tipo={estadoProceso === "estado_arte_fallido" ? "info" : "analisis"}
+              className="h-5 w-5"
+            />
+          </span>
+          <div>
+            <p className="font-medium">{vistaProceso.valor}</p>
+            <p className="mt-0.5 leading-relaxed text-tinta-media">
+              {vistaProceso.mensaje}
+            </p>
+          </div>
+        </div>
+      )}
       <section className="mb-10">
         <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_19rem]">
           <div className="min-w-0">
@@ -1561,7 +1784,11 @@ function BrechasProyecto({ proyecto, goBack }) {
                 </Btn>
 
                 <Btn kind="ghost" onClick={reanalizar} disabled={ocupado}>
-                  {ocupado === "analizar" ? "Analizando…" : "Volver a analizar"}
+                  {ocupado === "analizar"
+                    ? "Analizando…"
+                    : ocupado === "sintesis"
+                      ? "Generando síntesis…"
+                      : "Volver a analizar"}
                 </Btn>
               </div>
             </Panel>
@@ -2037,23 +2264,9 @@ export default function App() {
   const goCreate = () => navegar("/proyectos/nuevo");
   const goList = () => navegar("/proyectos");
 
-  /**
-   * Abre un proyecto por la puerta que le corresponde.
-   *
-   * Con estado del arte ya generado interesan las brechas; sin él, lo que toca
-   * es subir artículos. La comprobación se hace aquí y no dentro de las
-   * pantallas para que la dirección resultante sea explícita: quien copie el
-   * enlace se lleva la vista concreta, no un "depende".
-   */
-  async function goProyecto(p) {
-    let tieneSota = false;
-    try {
-      await jget(`${API_BASE}/proyectos/${p.id}/estado_arte/latest`);
-      tieneSota = true;
-    } catch {
-      // Sin estado del arte todavía: se entra por la pantalla de subida.
-    }
-    navegar(`/proyectos/${p.id}/${tieneSota ? "brechas" : "articulos"}`);
+  /** Abre el avance o los resultados según la fase que ya sirve el proyecto. */
+  function goProyecto(p) {
+    navegar(`/proyectos/${p.id}/${destinoProyecto(p)}`);
   }
 
   // Sin sesión no se monta nada más: el backend rechazaría cada llamada y la

@@ -97,6 +97,7 @@ class TestRecuentos:
         assert fila["n_brechas"] == 2, (
             "solo dos articulos dejaron brecha; el tercero se analizo sin "
             "resultado y no debe contarse")
+        assert fila["estado_proceso"] == "analisis_listo"
 
     def test_dice_si_hay_estado_del_arte(self, db, cliente,
                                          proyecto_analizado):
@@ -113,6 +114,15 @@ class TestRecuentos:
         assert _fila(cliente, pid)["tiene_estado_arte"] is False
 
         eid = str(uuid.uuid4())
+        from app.models.run import Run
+
+        run = db.query(Run).filter(Run.id == proyecto_analizado["run"]).first()
+        run.genera_estado_arte = True
+        db.commit()
+        pendiente = _fila(cliente, pid)
+        assert pendiente["estado_proceso"] == "generando_estado_arte"
+        assert pendiente["tiene_estado_arte_actual"] is False
+
         db.add(EstadoDelArte(id=eid, proyecto_id=pid,
                              run_id=proyecto_analizado["run"], version=1,
                              texto="Sintesis de prueba"))
@@ -120,12 +130,35 @@ class TestRecuentos:
         try:
             fila = _fila(cliente, pid)
             assert fila["tiene_estado_arte"] is True
+            assert fila["tiene_estado_arte_actual"] is True
+            assert fila["estado_proceso"] == "resultados_listos"
             # Y la columna sigue mintiendo, que es justamente el motivo de que
             # no se use: si algun dia se mantuviera, esta prueba lo diria.
             assert fila["estado_arte_generado"] is False
         finally:
             db.rollback()
             db.query(EstadoDelArte).filter(EstadoDelArte.id == eid).delete()
+            run = db.query(Run).filter(
+                Run.id == proyecto_analizado["run"]).first()
+            run.genera_estado_arte = False
+            db.commit()
+
+    def test_distingue_fallo_de_sintesis(self, db, cliente,
+                                          proyecto_analizado):
+        from app.models.run import Run
+        from app.services.estado_proceso import PREFIJO_FALLO_ESTADO_ARTE
+
+        run = db.query(Run).filter(Run.id == proyecto_analizado["run"]).first()
+        run.genera_estado_arte = True
+        run.error_msg = PREFIJO_FALLO_ESTADO_ARTE + " prueba"
+        db.commit()
+        try:
+            fila = _fila(cliente, proyecto_analizado["proyecto"])
+            assert fila["estado_proceso"] == "estado_arte_fallido"
+            assert fila["n_brechas"] == 2
+        finally:
+            run.error_msg = None
+            run.genera_estado_arte = False
             db.commit()
 
     def test_un_proyecto_vacio_cuenta_cero(self, db, cliente, usuario_prueba):
@@ -207,7 +240,8 @@ class TestRecuentos:
         assert r.status_code == 200, r.text
         suelto = r.json()
 
-        for campo in ("n_articulos", "n_brechas", "tiene_estado_arte"):
+        for campo in ("n_articulos", "n_brechas", "tiene_estado_arte",
+                      "tiene_estado_arte_actual", "estado_proceso"):
             assert suelto[campo] == del_listado[campo], (
                 "%s difiere entre el listado y el proyecto suelto: %r vs %r"
                 % (campo, del_listado[campo], suelto[campo]))

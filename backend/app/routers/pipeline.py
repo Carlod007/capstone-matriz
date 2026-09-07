@@ -82,6 +82,7 @@ def analizar_todo(
         "proyecto_id": proyecto.id,
         "run_id": run_id,
         "estado": EstadoRun.creado.value,
+        "fase": "analizando",
         "n_items_total": len(arts),
         "n_items_ok": 0,
         "procedencia": run.procedencia,

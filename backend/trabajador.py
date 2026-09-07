@@ -151,8 +151,9 @@ def _cerrar_terminadas(db) -> None:
                 # Que falle la sintesis no invalida el analisis ya hecho: las
                 # brechas estan guardadas y se puede pedir de nuevo.
                 db.rollback()
-                run.error_msg = ("El analisis termino, pero no se pudo generar "
-                                 "el estado del arte: %s" % e)[:2000]
+                from app.services.estado_proceso import mensaje_fallo_estado_arte
+
+                run.error_msg = mensaje_fallo_estado_arte(e)
                 db.commit()
                 log.error("  no se pudo generar el estado del arte: %s", e)
 

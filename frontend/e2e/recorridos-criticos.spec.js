@@ -156,3 +156,102 @@ test('mantiene ciega la revisión y abre el PDF con autenticación', async ({ pa
   await page.getByRole('button', { name: 'Leer el artículo (PDF)' }).click()
   await expect.poll(() => autorizacionPdf).toBe('Bearer token-e2e')
 })
+
+test('abre las brechas mientras se genera el estado del arte', async ({ page }) => {
+  await iniciarSesion(page)
+  const proyecto = {
+    id: 'p-1',
+    tema_principal: 'Estructuras civiles',
+    n_articulos_objetivo: 5,
+    n_articulos: 5,
+    n_brechas: 5,
+    estado_proceso: 'generando_estado_arte',
+    tiene_estado_arte: false,
+    tiene_estado_arte_actual: false,
+  }
+
+  await page.route('**/api/**', async (ruta) => {
+    const peticion = ruta.request()
+    const camino = new URL(peticion.url()).pathname.replace(/^\/api/, '')
+    if (camino === '/proyectos') {
+      await ruta.fulfill({ json: [proyecto] })
+      return
+    }
+    if (camino === '/proyectos/p-1') {
+      await ruta.fulfill({ json: proyecto })
+      return
+    }
+    if (camino === '/proyectos/p-1/articulos') {
+      await ruta.fulfill({ json: [] })
+      return
+    }
+    if (camino === '/proyectos/p-1/metricas') {
+      await ruta.fulfill({ json: { run: null, aviso: 'Síntesis en curso' } })
+      return
+    }
+    if (camino.endsWith('/consumo') || camino === '/consumo') {
+      await ruta.fulfill({ json: {} })
+      return
+    }
+    await ruta.fulfill({ status: 404, json: { detail: 'Ruta simulada no definida' } })
+  })
+
+  await page.goto('/proyectos')
+  await expect(page.getByText('Sintetizando')).toBeVisible()
+  await expect(page.getByText('Las brechas ya están disponibles')).toBeVisible()
+  await page.getByRole('button', { name: /Ver resultados/ }).click()
+
+  await expect(page).toHaveURL(/\/proyectos\/p-1\/brechas$/)
+  await expect(page.getByText('Ya puedes revisar las brechas mientras se redacta la síntesis final.'))
+    .toBeVisible()
+})
+
+test('confirma con gravedad antes de eliminar un proyecto con resultados', async ({ page }) => {
+  await iniciarSesion(page)
+  let eliminado = false
+  const proyecto = {
+    id: 'p-borrar',
+    tema_principal: 'Proyecto con resultados',
+    n_articulos_objetivo: 5,
+    n_articulos: 5,
+    n_brechas: 5,
+    estado_proceso: 'resultados_listos',
+    tiene_estado_arte: true,
+    tiene_estado_arte_actual: true,
+  }
+
+  await page.route('**/api/**', async (ruta) => {
+    const peticion = ruta.request()
+    const camino = new URL(peticion.url()).pathname.replace(/^\/api/, '')
+    if (camino === '/proyectos' && peticion.method() === 'GET') {
+      await ruta.fulfill({ json: eliminado ? [] : [proyecto] })
+      return
+    }
+    if (camino === '/proyectos/p-borrar' && peticion.method() === 'DELETE') {
+      eliminado = true
+      await ruta.fulfill({ json: {
+        proyecto_id: 'p-borrar',
+        borrado: true,
+        pdf_no_borrados: 0,
+      } })
+      return
+    }
+    if (camino === '/consumo') {
+      await ruta.fulfill({ json: {} })
+      return
+    }
+    await ruta.fulfill({ status: 404, json: { detail: 'Ruta simulada no definida' } })
+  })
+
+  await page.goto('/proyectos')
+  await page.getByRole('button', { name: 'Eliminar', exact: true }).click()
+
+  const dialogo = page.getByRole('dialog', { name: 'Eliminar proyecto' })
+  await expect(dialogo).toContainText('Este proyecto ya tiene resultados')
+  await expect(dialogo).toContainText('La cuota de API que ya se consumió tampoco se recupera')
+  await dialogo.getByRole('button', { name: 'Eliminar proyecto' }).click()
+
+  await expect(dialogo).toBeHidden()
+  await expect(page.getByRole('status')).toContainText('Proyecto eliminado')
+  await expect(page.getByText('Todavía no hay proyectos')).toBeVisible()
+})

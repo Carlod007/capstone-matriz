@@ -396,12 +396,18 @@ obtiene en [Google AI Studio](https://aistudio.google.com/apikey).
 3. **Indexar**: prepara los artículos para la búsqueda por significado.
 4. **Analizar todo**: pone el proyecto en cola. La respuesta es inmediata y
    **puedes cerrar el navegador**: el trabajador sigue por su cuenta y al
-   volver encontrarás el avance donde iba.
+   volver encontrarás el avance donde iba. La interfaz distingue tres etapas:
+   **Analizando artículos → Generando estado del arte → Resultados listos**.
+   Las brechas se pueden revisar desde que termina la primera, sin esperar a
+   que acabe la síntesis.
 5. **Verificar**: contrasta cada afirmación contra el texto fuente. Aquí es
    donde aparece el porcentaje de fidelidad y las afirmaciones sin respaldo.
 6. **Generar el estado del arte** a partir del conjunto.
 7. **Exportar**: matriz en PDF o JSON, brechas en CSV, estado del arte en
    Markdown, panel en PDF.
+8. **Eliminar un proyecto**, si ya no se necesita. La confirmación distingue
+   si está vacío, si solo contiene PDF o si ya tiene resultados; no permite
+   borrarlo mientras el análisis o la síntesis estén en curso.
 
 Un consejo de uso, no del sistema: la salida es un borrador que **acelera**
 la revisión de literatura, no la sustituye. Las brechas señaladas hay que
@@ -424,7 +430,7 @@ Desde `backend/`, con el entorno activado:
 python -m pytest
 ```
 
-Son 466 pruebas y corren en modo simulado, sin gastar cuota. Las que
+Son 474 pruebas y corren en modo simulado, sin gastar cuota. Las que
 necesitan MySQL están marcadas con `bd` y **se saltan solas** si no hay
 conexión, de modo que la suite pasa igual en una máquina sin base de datos.
 
@@ -457,10 +463,11 @@ GitHub lo mismo que harías a mano:
 
 - levanta un MySQL vacío y construye el esquema con `alembic upgrade head`,
   de modo que una migración mal escrita se rompe ahí;
-- ejecuta `alembic check` y las 466 pruebas contra esa base recién creada,
+- ejecuta `alembic check` y las 474 pruebas contra esa base recién creada,
   sin los datos acumulados de una máquina de desarrollo;
-- instala el frontend con `npm ci`, pasa el lint, ejecuta sus ocho pruebas de
-  componentes, compila y completa tres recorridos críticos con Playwright.
+- instala el frontend con `npm ci`, pasa el lint, ejecuta sus 17 pruebas de
+  componentes y lógica visual, compila y completa cinco recorridos críticos
+  con Playwright.
 
 Si el distintivo de arriba está en rojo, el repositorio no está en
 condiciones de clonarse.
@@ -577,7 +584,7 @@ backend/
     routers/          endpoints HTTP
     services/         ingesta, RAG, verificación, métricas, límites de cuota
     utils/            extracción de texto y OCR
-  tests/              466 pruebas
+  tests/              474 pruebas
   storage/pdfs/       PDF subidos, en una carpeta por usuario (no se versionan)
 frontend/
   Caddyfile           servidor web, proxy a la API y HTTPS automático
