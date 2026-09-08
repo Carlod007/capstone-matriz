@@ -1481,6 +1481,7 @@ export function Fidelidad({ verificacion }) {
   } = verificacion;
 
   const evidenciales = afirmaciones.filter((a) => a.tipo === "evidencial");
+  const evidencialesAutonomas = evidenciales.filter((a) => a.autonoma !== false);
   const inferenciales = afirmaciones.filter((a) => a.tipo === "inferencial");
   const trazabilidadV2 = detalleTrazabilidad?.formula === 2;
   const explicacionTrazabilidad = trazabilidadV2
@@ -1498,7 +1499,7 @@ export function Fidelidad({ verificacion }) {
         <span className="block font-medium">Ver las afirmaciones y sus citas</span>
         <span className="mt-0.5 block text-xs text-tinta-suave">
           {disponible
-            ? `${evidenciales.length} afirmaciones comprobables enlazadas con los fragmentos consultados`
+            ? `${evidencialesAutonomas.length} afirmaciones comprobables enlazadas con los fragmentos consultados`
             : "La comprobación de fidelidad todavía no se ejecutó"}
         </span>
       </summary>
@@ -1794,7 +1795,7 @@ function ResumenComprobacion({ verificacion }) {
             <span
               aria-hidden="true"
               className={`mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full text-xs ${
-                item.favorable ? "bg-bien text-white" : "bg-aviso text-white"
+                item.favorable ? "bg-bien text-papel" : "bg-aviso text-papel"
               }`}
             >
               {item.favorable ? "✓" : "!"}

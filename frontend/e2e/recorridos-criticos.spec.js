@@ -360,11 +360,11 @@ test('prioriza artículos y lectura sencilla antes del detalle técnico', async 
   await expect(page.getByText('Sin contradicciones detectadas')).toBeVisible()
   await expect(page.getByText('No parece una brecha ya resuelta')).toBeVisible()
   await expect(page.getByText('Cómo se evaluó esta brecha')).toBeVisible()
-  await expect(page.getByText('ROUGE-1 precisión')).toHaveCount(0)
+  await expect(page.getByText('ROUGE-1 precisión')).not.toBeVisible()
   await page.getByText('Cómo se evaluó esta brecha').click()
   await expect(page.getByText('ROUGE-1 precisión')).toBeVisible()
   await expect(page.getByText('El resumen y el abstract están en idiomas distintos.')).toBeVisible()
-  await page.getByRole('button', { name: 'Cerrar' }).click()
+  await page.getByRole('button', { name: 'Cerrar', exact: true }).click()
 
   await page.getByText('Repetir el proceso').click()
   await expect(page.getByRole('button', { name: 'Volver a verificar' })).toBeVisible()
