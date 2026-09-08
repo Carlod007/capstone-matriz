@@ -250,6 +250,44 @@ test('prioriza artículos y lectura sencilla antes del detalle técnico', async 
     metrica('N4.2', 'Similitud semántica', 'N4 Resumen', 0.89),
     { ...metrica('N2.verificada', 'Verificación realizada', 'N2 Fidelidad', 1), rango: '0 o 1' },
   ]
+  const brechaDetalle = {
+    id: 'b-1',
+    tipo_brecha: 'metodológica',
+    brecha: 'El estudio no representa los efectos dinámicos de la carga.',
+    oportunidad: 'Validar el modelo con simulaciones dinámicas explícitas.',
+    validacion_calibrada: false,
+    secciones_consultadas: ['método', 'resultados'],
+    respaldo: [
+      { seccion: 'método', score: 0.65 },
+      { seccion: 'resultados', score: 0.61 },
+    ],
+    verificacion: {
+      disponible: true,
+      n_evidenciales_autonomas: 2,
+      n_sin_respaldo: 0,
+      n_contradicciones: 0,
+      ya_resuelta: false,
+      fidelidad: 1,
+      trazabilidad: 1,
+      equilibrio_evidencial: 0.67,
+      afirmaciones: [
+        { tipo: 'evidencial', autonoma: true, respaldada: true, texto: 'Usa cargas estáticas.', fragmento: 1 },
+        { tipo: 'evidencial', autonoma: true, respaldada: true, texto: 'No modela efectos dinámicos.', fragmento: 2 },
+      ],
+    },
+    metricas: [
+      { ...metrica('N1.2', 'Cobertura seccional', 'N1 Recuperación', 1), valor: 1 },
+      { ...metrica('N2.1', 'Respaldo de afirmaciones evidenciales', 'N2 Fidelidad', 1), valor: 1 },
+      {
+        ...metrica('N4.1a', 'ROUGE-1 precisión', 'N4 Resumen', 0),
+        valor: null,
+        detalle: {
+          aplicable: false,
+          motivo: 'El resumen y el abstract están en idiomas distintos.',
+        },
+      },
+    ],
+  }
 
   await page.route('**/api/**', async (ruta) => {
     const camino = new URL(ruta.request().url()).pathname.replace(/^\/api/, '')
@@ -287,6 +325,10 @@ test('prioriza artículos y lectura sencilla antes del detalle técnico', async 
       } })
       return
     }
+    if (camino === '/articulos/a-1/brechas') {
+      await ruta.fulfill({ json: [brechaDetalle] })
+      return
+    }
     await ruta.fulfill({ status: 404, json: { detail: 'Ruta simulada no definida' } })
   })
 
@@ -311,6 +353,18 @@ test('prioriza artículos y lectura sencilla antes del detalle técnico', async 
     )
   })
   expect(articulosAntes).toBeTruthy()
+
+  await page.getByRole('button', { name: 'Revisar brecha' }).first().click()
+  await expect(page.getByText('Brecha identificada')).toBeVisible()
+  await expect(page.getByText('2 de 2 afirmaciones respaldadas')).toBeVisible()
+  await expect(page.getByText('Sin contradicciones detectadas')).toBeVisible()
+  await expect(page.getByText('No parece una brecha ya resuelta')).toBeVisible()
+  await expect(page.getByText('Cómo se evaluó esta brecha')).toBeVisible()
+  await expect(page.getByText('ROUGE-1 precisión')).toHaveCount(0)
+  await page.getByText('Cómo se evaluó esta brecha').click()
+  await expect(page.getByText('ROUGE-1 precisión')).toBeVisible()
+  await expect(page.getByText('El resumen y el abstract están en idiomas distintos.')).toBeVisible()
+  await page.getByRole('button', { name: 'Cerrar' }).click()
 
   await page.getByText('Repetir el proceso').click()
   await expect(page.getByRole('button', { name: 'Volver a verificar' })).toBeVisible()

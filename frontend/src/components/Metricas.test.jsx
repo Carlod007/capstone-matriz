@@ -2,7 +2,7 @@ import { render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { PanelMetricas } from './Metricas'
+import { DetalleBrecha, PanelMetricas } from './Metricas'
 import { respuestaJson } from '../test/respuestas'
 
 
@@ -138,5 +138,116 @@ describe('PanelMetricas', () => {
 
     expect(await screen.findByText(/usa la fórmula histórica/i)).toBeInTheDocument()
     expect(screen.queryByText(/llegó al modelo el 50 %/i)).not.toBeInTheDocument()
+  })
+})
+
+describe('DetalleBrecha', () => {
+  const brecha = {
+    id: 'brecha-1',
+    tipo_brecha: 'metodológica',
+    brecha: 'El estudio usa cargas estáticas y no representa efectos dinámicos.',
+    oportunidad: 'Validar el modelo con simulaciones dinámicas explícitas.',
+    validacion_calibrada: false,
+    secciones_consultadas: ['método', 'resultados'],
+    respaldo: [
+      { seccion: 'método', score: 0.65 },
+      { seccion: 'resultados', score: 0.61 },
+    ],
+    verificacion: {
+      disponible: true,
+      n_evidenciales_autonomas: 2,
+      n_sin_respaldo: 0,
+      n_contradicciones: 0,
+      ya_resuelta: false,
+      fidelidad: 1,
+      trazabilidad: 1,
+      equilibrio_evidencial: 0.67,
+      detalle_trazabilidad: {
+        formula: 2,
+        n_elegibles: 2,
+        n_con_fragmento_y_cita: 2,
+      },
+      afirmaciones: [
+        {
+          tipo: 'evidencial',
+          autonoma: true,
+          respaldada: true,
+          texto: 'El estudio usa cargas estáticas.',
+          fragmento: 1,
+          cita: 'The study uses equivalent static forces.',
+        },
+        {
+          tipo: 'evidencial',
+          autonoma: true,
+          respaldada: true,
+          texto: 'No se modelan efectos dinámicos.',
+          fragmento: 2,
+          cita: 'Dynamic effects are not represented.',
+        },
+      ],
+    },
+    metricas: [
+      {
+        codigo: 'N1.2',
+        nombre: 'Cobertura seccional',
+        nivel: 'N1 Recuperación',
+        valor: 1,
+        mejor: 'alto',
+        rango: '0 a 1',
+        descripcion: 'Secciones útiles consultadas.',
+        interpretacion: 'Más cobertura incorpora más secciones disponibles.',
+      },
+      {
+        codigo: 'N2.1',
+        nombre: 'Respaldo de afirmaciones evidenciales',
+        nivel: 'N2 Fidelidad',
+        valor: 1,
+        mejor: 'alto',
+        rango: '0 a 1',
+        descripcion: 'Afirmaciones respaldadas.',
+        interpretacion: 'No evalúa la novedad de la brecha.',
+      },
+      {
+        codigo: 'N4.1a',
+        nombre: 'ROUGE-1 precisión',
+        nivel: 'N4 Resumen',
+        valor: null,
+        mejor: 'alto',
+        rango: '0 a 1',
+        descripcion: 'Solape de palabras.',
+        detalle: {
+          aplicable: false,
+          motivo: 'El resumen y el abstract están en idiomas distintos.',
+        },
+      },
+    ],
+  }
+
+  it('prioriza una lectura sencilla y deja la auditoría plegada', () => {
+    render(<DetalleBrecha brecha={brecha} />)
+
+    expect(screen.getByText('Brecha identificada')).toBeInTheDocument()
+    expect(screen.getByText('2 de 2 afirmaciones respaldadas')).toBeInTheDocument()
+    expect(screen.getByText('Sin contradicciones detectadas')).toBeInTheDocument()
+    expect(screen.getByText('No parece una brecha ya resuelta')).toBeInTheDocument()
+    expect(screen.getByText('Requiere revisión humana')).toBeInTheDocument()
+
+    expect(screen.getByText('Ver las afirmaciones y sus citas').closest('details')).not.toHaveAttribute('open')
+    expect(screen.getByText('Fragmentos consultados por el análisis').closest('details')).not.toHaveAttribute('open')
+    expect(screen.getByText('Cómo se evaluó esta brecha').closest('details')).not.toHaveAttribute('open')
+  })
+
+  it('conserva las métricas técnicas y explica las no aplicables', async () => {
+    const usuario = userEvent.setup()
+    render(<DetalleBrecha brecha={brecha} />)
+
+    await usuario.click(screen.getByText('Cómo se evaluó esta brecha'))
+
+    expect(screen.getByText('Contexto consultado · 1')).toBeInTheDocument()
+    expect(screen.getByText('Fidelidad · 1')).toBeInTheDocument()
+    expect(screen.getByText('Resumen · 1')).toBeInTheDocument()
+    expect(screen.getByText('ROUGE-1 precisión')).toBeInTheDocument()
+    expect(screen.getByText('no aplicable')).toBeInTheDocument()
+    expect(screen.getByText('El resumen y el abstract están en idiomas distintos.')).toBeInTheDocument()
   })
 })

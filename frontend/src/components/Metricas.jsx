@@ -443,7 +443,20 @@ function LecturaPrincipal({ metricas }) {
  * segunda, y aparecía repetido en el panel y en cada brecha. Un titular basta
  * para saber que hay algo que leer.
  */
-export function AvisoValidacion() {
+export function AvisoValidacion({ compacto = false }) {
+  if (compacto) {
+    return (
+      <div className="flex items-start gap-2 rounded-lg border border-aviso-borde bg-aviso-claro px-3 py-2.5 text-sm text-aviso">
+        <span aria-hidden="true" className="mt-0.5 shrink-0">ⓘ</span>
+        <p className="leading-relaxed">
+          <b>Requiere revisión humana.</b> La validación automática aún no está
+          calibrada con suficientes evaluaciones expertas, por eso esta brecha
+          no aparece como aprobada o rechazada.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <details className="rounded-lg border border-aviso-borde bg-aviso-claro text-aviso text-sm">
       <summary className="cursor-pointer select-none px-3 py-2 font-medium marker:text-current">
@@ -1481,32 +1494,13 @@ export function Fidelidad({ verificacion }) {
       className="border border-borde rounded-lg"
       open={sinRespaldo > 0 || contradicciones > 0}
     >
-      <summary className="cursor-pointer select-none px-3 py-2 bg-hundido rounded-t-lg">
-        <span className="font-medium">Fidelidad a las fuentes</span>
-        {disponible ? (
-          <span className="text-tinta-suave">
-            {" "}· {Math.round((fidelidad ?? 0) * 100)}% de las afirmaciones
-            evidenciales autónomas está respaldada
-            {sinRespaldo > 0 && (
-              <span className="text-mal">
-                {" "}· {sinRespaldo} sin respaldo en los fragmentos
-              </span>
-            )}
-            {/* La contradicción va delante en importancia y por eso se nombra
-                aunque la fidelidad sea perfecta: son cosas distintas y esta es
-                la grave. */}
-            {contradicciones > 0 && (
-              <span className="font-medium text-mal">
-                {" "}· {contradicciones}{" "}
-                {contradicciones === 1
-                  ? "contradice al artículo"
-                  : "contradicen al artículo"}
-              </span>
-            )}
-          </span>
-        ) : (
-          <span className="text-tinta-suave"> · sin verificar</span>
-        )}
+      <summary className="cursor-pointer select-none px-3 py-2.5 bg-hundido rounded-t-lg">
+        <span className="block font-medium">Ver las afirmaciones y sus citas</span>
+        <span className="mt-0.5 block text-xs text-tinta-suave">
+          {disponible
+            ? `${evidenciales.length} afirmaciones comprobables enlazadas con los fragmentos consultados`
+            : "La comprobación de fidelidad todavía no se ejecutó"}
+        </span>
       </summary>
 
       <div className="p-3 space-y-3">
@@ -1699,56 +1693,215 @@ export function Fidelidad({ verificacion }) {
 }
 
 /* ---------------------------------------------------------------- brecha */
+const GRUPOS_METRICAS_BRECHA = [
+  {
+    nivel: "N1 Recuperación",
+    titulo: "Contexto consultado",
+    explicacion: "Qué partes del artículo llegaron al análisis y cuánto se diferenciaban entre sí.",
+  },
+  {
+    nivel: "N2 Fidelidad",
+    titulo: "Fidelidad",
+    explicacion: "Si los hechos pueden comprobarse y si el artículo contradice o ya resolvió la brecha.",
+  },
+  {
+    nivel: "N3 Especificidad",
+    titulo: "Especificidad",
+    explicacion: "Cuántos detalles concretos y términos informativos contiene la brecha.",
+  },
+  {
+    nivel: "N4 Resumen",
+    titulo: "Resumen",
+    explicacion: "Cómo se relaciona el resumen generado con el abstract y cómo está redactado.",
+  },
+  {
+    nivel: "N5 Tipificación",
+    titulo: "Clasificación",
+    explicacion: "Si la categoría de la brecha fue ajustada automáticamente.",
+  },
+];
+
+function ResumenComprobacion({ verificacion }) {
+  if (!verificacion?.disponible) {
+    return (
+      <div className="rounded-lg border border-borde bg-hundido px-3 py-3">
+        <p className="font-medium">Comprobación pendiente</p>
+        <p className="mt-1 text-xs leading-relaxed text-tinta-suave">
+          {verificacion?.motivo ||
+            "Todavía no se comprobó esta brecha contra los fragmentos del artículo."}
+        </p>
+      </div>
+    );
+  }
+
+  const total = verificacion.n_evidenciales_autonomas ??
+    (verificacion.afirmaciones || []).filter(
+      (a) => a.tipo === "evidencial" && a.autonoma !== false,
+    ).length;
+  const sinRespaldo = verificacion.n_sin_respaldo || 0;
+  const respaldadas = Math.max(0, total - sinRespaldo);
+  const contradicciones = verificacion.n_contradicciones || 0;
+  const yaResuelta = verificacion.ya_resuelta;
+
+  const comprobaciones = [
+    {
+      favorable: sinRespaldo === 0,
+      titulo: total > 0
+        ? `${respaldadas} de ${total} afirmaciones respaldadas`
+        : "Sin afirmaciones factuales evaluables",
+      detalle: total > 0
+        ? sinRespaldo === 0
+          ? "Los fragmentos consultados sostienen los hechos descritos."
+          : `${sinRespaldo} ${sinRespaldo === 1 ? "afirmación necesita" : "afirmaciones necesitan"} revisión en el PDF completo.`
+        : "La brecha contiene conclusiones, pero no hechos autónomos que puedan cotejarse.",
+    },
+    {
+      favorable: contradicciones === 0,
+      titulo: contradicciones === 0
+        ? "Sin contradicciones detectadas"
+        : `${contradicciones} ${contradicciones === 1 ? "contradicción detectada" : "contradicciones detectadas"}`,
+      detalle: contradicciones === 0
+        ? "Ningún fragmento consultado afirmó lo contrario."
+        : "Hay fragmentos que sostienen lo contrario de alguna afirmación.",
+    },
+    {
+      favorable: yaResuelta === false,
+      titulo: yaResuelta === false
+        ? "No parece una brecha ya resuelta"
+        : yaResuelta === true
+          ? "El artículo podría haberla resuelto"
+          : "Sin resultado sobre brecha resuelta",
+      detalle: yaResuelta === false
+        ? "El artículo no declara haber realizado la mejora propuesta."
+        : yaResuelta === true
+          ? "La propuesta aparece como trabajo ya realizado dentro del artículo."
+          : "Esta comprobación no dejó un resultado concluyente.",
+    },
+  ];
+
+  return (
+    <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
+      {comprobaciones.map((item) => (
+        <div
+          key={item.titulo}
+          className={`rounded-lg border px-3 py-3 ${
+            item.favorable
+              ? "border-bien-borde bg-bien-claro"
+              : "border-aviso-borde bg-aviso-claro"
+          }`}
+        >
+          <div className="flex items-start gap-2">
+            <span
+              aria-hidden="true"
+              className={`mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full text-xs ${
+                item.favorable ? "bg-bien text-white" : "bg-aviso text-white"
+              }`}
+            >
+              {item.favorable ? "✓" : "!"}
+            </span>
+            <div>
+              <p className="font-medium leading-snug">{item.titulo}</p>
+              <p className="mt-1 text-xs leading-relaxed text-tinta-media">
+                {item.detalle}
+              </p>
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export function DetalleBrecha({ brecha }) {
   if (!brecha) return null;
   const metricas = brecha.metricas || [];
   const respaldo = brecha.respaldo || [];
+  const grupos = GRUPOS_METRICAS_BRECHA.map((grupo) => ({
+    ...grupo,
+    metricas: metricas.filter((metrica) => metrica.nivel === grupo.nivel),
+  })).filter((grupo) => grupo.metricas.length > 0);
+  const metricasAgrupadas = new Set(
+    grupos.flatMap((grupo) => grupo.metricas.map((metrica) => metrica.codigo)),
+  );
+  const sinGrupo = metricas.filter((metrica) => !metricasAgrupadas.has(metrica.codigo));
 
   return (
-    <div className="space-y-4 text-sm">
-      <div>
-        <div className="text-tinta-suave">Tipo de brecha</div>
-        <div className="font-medium">{brecha.tipo_brecha}</div>
-      </div>
+    <div className="space-y-5 text-sm">
+      <section className="space-y-4 rounded-xl border border-borde bg-hundido/30 p-4">
+        <Etiqueta tono="azul">Brecha {brecha.tipo_brecha}</Etiqueta>
 
-      <div>
-        <div className="text-tinta-suave">Brecha</div>
-        <p className="whitespace-pre-wrap leading-relaxed">{brecha.brecha}</p>
-      </div>
+        <div>
+          <div className="text-[11px] font-semibold uppercase tracking-wider text-tinta-suave">
+            Brecha identificada
+          </div>
+          <p className="mt-1.5 whitespace-pre-wrap leading-relaxed">
+            {brecha.brecha}
+          </p>
+        </div>
 
-      <div>
-        <div className="text-tinta-suave">Oportunidad de innovación</div>
-        <p className="whitespace-pre-wrap leading-relaxed">{brecha.oportunidad}</p>
-      </div>
+        <div className="rounded-lg border-l-4 border-acento bg-acento-claro px-3 py-3">
+          <div className="text-[11px] font-semibold uppercase tracking-wider text-acento-fuerte">
+            Oportunidad de investigación
+          </div>
+          <p className="mt-1.5 whitespace-pre-wrap leading-relaxed text-tinta">
+            {brecha.oportunidad}
+          </p>
+        </div>
+      </section>
 
-      {!brecha.validacion_calibrada && <AvisoValidacion />}
+      <section className="space-y-3" aria-labelledby={`comprobacion-${brecha.id || "brecha"}`}>
+        <div className="flex flex-col justify-between gap-1 sm:flex-row sm:items-end">
+          <div>
+            <div className="text-[11px] font-semibold uppercase tracking-wider text-tinta-suave">
+              Comprobación del sistema
+            </div>
+            <h3 id={`comprobacion-${brecha.id || "brecha"}`} className="mt-1 font-semibold text-tinta">
+              Qué pudo verificar en el artículo
+            </h3>
+            <p className="mt-1 text-xs leading-relaxed text-tinta-suave">
+              Describe el respaldo encontrado; no decide si la brecha es
+              novedosa, relevante o científicamente correcta.
+            </p>
+          </div>
+          {!brecha.validacion_calibrada && (
+            <span className="shrink-0 text-xs font-medium text-aviso">
+              Requiere revisión humana
+            </span>
+          )}
+        </div>
+
+        <ResumenComprobacion verificacion={brecha.verificacion} />
+
+        {!brecha.validacion_calibrada && <AvisoValidacion compacto />}
+      </section>
 
       {/* Fidelidad antes que el respaldo bruto: interesa más saber qué
           afirmaciones se sostienen que qué fragmentos se consultaron. */}
       <Fidelidad verificacion={brecha.verificacion} />
 
       {/* Trazabilidad: es lo que permite comprobar de dónde sale la brecha. */}
-      <details className="border border-borde rounded-lg" open>
-        <summary className="cursor-pointer select-none px-3 py-2 bg-hundido rounded-t-lg">
-          En qué se apoyó el análisis ({respaldo.length} fragmentos del artículo)
+      <details className="border border-borde rounded-lg">
+        <summary className="cursor-pointer select-none px-3 py-2.5 bg-hundido rounded-t-lg">
+          <span className="block font-medium">Fragmentos consultados por el análisis</span>
+          <span className="mt-0.5 block text-xs text-tinta-suave">
+            {respaldo.length} {respaldo.length === 1 ? "fragmento del artículo" : "fragmentos del artículo"}
+            {brecha.secciones_consultadas?.length > 0 &&
+              ` · ${brecha.secciones_consultadas.join(", ")}`}
+          </span>
         </summary>
         <div className="p-3 space-y-2">
           {/* Sin esta explicación, "relevancia 0.412" no significa nada: nadie
               sabe si 0.4 es mucho o poco, ni por qué el modelo leyó solo un
               trozo del artículo en lugar de todo. */}
           <p className="text-[11px] text-tinta-suave leading-snug">
-            El artículo no se le da entero al modelo: se parte en fragmentos y se
-            le pasan los más pertinentes al tema del proyecto. Estos son los que
-            leyó para escribir esta brecha, y los únicos contra los que se
-            comprueba su fidelidad.
+            Son las partes del PDF que el sistema leyó para redactar y comprobar
+            esta brecha. No representan una nota sobre la calidad del artículo.
           </p>
 
           {brecha.secciones_consultadas?.length > 0 && (
             <div>
               <div className="text-[11px] text-tinta-suave mb-1">
-                Secciones de las que salieron. Que aparezcan método, resultados
-                o discusión es buena señal: significa que no se quedó en el
-                resumen y la introducción.
+                Secciones del artículo consultadas
               </div>
               <div className="flex flex-wrap gap-1">
                 {brecha.secciones_consultadas.map((s) => (
@@ -1768,9 +1921,9 @@ export function DetalleBrecha({ brecha }) {
 
           {respaldo.length > 0 && (
             <div className="text-[11px] text-tinta-suave">
-              La <b>relevancia</b> es cuánto se parece el fragmento a lo que se
-              buscaba, de 0 a 1. Sirve para comparar entre sí los de un mismo
-              análisis, no como nota de calidad.
+              La relevancia técnica solo ordena qué fragmentos se parecían más
+              a la búsqueda dentro de este análisis. No califica la brecha ni el
+              artículo.
             </div>
           )}
 
@@ -1788,11 +1941,30 @@ export function DetalleBrecha({ brecha }) {
       </details>
 
       <details className="border border-borde rounded-lg">
-        <summary className="cursor-pointer select-none px-3 py-2 bg-hundido rounded-t-lg">
-          Métricas de esta brecha ({metricas.length})
+        <summary className="cursor-pointer select-none px-3 py-2.5 bg-hundido rounded-t-lg">
+          <span className="block font-medium">Cómo se evaluó esta brecha</span>
+          <span className="mt-0.5 block text-xs text-tinta-suave">
+            {metricas.length} métricas técnicas agrupadas en {grupos.length + (sinGrupo.length > 0 ? 1 : 0)} aspectos
+          </span>
         </summary>
-        <div className="p-3 grid grid-cols-1 md:grid-cols-2 gap-2">
-          {metricas.map((m) => {
+        <div className="space-y-5 p-3">
+          {[...grupos, ...(sinGrupo.length > 0 ? [{
+            nivel: "otras",
+            titulo: "Otras mediciones",
+            explicacion: "Mediciones técnicas que no pertenecen a los grupos principales.",
+            metricas: sinGrupo,
+          }] : [])].map((grupo) => (
+            <section key={grupo.nivel}>
+              <div className="mb-2">
+                <h4 className="font-medium text-tinta">
+                  {grupo.titulo} · {grupo.metricas.length}
+                </h4>
+                <p className="mt-0.5 text-xs leading-relaxed text-tinta-suave">
+                  {grupo.explicacion}
+                </p>
+              </div>
+              <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+                {grupo.metricas.map((m) => {
             // Una métrica sin valor no es un cero: es una que no aplica a este
             // caso. ROUGE cuenta palabras compartidas, así que entre un resumen
             // en español y un abstract en inglés daría casi cero por
@@ -1803,13 +1975,13 @@ export function DetalleBrecha({ brecha }) {
               m.detalle?.aplicable === false;
             const motivo = m.detalle?.motivo;
 
-            return (
-              <div
-                key={m.codigo}
-                className={`border rounded-lg p-2 ${
-                  noAplica ? "border-borde bg-hundido/40" : "border-borde"
-                }`}
-              >
+                  return (
+                    <div
+                      key={m.codigo}
+                      className={`border rounded-lg p-2 ${
+                        noAplica ? "border-borde bg-hundido/40" : "border-borde"
+                      }`}
+                    >
                 <div className="flex items-baseline justify-between gap-2">
                   <span className="font-medium text-tinta">{m.nombre}</span>
                   <span
@@ -1857,9 +2029,12 @@ export function DetalleBrecha({ brecha }) {
                     </>
                   )}
                 </div>
+                    </div>
+                  );
+                })}
               </div>
-            );
-          })}
+            </section>
+          ))}
           {metricas.length === 0 && (
             <div className="text-tinta-suave">Sin métricas registradas.</div>
           )}
