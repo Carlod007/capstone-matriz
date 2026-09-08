@@ -27,6 +27,24 @@ function fmt(v, decimales = 3) {
   return Number(v).toFixed(decimales);
 }
 
+/** Traduce errores del proveedor a una acción comprensible para el usuario. */
+function motivoVerificacionLegible(motivo) {
+  const texto = String(motivo || "").trim();
+  if (!texto) {
+    return "La comprobación no pudo completarse. Puedes intentarlo nuevamente más tarde.";
+  }
+  if (/503|unavailable|high demand/i.test(texto)) {
+    return "El servicio de análisis estaba temporalmente saturado y no pudo completar esta comprobación. La brecha sigue guardada; intenta verificar la fidelidad nuevamente más tarde.";
+  }
+  if (/429|resource_exhausted|quota|cuota/i.test(texto)) {
+    return "La comprobación no pudo completarse porque la cuota disponible se agotó. La brecha sigue guardada; inténtalo cuando la cuota se renueve.";
+  }
+  if (/\{\s*['"]?error['"]?\s*:|traceback|exception/i.test(texto)) {
+    return "La comprobación se interrumpió por un problema temporal del servicio. La brecha sigue guardada y puede verificarse nuevamente más tarde.";
+  }
+  return texto;
+}
+
 /** Métricas principales en el orden del recorrido que ve el usuario. */
 const DESTACADAS = ["N2.1", "N1.2", "N3.1", "N3.2", "N4.2"];
 
@@ -446,14 +464,16 @@ function LecturaPrincipal({ metricas }) {
 export function AvisoValidacion({ compacto = false }) {
   if (compacto) {
     return (
-      <div className="flex items-start gap-2 rounded-lg border border-aviso-borde bg-aviso-claro px-3 py-2.5 text-sm text-aviso">
-        <span aria-hidden="true" className="mt-0.5 shrink-0">ⓘ</span>
-        <p className="leading-relaxed">
-          <b>Requiere revisión humana.</b> La validación automática aún no está
-          calibrada con suficientes evaluaciones expertas, por eso esta brecha
-          no aparece como aprobada o rechazada.
+      <details className="rounded-lg border border-aviso-borde bg-aviso-claro text-xs text-aviso">
+        <summary className="cursor-pointer select-none px-3 py-2 font-medium">
+          ¿Por qué no aparece aprobada o rechazada?
+        </summary>
+        <p className="px-3 pb-3 leading-relaxed">
+          La validación automática aún no está calibrada con suficientes
+          evaluaciones expertas. Hasta entonces, la decisión corresponde a la
+          revisión humana.
         </p>
-      </div>
+      </details>
     );
   }
 
@@ -1507,30 +1527,15 @@ export function Fidelidad({ verificacion }) {
       <div className="p-3 space-y-3">
         {!disponible && (
           <p className="text-tinta-suave leading-relaxed">
-            {motivo ||
-              "La verificación no llegó a ejecutarse, así que no hay medición."}
+            {motivoVerificacionLegible(motivo)}
           </p>
         )}
 
-        {/* El alcance de la medición, dicho antes de los números.
-            Sin esta frase, un 60 % se lee como «el 40 % es inventado», y no es
-            eso: la comprobación se hace contra un extracto del artículo, no
-            contra el artículo completo. Una afirmación puede ser cierta y
-            estar en otra página. */}
         {disponible && (
-          <div className="space-y-2 text-tinta-suave leading-relaxed">
-            <p>
-              Se comprueba contra los fragmentos que el modelo leyó y sus
-              párrafos contiguos, no contra el artículo completo. «Sin respaldo»
-              significa que ese extracto no la sostiene, no que sea falsa:
-              conviene mirar el artículo antes de descartarla.
-            </p>
-            <p>
-              El respaldo mide afirmaciones factuales autónomas. No decide por
-              sí solo si la conclusión de la brecha es correcta, relevante o
-              novedosa; esa parte necesita revisión humana.
-            </p>
-          </div>
+          <p className="text-xs leading-relaxed text-tinta-suave">
+            Cada afirmación aparece junto al fragmento que la respalda. Si falta
+            respaldo, conviene revisar el PDF completo antes de descartarla.
+          </p>
         )}
 
         {/* Lo primero después del alcance, porque es lo más grave que puede
@@ -1567,56 +1572,47 @@ export function Fidelidad({ verificacion }) {
           </p>
         )}
 
-        {/* Cada indicador con lo que mide debajo. Antes eran tres números con
-            una etiqueta de una palabra, y "Base factual" o "Trazabilidad" no
-            dicen nada por sí solos: había que conocer la especificación para
-            interpretarlos. */}
         {disponible && (
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-            {[
-              [
-                "Respaldo evidencial",
-                fidelidad,
-                "De las afirmaciones factuales autónomas, cuántas sostienen los fragmentos consultados. Un 1.00 no evalúa las conclusiones ni el artículo completo.",
-              ],
-              [
-                "Trazabilidad",
-                trazabilidad,
-                explicacionTrazabilidad,
-              ],
-              [
-                "Base factual",
-                equilibrio,
-                "Cuánto de la brecha son hechos del artículo y cuánto interpretación del modelo. Muy bajo significa que casi todo es opinión, aunque la fidelidad salga alta.",
-              ],
-            ].map(([k, v, explica]) => (
-              <div
-                key={k}
-                className="border border-borde rounded-lg px-2.5 py-2"
-              >
-                <div className="flex items-baseline justify-between gap-2">
-                  <span className="text-[11px] font-medium text-tinta-media">
-                    {k}
-                  </span>
-                  <span className="font-medium tabular-nums">{fmt(v, 2)}</span>
+          <details className="rounded-lg border border-borde bg-hundido/40">
+            <summary className="cursor-pointer select-none px-3 py-2 text-xs font-medium text-tinta-media">
+              Ver cómo se calculó la fidelidad
+            </summary>
+            <div className="grid grid-cols-1 gap-2 border-t border-borde p-3 sm:grid-cols-3">
+              {[
+                [
+                  "Respaldo evidencial",
+                  fidelidad,
+                  "De las afirmaciones factuales autónomas, cuántas sostienen los fragmentos consultados. Un 1.00 no evalúa las conclusiones ni el artículo completo.",
+                ],
+                ["Trazabilidad", trazabilidad, explicacionTrazabilidad],
+                [
+                  "Base factual",
+                  equilibrio,
+                  "Cuánto de la brecha son hechos del artículo y cuánto interpretación del modelo. Es descriptiva: un valor alto no significa que la brecha sea mejor.",
+                ],
+              ].map(([k, v, explica]) => (
+                <div key={k} className="rounded-lg border border-borde px-2.5 py-2">
+                  <div className="flex items-baseline justify-between gap-2">
+                    <span className="text-[11px] font-medium text-tinta-media">{k}</span>
+                    <span className="font-medium tabular-nums">{fmt(v, 2)}</span>
+                  </div>
+                  <p className="mt-1 text-[11px] leading-snug text-tinta-suave">
+                    {explica}
+                  </p>
                 </div>
-                <p className="text-[11px] leading-snug text-tinta-suave mt-1">
-                  {explica}
-                </p>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          </details>
         )}
 
         {evidenciales.length > 0 && (
           <div>
-            <div className="text-[11px] font-semibold uppercase tracking-wider text-tinta-suave mb-1">
-              Comprobables contra el artículo
+            <div className="mb-1 text-[11px] font-semibold uppercase tracking-wider text-tinta-suave">
+              Afirmaciones comprobadas
             </div>
-            <p className="text-[11px] text-tinta-suave mb-1.5 leading-snug">
-              Afirmaciones que dicen algo que el artículo hace, mide o reporta,
-              así que se puede buscar en el texto. Las que solo interpretan
-              —«falta estudiar X»— no se pueden comprobar y van más abajo.
+            <p className="mb-1.5 text-[11px] leading-snug text-tinta-suave">
+              Hechos que el análisis atribuye al artículo y que pueden buscarse
+              en los fragmentos consultados.
             </p>
             <div className="space-y-1.5">
               {evidenciales.map((a, i) => (
@@ -1635,11 +1631,14 @@ export function Fidelidad({ verificacion }) {
                       }`}
                     />
                     <div className="min-w-0">
-                      <p className="leading-snug">{a.texto}</p>
+                      <p className={`text-[11px] font-medium ${a.respaldada ? "text-bien" : "text-mal"}`}>
+                        {a.respaldada ? "Respaldada por el artículo" : "No se encontró respaldo"}
+                      </p>
+                      <p className="mt-0.5 leading-snug">{a.texto}</p>
                       {a.respaldada ? (
                         <p className="text-[11px] text-tinta-suave mt-1">
-                          Fragmento {a.fragmento}
-                          {a.cita && <>: «{a.cita}»</>}
+                          <b>Cita encontrada</b> · fragmento {a.fragmento}
+                          {a.cita && <span className="mt-0.5 block">«{a.cita}»</span>}
                         </p>
                       ) : (
                         <p className="text-[11px] text-mal mt-1">
@@ -1728,8 +1727,7 @@ function ResumenComprobacion({ verificacion }) {
       <div className="rounded-lg border border-borde bg-hundido px-3 py-3">
         <p className="font-medium">Comprobación pendiente</p>
         <p className="mt-1 text-xs leading-relaxed text-tinta-suave">
-          {verificacion?.motivo ||
-            "Todavía no se comprobó esta brecha contra los fragmentos del artículo."}
+          {motivoVerificacionLegible(verificacion?.motivo)}
         </p>
       </div>
     );
@@ -1825,6 +1823,11 @@ export function DetalleBrecha({ brecha }) {
     grupos.flatMap((grupo) => grupo.metricas.map((metrica) => metrica.codigo)),
   );
   const sinGrupo = metricas.filter((metrica) => !metricasAgrupadas.has(metrica.codigo));
+  const conteoSecciones = respaldo.reduce((conteos, fragmento) => {
+    const seccion = fragmento?.seccion || "sin identificar";
+    conteos.set(seccion, (conteos.get(seccion) || 0) + 1);
+    return conteos;
+  }, new Map());
 
   return (
     <div className="space-y-5 text-sm">
@@ -1878,7 +1881,9 @@ export function DetalleBrecha({ brecha }) {
 
       {/* Fidelidad antes que el respaldo bruto: interesa más saber qué
           afirmaciones se sostienen que qué fragmentos se consultaron. */}
-      <Fidelidad verificacion={brecha.verificacion} />
+      {brecha.verificacion?.disponible && (
+        <Fidelidad verificacion={brecha.verificacion} />
+      )}
 
       {/* Trazabilidad: es lo que permite comprobar de dónde sale la brecha. */}
       <details className="border border-borde rounded-lg">
@@ -1899,15 +1904,15 @@ export function DetalleBrecha({ brecha }) {
             esta brecha. No representan una nota sobre la calidad del artículo.
           </p>
 
-          {brecha.secciones_consultadas?.length > 0 && (
+          {conteoSecciones.size > 0 && (
             <div>
-              <div className="text-[11px] text-tinta-suave mb-1">
-                Secciones del artículo consultadas
+              <div className="mb-1.5 text-xs font-medium text-tinta-media">
+                Partes del artículo que se tuvieron en cuenta
               </div>
-              <div className="flex flex-wrap gap-1">
-                {brecha.secciones_consultadas.map((s) => (
-                  <Etiqueta key={s} tono="azul">
-                    {s}
+              <div className="flex flex-wrap gap-1.5">
+                {[...conteoSecciones.entries()].map(([seccion, cantidad]) => (
+                  <Etiqueta key={seccion} tono="azul">
+                    {seccion} · {cantidad}
                   </Etiqueta>
                 ))}
               </div>
@@ -1921,23 +1926,29 @@ export function DetalleBrecha({ brecha }) {
           )}
 
           {respaldo.length > 0 && (
-            <div className="text-[11px] text-tinta-suave">
-              La relevancia técnica solo ordena qué fragmentos se parecían más
-              a la búsqueda dentro de este análisis. No califica la brecha ni el
-              artículo.
-            </div>
-          )}
-
-          {respaldo.map((h, i) => (
-            <div key={i} className="border border-borde rounded-lg p-2 bg-hundido">
-              <div className="flex items-center justify-between text-[11px] text-tinta-suave">
-                <span>
-                  Fragmento {i + 1} · sección: {h.seccion || "sin identificar"}
-                </span>
-                <span>relevancia {fmt(h.score, 3)}</span>
+            <details className="rounded-lg border border-borde bg-hundido/40">
+              <summary className="cursor-pointer select-none px-3 py-2 text-xs font-medium text-tinta-media">
+                Ver selección técnica de los {respaldo.length} fragmentos
+              </summary>
+              <div className="space-y-2 border-t border-borde p-3">
+                <p className="text-[11px] leading-snug text-tinta-suave">
+                  La relevancia solo ordena qué fragmentos se parecían más a la
+                  búsqueda dentro de este análisis. No califica la brecha ni el
+                  artículo.
+                </p>
+                {respaldo.map((h, i) => (
+                  <div key={i} className="rounded-lg border border-borde bg-hundido p-2">
+                    <div className="flex flex-col gap-1 text-[11px] text-tinta-suave sm:flex-row sm:items-center sm:justify-between">
+                      <span>
+                        Fragmento {i + 1} · {h.seccion || "sección sin identificar"}
+                      </span>
+                      <span className="shrink-0 tabular-nums">relevancia {fmt(h.score, 3)}</span>
+                    </div>
+                  </div>
+                ))}
               </div>
-            </div>
-          ))}
+            </details>
+          )}
         </div>
       </details>
 
@@ -1955,16 +1966,16 @@ export function DetalleBrecha({ brecha }) {
             explicacion: "Mediciones técnicas que no pertenecen a los grupos principales.",
             metricas: sinGrupo,
           }] : [])].map((grupo) => (
-            <section key={grupo.nivel}>
-              <div className="mb-2">
-                <h4 className="font-medium text-tinta">
+            <details key={grupo.nivel} className="rounded-lg border border-borde">
+              <summary className="cursor-pointer select-none px-3 py-2.5">
+                <span className="block font-medium text-tinta">
                   {grupo.titulo} · {grupo.metricas.length}
-                </h4>
-                <p className="mt-0.5 text-xs leading-relaxed text-tinta-suave">
+                </span>
+                <span className="mt-0.5 block text-xs leading-relaxed text-tinta-suave">
                   {grupo.explicacion}
-                </p>
-              </div>
-              <div className="grid grid-cols-1 gap-2 md:grid-cols-2">
+                </span>
+              </summary>
+              <div className="grid grid-cols-1 gap-2 border-t border-borde p-3 md:grid-cols-2">
                 {grupo.metricas.map((m) => {
             // Una métrica sin valor no es un cero: es una que no aplica a este
             // caso. ROUGE cuenta palabras compartidas, así que entre un resumen
@@ -2034,7 +2045,7 @@ export function DetalleBrecha({ brecha }) {
                   );
                 })}
               </div>
-            </section>
+            </details>
           ))}
           {metricas.length === 0 && (
             <div className="text-tinta-suave">Sin métricas registradas.</div>

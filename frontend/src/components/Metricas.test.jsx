@@ -246,8 +246,45 @@ describe('DetalleBrecha', () => {
     expect(screen.getByText('Contexto consultado · 1')).toBeInTheDocument()
     expect(screen.getByText('Fidelidad · 1')).toBeInTheDocument()
     expect(screen.getByText('Resumen · 1')).toBeInTheDocument()
+    expect(screen.getByText('Resumen · 1').closest('details')).not.toHaveAttribute('open')
+
+    await usuario.click(screen.getByText('Resumen · 1'))
+
     expect(screen.getByText('ROUGE-1 precisión')).toBeInTheDocument()
     expect(screen.getByText('no aplicable')).toBeInTheDocument()
     expect(screen.getByText('El resumen y el abstract están en idiomas distintos.')).toBeInTheDocument()
+  })
+
+  it('resume las secciones consultadas antes de mostrar relevancias técnicas', async () => {
+    const usuario = userEvent.setup()
+    render(<DetalleBrecha brecha={brecha} />)
+
+    await usuario.click(screen.getByText('Fragmentos consultados por el análisis'))
+
+    expect(screen.getByText('método · 1')).toBeInTheDocument()
+    expect(screen.getByText('resultados · 1')).toBeInTheDocument()
+    expect(screen.getByText('Ver selección técnica de los 2 fragmentos').closest('details'))
+      .not.toHaveAttribute('open')
+  })
+
+  it('traduce una saturación temporal sin mostrar el error técnico del proveedor', () => {
+    render(
+      <DetalleBrecha
+        brecha={{
+          ...brecha,
+          verificacion: {
+            disponible: false,
+            motivo: "No se pudo verificar: 503 UNAVAILABLE. {'error': {'message': 'This model is currently experiencing high demand.'}}",
+          },
+        }}
+      />,
+    )
+
+    expect(screen.getByText(/servicio de análisis estaba temporalmente saturado/i))
+      .toBeInTheDocument()
+    expect(screen.getByText(/La brecha sigue guardada/i)).toBeInTheDocument()
+    expect(screen.queryByText('Ver las afirmaciones y sus citas')).not.toBeInTheDocument()
+    expect(screen.queryByText(/503 UNAVAILABLE/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/high demand/i)).not.toBeInTheDocument()
   })
 })
