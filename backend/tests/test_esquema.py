@@ -78,6 +78,23 @@ class TestModelosCompletos:
         faltan = esperadas - declaradas
         assert not faltan, "claves foraneas sin declarar: %s" % sorted(faltan)
 
+    def test_el_enum_de_brechas_coincide_con_la_taxonomia(self, db, metadata):
+        """La base, el modelo y el prompt deben aceptar los mismos tipos."""
+        from sqlalchemy import text
+        from app.tipos_brecha import TIPOS_BRECHA
+
+        declarados = tuple(
+            metadata.tables["resultado_brecha"].c.tipo_brecha.type.enums
+        )
+        columna = db.execute(text(
+            "SELECT COLUMN_TYPE FROM information_schema.COLUMNS "
+            "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = "
+            "'resultado_brecha' AND COLUMN_NAME = 'tipo_brecha'"
+        )).scalar_one()
+
+        assert declarados == TIPOS_BRECHA
+        assert all("'%s'" % tipo in columna for tipo in TIPOS_BRECHA)
+
 
 class TestMigraciones:
     def test_la_base_esta_en_la_ultima_revision(self, db):

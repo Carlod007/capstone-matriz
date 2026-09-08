@@ -6,6 +6,7 @@ from sqlalchemy.dialects.mysql import DECIMAL as MySQLDECIMAL
 from sqlalchemy.dialects.mysql import JSON as MySQLJSON
 from sqlalchemy.dialects.mysql import LONGTEXT
 from app.models.proyecto import Base
+from app.tipos_brecha import TIPOS_BRECHA
 
 
 class ResultadoBrecha(Base):
@@ -18,7 +19,7 @@ class ResultadoBrecha(Base):
         nullable=False,
     )
     tipo_brecha: Mapped[str] = mapped_column(
-        Enum("metodológica", "temática", "teórica", "tecnológica", "otra"),
+        Enum(*TIPOS_BRECHA),
         nullable=False,
     )
     brecha: Mapped[str] = mapped_column(LONGTEXT, nullable=False)

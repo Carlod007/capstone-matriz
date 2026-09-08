@@ -25,6 +25,32 @@ import fitz  # noqa: E402
 import pytest  # noqa: E402
 
 
+# Todas las rutas de PDF creadas por pytest viven debajo de esta raíz. Hacerla
+# coincidir con STORAGE_DIR reproduce la frontera de producción: los archivos
+# válidos están dentro del volumen y una ruta como ../../etc/passwd queda fuera.
+@pytest.fixture(scope="session", autouse=True)
+def raiz_almacenamiento_pruebas(tmp_path_factory):
+    from app import config
+    from app.services import almacenamiento
+
+    raiz = str(tmp_path_factory.getbasetemp())
+    anterior_env = os.environ.get("STORAGE_DIR")
+    anterior_config = config.STORAGE_DIR
+    anterior_servicio = almacenamiento.STORAGE_DIR
+    os.environ["STORAGE_DIR"] = raiz
+    config.STORAGE_DIR = raiz
+    almacenamiento.STORAGE_DIR = raiz
+    try:
+        yield raiz
+    finally:
+        if anterior_env is None:
+            os.environ.pop("STORAGE_DIR", None)
+        else:
+            os.environ["STORAGE_DIR"] = anterior_env
+        config.STORAGE_DIR = anterior_config
+        almacenamiento.STORAGE_DIR = anterior_servicio
+
+
 # --------------------------------------------------------------- artículos
 SECCIONES_ARTICULO = [
     (None, "Revista Internacional de Tecnologia Educativa. Volumen 12, numero 3. "

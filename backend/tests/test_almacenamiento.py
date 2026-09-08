@@ -91,6 +91,25 @@ class TestCompatibilidad:
         assert almacen.ruta_local(str(antiguo)) == str(antiguo)
         assert almacen.existe(str(antiguo)) is True
 
+    def test_una_ruta_relativa_antigua_dentro_de_la_raiz_sigue_valiendo(
+        self, almacen, tmp_path, monkeypatch
+    ):
+        antiguo = tmp_path / "relativo.pdf"
+        antiguo.write_bytes(b"%PDF-1.4 antiguo")
+        monkeypatch.chdir(tmp_path.parent)
+        relativa = os.path.relpath(antiguo, tmp_path.parent)
+
+        assert almacen.ruta_local(relativa) == str(antiguo)
+
+    def test_una_ruta_existente_fuera_de_la_raiz_se_rechaza(
+        self, almacen, tmp_path
+    ):
+        fuera = tmp_path.parent / "fuera-del-almacen.pdf"
+        fuera.write_bytes(b"%PDF-1.4 no autorizado")
+
+        with pytest.raises(almacen.ClaveInvalida):
+            almacen.ruta_local(str(fuera))
+
 
 class TestConfiguracion:
     def test_cors_no_admite_comodin(self, monkeypatch):

@@ -6,6 +6,11 @@ from dotenv import load_dotenv
 
 from app.services.limitador import con_reintentos, limitador_generacion
 from app.services.registro_api import OP_ANALISIS, OP_SINTESIS, anotar
+from app.tipos_brecha import (
+    TIPOS_BRECHA,
+    criterios_para_prompt,
+    tipos_para_prompt,
+)
 
 load_dotenv()
 
@@ -15,21 +20,17 @@ CHAT_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 
 # Se incrementan solo cuando cambia el contenido o la semantica del prompt.
 # La marca se fotografia al crear cada run; no se deduce leyendo datos viejos.
-PROMPT_ANALISIS_VERSION = 1
+PROMPT_ANALISIS_VERSION = 2
 PROMPT_SINTESIS_VERSION = 1
 
 # Prompt del sistema: salida estrictamente en JSON y regla clara de tipificación
 SYS_PROMPT = (
     "Eres un asistente para análisis bibliográfico. "
     "Devuelve SOLO JSON válido con campos EXACTOS: brecha, oportunidad, tipo_brecha, resumen. "
-    "Tipos válidos: metodológica, temática, teórica, tecnológica, otra. "
+    f"Tipos válidos: {tipos_para_prompt()}. "
     "Selecciona el tipo por el foco predominante del problema, NO por mención superficial de 'método'. "
     "Criterio rápido:\n"
-    "- metodológica: fallas de diseño/medición/protocolo/muestreo/reproducibilidad/validación.\n"
-    "- temática: el tema/caso/población/ámbito está poco cubierto o mal delimitado.\n"
-    "- teórica: faltan marcos conceptuales/modelos/constructos/hipótesis.\n"
-    "- tecnológica: carencia de herramientas/sistemas/arquitecturas/implementación o performance.\n"
-    "- otra: si ninguna aplica.\n"
+    f"{criterios_para_prompt()}\n"
     "El campo 'resumen' debe ser un párrafo de 5 a 8 líneas que sintetice el contenido central del artículo "
     "en lenguaje claro.\n"
     "No incluyas explicaciones fuera del JSON. No devuelvas listas ni arrays, solo un objeto JSON único."
@@ -57,6 +58,16 @@ FEW_SHOTS = [
         "brecha": "Falta una plataforma escalable para orquestar RAG con monitoreo y perfiles de rendimiento.",
         "oportunidad": "Desarrollar e evaluar un sistema modular con telemetría y pruebas de carga.",
         "tipo_brecha": "tecnológica"
+    },
+    {
+        "brecha": "La evidencia se limita a una muestra pequeña y no existen replicaciones en cohortes independientes.",
+        "oportunidad": "Ampliar la muestra y replicar los resultados con datos externos.",
+        "tipo_brecha": "empírica"
+    },
+    {
+        "brecha": "No se ha evaluado la adopción del modelo en condiciones reales ni su viabilidad económica.",
+        "oportunidad": "Realizar un piloto de campo que mida usabilidad, costes y barreras operativas.",
+        "tipo_brecha": "aplicada"
     }
 ]
 
@@ -97,7 +108,7 @@ USER_TMPL = """Contexto del proyecto:
 Analiza el ARTÍCULO y entrega:
 - brecha: máxima 10 líneas, concreta y sustentable.
 - oportunidad: propuesta aplicable.
-- tipo_brecha: una de [metodológica, temática, teórica, tecnológica, otra].
+- tipo_brecha: una de [{tipos_brecha}].
 - resumen: párrafo de 5 a 8 líneas que sintetice el contenido principal del artículo.
 
 EJEMPLOS DE SALIDA CORRECTA:
@@ -158,30 +169,54 @@ def _resp_text(resp) -> str:
                 return part.text
     return ""
 
-# Heurística mínima para corregir sesgo evidente en 'tipo_brecha'
+# Heurística mínima para corregir sesgo evidente en 'tipo_brecha'. Las frases
+# genéricas "experimento" y "validación" no bastan para declarar una brecha
+# metodológica: también pueden describir falta de evidencia empírica.
 def _rebalance_tipo(brecha_text: str, tipo_modelo: str) -> str:
     t = (brecha_text or "").lower()
-    kw_met = ("método","metodo","metodología","muestreo","protocolo","validez","reproducibilidad",
-              "precision","recall","f1","experimento","diseño experimental","validación")
-    kw_tem = ("tema","temática","dominio","contexto","caso","población","industria","sector",
-              "latinoamérica","latinoamerica","educación","salud","agro","smart city","dataset específico")
-    kw_teo = ("teoría","teorico","marco conceptual","modelo conceptual","constructo","hipótesis","hipotesis")
-    kw_tec = ("herramienta","plataforma","sistema","arquitectura","implementación","rendimiento","escalabilidad","latencia")
+    palabras = {
+        "metodológica": (
+            "método", "metodo", "metodología", "muestreo", "protocolo",
+            "validez", "reproducibilidad", "precision", "recall", "f1",
+            "diseño experimental", "validación cruzada",
+        ),
+        "temática": (
+            "tema", "temática", "dominio", "contexto", "caso", "población",
+            "industria", "sector", "latinoamérica", "latinoamerica",
+            "educación", "salud", "agro", "smart city", "dataset específico",
+        ),
+        "teórica": (
+            "teoría", "teorico", "marco conceptual", "modelo conceptual",
+            "constructo", "hipótesis", "hipotesis",
+        ),
+        "tecnológica": (
+            "herramienta", "plataforma", "sistema", "arquitectura",
+            "implementación", "rendimiento", "escalabilidad", "latencia",
+        ),
+        "empírica": (
+            "evidencia empírica", "evidencia experimental", "datos insuficientes",
+            "escasez de datos", "muestra pequeña", "muestra limitada",
+            "pocos casos", "replicación externa", "replicaciones externas",
+            "validación externa", "cohorte independiente",
+            "cohortes independientes", "datos externos",
+        ),
+        "aplicada": (
+            "transferencia", "adopción", "usabilidad", "viabilidad económica",
+            "viabilidad práctica", "condiciones reales", "entorno real",
+            "obra real", "aplicación práctica", "implementación práctica",
+            "piloto de campo", "barreras operativas", "barreras regulatorias",
+        ),
+    }
 
-    score = {"metodológica":0, "temática":0, "teórica":0, "tecnológica":0}
-    for w in kw_met:
-        if w in t: score["metodológica"] += 1
-    for w in kw_tem:
-        if w in t: score["temática"] += 1
-    for w in kw_teo:
-        if w in t: score["teórica"] += 1
-    for w in kw_tec:
-        if w in t: score["tecnológica"] += 1
+    score = {
+        tipo: sum(1 for palabra in candidatas if palabra in t)
+        for tipo, candidatas in palabras.items()
+    }
 
     best_tipo = max(score, key=score.get)
     if score[best_tipo] > score.get(tipo_modelo, 0):
         return best_tipo
-    return tipo_modelo if tipo_modelo in score or tipo_modelo=="otra" else "otra"
+    return tipo_modelo if tipo_modelo in TIPOS_BRECHA else "otra"
 
 def analyze(texto: str, contexto: dict, context_docs: list[str] | None = None) -> dict:
     # --- MODO SIMULADO ---
@@ -210,6 +245,7 @@ def analyze(texto: str, contexto: dict, context_docs: list[str] | None = None) -
         sector_txt=contexto.get("sector_txt", ""),
         objetivo=contexto.get("objetivo", ""),
         bloque_rag=bloque_rag,
+        tipos_brecha=tipos_para_prompt(),
         few_shots=few_shots_json,
         texto=texto[:120_000]
     )
@@ -264,7 +300,7 @@ def analyze(texto: str, contexto: dict, context_docs: list[str] | None = None) -
             raise ValueError("Salida incompleta")
 
 
-        if tipo not in {"metodológica", "temática", "teórica", "tecnológica", "otra"}:
+        if tipo not in TIPOS_BRECHA:
             tipo = "otra"
 
         # Se conserva lo que dijo el modelo antes de que el reclasificador por

@@ -154,7 +154,7 @@ DROP TABLE IF EXISTS resultado_brecha;
 CREATE TABLE resultado_brecha (
   id               CHAR(36) PRIMARY KEY,
   run_item_id      CHAR(36) NOT NULL,
-  tipo_brecha      ENUM('metodológica','temática','teórica','tecnológica','otra') NOT NULL,
+  tipo_brecha      ENUM('metodológica','temática','teórica','tecnológica','empírica','aplicada','otra') NOT NULL,
   brecha           LONGTEXT NOT NULL,
   oportunidad      LONGTEXT NOT NULL,
   evidencia        LONGTEXT NULL,

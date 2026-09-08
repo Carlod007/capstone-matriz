@@ -67,10 +67,11 @@ def guardar(clave: str, datos: bytes) -> str:
 def ruta_local(clave_o_ruta: str) -> str:
     """Un camino del sistema de ficheros que se puede abrir.
 
-    Acepta tambien las rutas absolutas que quedaron guardadas antes de que
-    existieran las claves. Convertirlas exigiria mover los archivos y
-    reescribir la base, y no aporta nada: seguir aceptandolas cuesta tres
-    lineas y evita que los proyectos ya cargados dejen de abrirse.
+    Acepta también las rutas antiguas, absolutas o relativas, que quedaron
+    guardadas antes de que existieran las claves, pero solo cuando resuelven
+    dentro de la carpeta configurada. Convertirlas exigiría mover los archivos
+    y reescribir la base; aceptar cualquier ruta existente permitiría en cambio
+    que una referencia manipulada saliera del almacenamiento.
 
     Cuando haya almacenamiento remoto, esta funcion sera la que descargue el
     archivo a un temporal y devuelva su ruta; los extractores no tendran que
@@ -79,20 +80,25 @@ def ruta_local(clave_o_ruta: str) -> str:
     if not clave_o_ruta:
         raise ClaveInvalida("Referencia de archivo vacia.")
 
-    # Forma antigua: una ruta del disco tal cual.
-    if os.path.isabs(clave_o_ruta) or os.path.exists(clave_o_ruta):
-        return clave_o_ruta
+    raiz = _raiz()
 
-    if not CLAVE_VALIDA.match(clave_o_ruta):
-        raise ClaveInvalida("Clave con formato inesperado: %r" % clave_o_ruta)
+    # Forma nueva: una clave independiente de la ubicación física.
+    if CLAVE_VALIDA.fullmatch(clave_o_ruta):
+        return os.path.join(raiz, *clave_o_ruta.split("/"))
 
-    destino = os.path.join(_raiz(), *clave_o_ruta.split("/"))
+    # Forma antigua: STORAGE_DIR/<uuid>.pdf. Cuando STORAGE_DIR era relativo,
+    # también lo era lo guardado en la base; por eso no basta con exigir una
+    # ruta absoluta. La frontera real es que, al resolverla, siga bajo la raíz.
+    candidato = os.path.abspath(clave_o_ruta)
+    try:
+        dentro = os.path.commonpath((raiz, candidato)) == raiz
+    except ValueError:
+        # En Windows ocurre si las rutas pertenecen a unidades distintas.
+        dentro = False
+    if dentro:
+        return candidato
 
-    # Cinturon y tirantes: aunque la expresion regular ya excluye `..`, se
-    # confirma que el resultado no se sale de la carpeta de almacenamiento.
-    if not os.path.abspath(destino).startswith(_raiz() + os.sep):
-        raise ClaveInvalida("La clave apunta fuera del almacenamiento.")
-    return destino
+    raise ClaveInvalida("La referencia apunta fuera del almacenamiento.")
 
 
 def existe(clave_o_ruta: str) -> bool:

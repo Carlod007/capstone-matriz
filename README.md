@@ -47,6 +47,28 @@ Cada PDF pasa por esta cadena:
 | **Estado del arte** | Con las brechas de todos los artículos se sintetiza un borrador de estado del arte. |
 | **Medición** | Siete niveles de métricas, desde la calidad de la extracción hasta la fabricación de citas. |
 
+### Cómo se clasifica una brecha
+
+El tipo describe **el foco predominante del vacío**, no la carrera del
+proyecto. Por eso la misma taxonomía sirve para Ingeniería Civil, Sistemas,
+Salud u otras áreas:
+
+| Tipo | Cuándo se usa |
+|---|---|
+| **Metodológica** | Hay un problema en el diseño, la medición, el muestreo, el protocolo o la reproducibilidad. |
+| **Temática** | Falta estudiar un tema, población, sector, región o ámbito. |
+| **Teórica** | Falta un marco conceptual, modelo explicativo, constructo o hipótesis. |
+| **Tecnológica** | Falta una herramienta, arquitectura o capacidad técnica. |
+| **Empírica** | Faltan datos, casos, evidencia experimental o replicaciones externas. |
+| **Aplicada** | Falta comprobar transferencia, adopción, usabilidad o viabilidad práctica. |
+| **Otra** | Ninguna de las anteriores describe bien el foco principal. |
+
+El analizador asigna una sola categoría para facilitar la lectura, aunque una
+brecha real pueda tocar varias. Es una orientación automática: para una
+conclusión académica, el texto de la brecha y su evidencia deben revisarse por
+una persona. Los análisis anteriores conservan su etiqueta; la taxonomía
+ampliada empieza en el prompt de análisis v2.
+
 La verificación es la pieza que distingue esto de pedirle un resumen a un
 chatbot: sobre los cinco artículos de la prueba real, **tres de cinco brechas
 contenían al menos una afirmación sin respaldo en el texto** —una de ellas
@@ -430,7 +452,7 @@ Desde `backend/`, con el entorno activado:
 python -m pytest
 ```
 
-Son 474 pruebas y corren en modo simulado, sin gastar cuota. Las que
+Son 481 pruebas y corren en modo simulado, sin gastar cuota. Las que
 necesitan MySQL están marcadas con `bd` y **se saltan solas** si no hay
 conexión, de modo que la suite pasa igual en una máquina sin base de datos.
 
@@ -463,7 +485,7 @@ GitHub lo mismo que harías a mano:
 
 - levanta un MySQL vacío y construye el esquema con `alembic upgrade head`,
   de modo que una migración mal escrita se rompe ahí;
-- ejecuta `alembic check` y las 474 pruebas contra esa base recién creada,
+- ejecuta `alembic check` y las 481 pruebas contra esa base recién creada,
   sin los datos acumulados de una máquina de desarrollo;
 - instala el frontend con `npm ci`, pasa el lint, ejecuta sus 17 pruebas de
   componentes y lógica visual, compila y completa cinco recorridos críticos
@@ -584,7 +606,7 @@ backend/
     routers/          endpoints HTTP
     services/         ingesta, RAG, verificación, métricas, límites de cuota
     utils/            extracción de texto y OCR
-  tests/              474 pruebas
+  tests/              481 pruebas
   storage/pdfs/       PDF subidos, en una carpeta por usuario (no se versionan)
 frontend/
   Caddyfile           servidor web, proxy a la API y HTTPS automático

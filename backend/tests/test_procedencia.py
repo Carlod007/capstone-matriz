@@ -29,7 +29,7 @@ def test_la_fotografia_reune_modelos_prompts_y_parametros(monkeypatch):
     assert p["pipeline"] >= 1
     assert p["modelos"]["generacion"]
     assert p["modelos"]["embedding"]
-    assert p["prompts"] == {"analisis": 1, "sintesis": 1, "verificacion": 1}
+    assert p["prompts"] == {"analisis": 2, "sintesis": 1, "verificacion": 1}
     assert p["fragmentacion"]["caracteres"] > 0
     assert p["recuperacion"]["top_k"] == 8
 
@@ -47,7 +47,7 @@ def test_cada_formula_toma_la_version_del_catalogo():
     assert trazabilidad.version_formula == 2
     assert cambiada.version_formula == 2
     assert cambiada.version_formula == FORMULA_N3_4
-    assert normal.procedencia["prompts"]["analisis"] == 1
+    assert normal.procedencia["prompts"]["analisis"] == 2
 
 
 def test_un_codigo_desconocido_no_recibe_una_version_inventada():
@@ -126,7 +126,7 @@ def test_run_metricas_y_exportaciones_conservan_la_procedencia(
             (m["version_formula"], m["procedencia"]["prompts"]["analisis"], m["n"])
             for m in series
         }
-        assert identificadores == {(1, 1, 1), (1, 99, 1), (99, 1, 1)}
+        assert identificadores == {(1, 2, 1), (1, 99, 1), (99, 2, 1)}
         assert metricas.json()["run"]["procedencia"] == run.procedencia
 
         matriz = cliente.get(f"/export/proyectos/{pid}/matriz.json")

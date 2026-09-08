@@ -32,6 +32,40 @@ class TestReclasificador:
                  "empleado, y su diseño experimental impide la reproducibilidad.")
         assert _rebalance_tipo(texto, "temática") == "metodológica"
 
+    def test_distingue_falta_de_evidencia_de_falla_metodologica(self):
+        from app.services.gemini_service import _rebalance_tipo
+
+        texto = ("La evidencia empírica se limita a una muestra pequeña y no "
+                 "existen replicaciones externas con datos independientes.")
+        assert _rebalance_tipo(texto, "metodológica") == "empírica"
+
+    def test_distingue_transferencia_a_la_practica(self):
+        from app.services.gemini_service import _rebalance_tipo
+
+        texto = ("No se estudió la adopción en condiciones reales ni la "
+                 "viabilidad económica o las barreras operativas.")
+        assert _rebalance_tipo(texto, "tecnológica") == "aplicada"
+
+    def test_un_empate_conserva_el_juicio_del_modelo(self):
+        """Una palabra aislada no debe decidir una categoría subjetiva."""
+        from app.services.gemini_service import _rebalance_tipo
+
+        texto = "Falta validación externa mediante un protocolo reproducible."
+        assert _rebalance_tipo(texto, "empírica") == "empírica"
+
+
+class TestTaxonomia:
+    def test_modelo_prompt_y_validador_comparten_las_mismas_categorias(self):
+        from app.models.resultado_brecha import ResultadoBrecha
+        from app.services.gemini_service import SYS_PROMPT, TIPOS_BRECHA
+        from app.tipos_brecha import CRITERIOS_TIPOS_BRECHA
+
+        enum_modelo = tuple(ResultadoBrecha.__table__.c.tipo_brecha.type.enums)
+        assert enum_modelo == TIPOS_BRECHA
+        assert tuple(CRITERIOS_TIPOS_BRECHA) == TIPOS_BRECHA
+        for tipo in TIPOS_BRECHA:
+            assert tipo in SYS_PROMPT
+
 
 class TestCobertura:
     """N5.3: que la sintesis represente todas las brechas."""

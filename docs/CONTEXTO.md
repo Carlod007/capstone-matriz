@@ -29,15 +29,26 @@ leer al retomar el proyecto o al abrir una conversación nueva.*
 
 | | |
 |---|---|
-| Backend | **474 pruebas** en verde contra MySQL 8 temporal, migración `0001→0011` y `alembic check` verdes |
+| Backend | **481 pruebas** en verde contra MySQL 8 temporal, migración `0001→0012` y `alembic check` verdes |
 | Frontend | **17 pruebas de componentes y lógica visual + 5 recorridos en navegador**; pruebas, lint y compilación en verde |
-| Migraciones | hasta `0011` |
+| Migraciones | hasta `0012` |
 | Rama de trabajo | `CarlosDev`; la integración en `main` sigue pendiente |
 | Anotación humana (N6) | **5 de 5**, prueba piloto |
 
 La función esencial está terminada. Lo que queda es afinar la medición con
 evidencia; el soporte para la primera validación externa de N2.6 ya está
 implementado y falta ejecutarlo con artículos nuevos.
+
+La tipificación admite ahora **empírica** (falta de datos o evidencia) y
+**aplicada** (transferencia, adopción o viabilidad práctica), además de las
+cinco categorías anteriores. El cambio corresponde al prompt de análisis v2:
+no reclasifica resultados históricos y todavía necesita comparación humana
+con artículos nuevos antes de afirmar que mejora el acierto.
+
+La misma verificación descubrió y cerró una salida del almacenamiento local:
+las rutas antiguas siguen siendo compatibles, pero solo si resuelven dentro de
+la carpeta de PDF configurada. Una referencia relativa manipulada ya no puede
+alcanzar archivos del sistema fuera de ese límite.
 
 ### Validación externa de N2.6
 
@@ -305,7 +316,7 @@ varios anotadores sobre la misma brecha.
 - Eliminación completa de proyectos con advertencia proporcional, bloqueo
   durante trabajos activos y retirada de sus PDF del almacenamiento
 - Limitador de cuota propio (ventana deslizante) antes de chocar con la API
-- **474 pruebas automáticas de backend**, verificadas localmente contra MySQL real
+- **481 pruebas automáticas de backend**, verificadas localmente contra MySQL real
 - **17 pruebas de componentes y lógica visual y 5 recorridos críticos de frontend**
 - Esquema gobernado por Alembic, verificado desde base vacía
 
@@ -534,7 +545,7 @@ Si el objetivo es **nivel académico sólido**, lo que más pesa:
 Si el objetivo es **proyecto profesional presentable**, lo que más pesa:
 
 - **A favor:** desplegado y accesible con HTTPS, migraciones con Alembic,
-  integración continua, 474 pruebas, aislamiento entre cuentas probado
+  integración continua, 481 pruebas, aislamiento entre cuentas probado
   endpoint por endpoint, cola de trabajos con reintentos, copias de seguridad
   programadas y un README que instala desde cero.
 - Lo que se echa en falta: dominio propio en lugar de un nombre derivado de la
