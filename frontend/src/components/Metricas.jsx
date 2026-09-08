@@ -27,18 +27,8 @@ function fmt(v, decimales = 3) {
   return Number(v).toFixed(decimales);
 }
 
-/**
- * La métrica de cabecera: ¿está respaldado por el artículo?
- *
- * Va sola y a todo lo ancho porque es la pregunta que decide si el resto del
- * panel merece atención. Faltaba entre las destacadas, aunque el explorador ya
- * arranca seleccionándola y hay un botón dedicado a calcularla: la lectura
- * rápida omitía justo lo que el resto del programa trata como principal.
- */
-const CABECERA = "N2.1";
-
-/** Métricas destacadas en las tarjetas inferiores, por orden de interés. */
-const DESTACADAS = ["N3.1", "N1.2", "N3.2", "N4.2"];
+/** Métricas principales en el orden del recorrido que ve el usuario. */
+const DESTACADAS = ["N2.1", "N1.2", "N3.1", "N3.2", "N4.2"];
 
 /**
  * Preguntas de lectura para las cuatro métricas que resumen el recorrido.
@@ -49,24 +39,38 @@ const DESTACADAS = ["N3.1", "N1.2", "N3.2", "N4.2"];
  */
 const GUIA_DESTACADAS = {
   "N2.1": {
+    titulo: "Respaldo de las afirmaciones",
+    categoria: "Fidelidad",
     pregunta: "¿Las afirmaciones factuales se apoyan en los fragmentos consultados?",
     lectura: "Más alto = más afirmaciones evidenciales autónomas respaldadas; no evalúa por sí sola toda la brecha",
+    extremos: ["menos respaldo", "más respaldo"],
   },
   "N3.1": {
+    titulo: "Diferencia entre las brechas",
+    categoria: "Especificidad",
     pregunta: "¿Las brechas cambian entre artículos?",
     lectura: "Más alto = brechas más distintas",
+    extremos: ["más parecidas", "más diferentes"],
   },
   "N1.2": {
+    titulo: "Secciones que llegaron al modelo",
+    categoria: "Recuperación",
     pregunta: "¿Qué parte de las secciones útiles disponibles llegó al modelo?",
     lectura: "Más alto = cubrió más secciones detectadas en este artículo",
+    extremos: ["llegaron pocas", "llegaron todas"],
   },
   "N3.2": {
+    titulo: "Detalles concretos en la brecha",
+    categoria: "Especificidad",
     pregunta: "¿La brecha usa cifras, nombres y métodos concretos?",
     lectura: "Unidad: anclajes por cada 100 palabras",
   },
   "N4.2": {
+    titulo: "Significado frente al abstract",
+    categoria: "Resumen",
     pregunta: "¿El resumen conserva el significado del abstract?",
     lectura: "Más alto = mayor cercanía semántica",
+    extremos: ["significados distintos", "significados próximos"],
   },
 };
 
@@ -280,129 +284,6 @@ function GuiaLecturaMetricas() {
   );
 }
 
-function Tarjeta({ metrica }) {
-  if (!metrica) return null;
-  const {
-    codigo,
-    nombre,
-    mediana,
-    iqr,
-    descripcion,
-    n,
-    nivel,
-    ambito,
-  } = metrica;
-  // La guía nueva de N1.2 solo describe v2. Aplicarla a un valor histórico
-  // haría que un número antiguo pareciera calculado con el denominador nuevo.
-  const guia = codigo === "N1.2" && metrica.version_formula !== 2
-    ? {}
-    : GUIA_DESTACADAS[codigo] || {};
-  const alcance = {
-    run: "Se calcula una vez por análisis completo",
-    brecha: "Se calcula en cada brecha",
-    articulo: "Se calcula en cada artículo",
-    proyecto: "Se calcula para el proyecto completo",
-  }[ambito] || ambito;
-  const unidadMuestra = {
-    run: n === 1 ? "análisis medido" : "análisis medidos",
-    brecha: n === 1 ? "brecha medida" : "brechas medidas",
-    articulo: n === 1 ? "artículo medido" : "artículos medidos",
-    proyecto: n === 1 ? "proyecto medido" : "proyectos medidos",
-  }[ambito] || "mediciones";
-  const estado = estadoMetrica(metrica);
-  const deLote = esDeLote(metrica);
-  const sinDatos = n === 0;
-  const binaria = esBinaria(metrica) && !sinDatos;
-  const recuento = binaria ? recuentoBinario(metrica) : null;
-
-  return (
-    <article
-      className="rounded-xl border border-borde bg-superficie p-5 shadow-[var(--sombra-1)]"
-      title={descripcion}
-    >
-      <div className="flex items-start justify-between gap-3">
-        <div>
-          <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-tinta-suave">
-            Resultado
-          </div>
-          <h3 className="mt-2 text-base font-semibold leading-tight text-tinta">
-            {nombre}
-          </h3>
-        </div>
-        <Etiqueta tono="azul">{nivel?.replace(/^N\d+\s*/, "") || codigo}</Etiqueta>
-      </div>
-
-      <div className="mt-5 grid gap-5 sm:grid-cols-[minmax(0,1fr)_13rem]">
-        <div className="min-w-0">
-          <div className="text-4xl font-semibold tracking-tight text-acento tabular-nums">
-            {fmt(mediana)}
-          </div>
-          <p className="mt-2 text-sm font-medium leading-snug text-tinta">
-            {guia.pregunta || descripcion}
-          </p>
-          <p className="mt-2 text-xs leading-relaxed text-tinta-media">
-            {guia.lectura || metrica.interpretacion}
-          </p>
-        </div>
-
-        {/* A una métrica de lote no se le piden IQR ni tamaño de muestra: da
-            un solo número por análisis, así que ese recuadro salía siempre con
-            IQR 0.000, n=1 y un aviso ámbar de «muestra limitada». Dedicarle
-            media tarjeta a decir que la medición es pobre, en la métrica que
-            el propio catálogo llama la más diagnóstica, invitaba a desconfiar
-            de un valor que está completo. */}
-        <div className="border-t border-borde pt-4 sm:border-l sm:border-t-0 sm:pl-5 sm:pt-0">
-          <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-tinta-suave">
-            {deLote || binaria ? "Cómo se obtuvo" : "Cómo se midió"}
-          </div>
-
-          {deLote ? (
-            <p className="mt-3 text-xs leading-relaxed text-tinta-media">
-              Un único valor calculado sobre el análisis completo. No tiene
-              dispersión que medir: no es una muestra a la que le falten casos,
-              sino la medición entera.
-            </p>
-          ) : binaria ? (
-            <p className="mt-3 text-xs leading-relaxed text-tinta-media">
-              Cada medición vale 0 o 1, así que lo que cuenta es en cuántas se
-              cumplió: {recuento?.aciertos} de {recuento?.total}. La dispersión
-              no aporta nada en una métrica de sí o no.
-            </p>
-          ) : (
-            <>
-              <div className="mt-3 grid grid-cols-2 gap-2">
-                <div className="rounded-lg bg-hundido px-2.5 py-2">
-                  <div className="text-[10px] uppercase tracking-wide text-tinta-suave">IQR</div>
-                  <div className="mt-0.5 font-semibold tabular-nums text-tinta">{fmt(iqr)}</div>
-                </div>
-                <div className="rounded-lg bg-hundido px-2.5 py-2">
-                  <div className="text-[10px] uppercase tracking-wide text-tinta-suave">Muestra</div>
-                  <div className="mt-0.5 font-semibold tabular-nums text-tinta">n={n}</div>
-                </div>
-              </div>
-              <p className="mt-2 text-[11px] leading-relaxed text-tinta-suave">
-                {n} {unidadMuestra}. {alcance}.
-              </p>
-            </>
-          )}
-
-          <div className="mt-3">
-            <span
-              className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-[3px] text-[11px] leading-none ${estado.etiqueta}`}
-              title={estado.texto}
-            >
-              <span className={`h-1.5 w-1.5 rounded-full ${estado.punto}`} aria-hidden="true" />
-              {estado.texto}
-            </span>
-          </div>
-        </div>
-      </div>
-
-      {!sinDatos && <EscalaMetrica metrica={metrica} />}
-    </article>
-  );
-}
-
 function DatoResumen({ valor, etiqueta, tono = "acento" }) {
   const colores = {
     acento: "text-acento",
@@ -416,6 +297,142 @@ function DatoResumen({ valor, etiqueta, tono = "acento" }) {
       </div>
       <div className="mt-0.5 text-xs leading-snug text-tinta-suave">{etiqueta}</div>
     </div>
+  );
+}
+
+/**
+ * Una escala de orientación, no una calificación.
+ *
+ * El usuario pidió entender hacia dónde se mueve el dato sin tener que leer
+ * IQR, percentiles ni fórmulas. La línea solo ubica un valor acotado entre dos
+ * significados; no pinta zonas buenas o malas porque esos cortes todavía no
+ * están calibrados contra N6.
+ */
+function EscalaSencilla({ valor, extremos }) {
+  const numero = Number(valor);
+  if (!Number.isFinite(numero) || !extremos) return null;
+  const posicion = limitar(numero * 100, 1, 99);
+
+  return (
+    <div className="mt-3">
+      <div
+        className="relative h-1.5 rounded-full bg-hundido"
+        aria-label={`${fmt(numero)} de 1: desde ${extremos[0]} hasta ${extremos[1]}`}
+      >
+        <span
+          className="absolute top-1/2 h-4 w-0.5 -translate-y-1/2 rounded-full bg-acento-fuerte"
+          style={{ left: `${posicion}%` }}
+        />
+      </div>
+      <div className="mt-2 flex justify-between gap-4 text-[10px] leading-tight text-tinta-suave">
+        <span>{extremos[0]}</span>
+        <span className="text-right">{extremos[1]}</span>
+      </div>
+    </div>
+  );
+}
+
+function textoLecturaPrincipal(codigo, metrica) {
+  if (!metrica || !metrica.n || !Number.isFinite(Number(metrica.mediana))) {
+    return "Todavía no hay una medición aplicable para este resultado.";
+  }
+
+  if (codigo === "N1.2" && metrica.version_formula !== 2) {
+    return (
+      "Este resultado usa la fórmula histórica, que dividía entre seis " +
+      "secciones teóricas aunque el artículo no las contuviera todas."
+    );
+  }
+
+  const valor = Number(metrica.mediana);
+  const porcentaje = (valor * 100).toLocaleString("es", {
+    maximumFractionDigits: 1,
+  });
+
+  return {
+    "N2.1": `El resultado típico indica respaldo para el ${porcentaje} % de las afirmaciones factuales evaluadas.`,
+    "N1.2": `En una brecha típica llegó al modelo el ${porcentaje} % de las secciones útiles detectadas.`,
+    "N3.1": "La marca muestra cuánto se diferenciaron entre sí las brechas de los artículos del proyecto.",
+    "N3.2": `La brecha típica contiene ${fmt(valor)} detalles concretos por cada 100 palabras.`,
+    "N4.2": `El resumen típico obtuvo una cercanía de significado de ${porcentaje} % frente al abstract.`,
+  }[codigo];
+}
+
+function LecturaPrincipal({ metricas }) {
+  const porCodigo = Object.fromEntries(metricas.map((m) => [m.codigo, m]));
+
+  return (
+    <section>
+      <div>
+        <h2 className="text-lg font-semibold tracking-tight text-tinta">
+          Qué dicen las mediciones principales
+        </h2>
+        <p className="mt-1 text-sm leading-relaxed text-tinta-media">
+          Primero se explica el resultado; el nombre técnico y el número quedan
+          como referencia para quien quiera auditarlos.
+        </p>
+      </div>
+
+      <div className="mt-3 overflow-hidden rounded-xl border border-borde bg-superficie shadow-[var(--sombra-1)]">
+        {DESTACADAS.map((codigo) => {
+          const metrica = porCodigo[codigo];
+          const guia = GUIA_DESTACADAS[codigo];
+          const conDato = metrica?.n > 0 && Number.isFinite(Number(metrica.mediana));
+          const esDensidad = codigo === "N3.2";
+          const muestra = metrica?.ambito === "run"
+            ? "proyecto completo"
+            : metrica?.n
+              ? `${metrica.n} ${metrica.n === 1 ? "brecha" : "brechas"}`
+              : "sin datos";
+
+          return (
+            <article
+              key={codigo}
+              className="grid gap-4 border-b border-borde px-4 py-4 last:border-b-0 md:grid-cols-[minmax(0,1fr)_minmax(13rem,0.55fr)] md:items-center md:px-5"
+            >
+              <div className="min-w-0">
+                <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-acento">
+                  {guia.categoria} · {metrica?.nombre || guia.titulo}
+                </div>
+                <h3 className="mt-1.5 text-sm font-semibold text-tinta">
+                  {guia.titulo}
+                </h3>
+                <p className="mt-1.5 text-sm leading-relaxed text-tinta-media">
+                  {textoLecturaPrincipal(codigo, metrica)}
+                </p>
+              </div>
+
+              <div className="min-w-0 border-t border-borde pt-3 md:border-l md:border-t-0 md:pl-5 md:pt-0">
+                <div className="flex items-baseline justify-between gap-3">
+                  <span className="text-lg font-semibold tabular-nums text-tinta">
+                    {conDato
+                      ? esDensidad
+                        ? `${fmt(metrica.mediana)} / 100 palabras`
+                        : `${fmt(metrica.mediana)} de 1`
+                      : "No aplicable"}
+                  </span>
+                  <span className="shrink-0 text-[11px] text-tinta-suave">
+                    {muestra}
+                  </span>
+                </div>
+                {!esDensidad && conDato && (
+                  <EscalaSencilla
+                    valor={metrica.mediana}
+                    extremos={guia.extremos}
+                  />
+                )}
+              </div>
+            </article>
+          );
+        })}
+      </div>
+
+      <p className="mt-2 text-[11px] leading-relaxed text-tinta-suave">
+        Las escalas explican qué significa avanzar de menos a más. No muestran
+        aprobado o desaprobado porque todavía no existen umbrales calibrados
+        con suficientes revisiones humanas.
+      </p>
+    </section>
   );
 }
 
@@ -735,7 +752,12 @@ export function IndicadorConsumo({ proyectoId, compacto = false }) {
 }
 
 /* ---------------------------------------------------------------- panel */
-export function PanelMetricas({ proyectoId }) {
+export function PanelMetricas({
+  proyectoId,
+  onDatos,
+  contenidoPrincipal = null,
+  contenidoRevision = null,
+}) {
   const [datos, setDatos] = useState(null);
   const [error, setError] = useState(null);
   const [abierto, setAbierto] = useState(false);
@@ -744,40 +766,52 @@ export function PanelMetricas({ proyectoId }) {
     let vivo = true;
     api(`${API_BASE}/proyectos/${proyectoId}/metricas`)
       .then((r) => (r.ok ? r.json() : Promise.reject(r.status)))
-      .then((x) => vivo && setDatos(x))
+      .then((x) => {
+        if (!vivo) return;
+        setDatos(x);
+        onDatos?.(x);
+      })
       // Una sesión caducada no es un error de este panel: `api` ya la cerró y
       // la aplicación entera vuelve a la pantalla de entrada.
       .catch((e) => vivo && !e?.sesionCaducada && setError(e));
     return () => {
       vivo = false;
     };
-  }, [proyectoId]);
+  }, [proyectoId, onDatos]);
 
   if (error) {
     return (
-      <div className="text-sm text-tinta-media border border-borde rounded-lg p-3 bg-superficie">
-        No se pudieron cargar las métricas.
+      <div className="space-y-8">
+        <div className="text-sm text-tinta-media border border-borde rounded-lg p-3 bg-superficie">
+          No se pudieron cargar las métricas. Los artículos siguen disponibles.
+        </div>
+        {contenidoPrincipal}
       </div>
     );
   }
   if (!datos) {
     return (
-      <div className="text-sm text-tinta-suave border border-borde rounded-lg p-3 bg-superficie">
-        Cargando métricas…
+      <div className="space-y-8">
+        <div className="text-sm text-tinta-suave border border-borde rounded-lg p-3 bg-superficie">
+          Cargando el resumen del análisis…
+        </div>
+        {contenidoPrincipal}
       </div>
     );
   }
   if (!datos.run) {
     return (
-      <div className="text-sm text-tinta-media border border-borde rounded-lg p-3 bg-superficie">
-        {datos.aviso || "El proyecto todavía no se ha analizado."}
+      <div className="space-y-8">
+        <div className="text-sm text-tinta-media border border-borde rounded-lg p-3 bg-superficie">
+          {datos.aviso || "El proyecto todavía no se ha analizado."}
+        </div>
+        {contenidoPrincipal}
       </div>
     );
   }
 
-  const porCodigo = Object.fromEntries(datos.metricas.map((m) => [m.codigo, m]));
   return (
-    <div className="space-y-5">
+    <div className="space-y-8">
       <div className="grid overflow-hidden rounded-xl border border-borde bg-superficie shadow-[var(--sombra-1)] sm:grid-cols-2 lg:grid-cols-4 sm:[&>*:nth-child(even)]:border-l lg:[&>*+*]:border-l">
         <DatoResumen
           valor={datos.conteos.articulos}
@@ -796,50 +830,13 @@ export function PanelMetricas({ proyectoId }) {
         />
       </div>
 
-      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h2 className="text-lg font-semibold tracking-tight text-tinta">
-            Lectura rápida del proyecto
-          </h2>
-          <p className="mt-1 text-sm leading-relaxed text-tinta-media">
-            Estos indicadores describen el análisis; no forman una nota global.
-          </p>
-        </div>
-        <Etiqueta tono="azul">Mediana, P25, P75 e IQR</Etiqueta>
-      </div>
+      {contenidoPrincipal}
 
-      <GuiaLecturaMetricas />
+      <LecturaPrincipal metricas={datos.metricas} />
 
-      {/* La fidelidad va sola y a todo lo ancho: es la pregunta que decide si
-          el resto del panel merece atención. */}
-      {porCodigo[CABECERA]?.n > 0 ? (
-        <Tarjeta metrica={porCodigo[CABECERA]} />
-      ) : (
-        <div className="rounded-xl border border-borde bg-superficie p-5 shadow-[var(--sombra-1)]">
-          <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-tinta-suave">
-            Resultado
-          </div>
-          <h3 className="mt-2 text-base font-semibold text-tinta">
-            Respaldo de afirmaciones evidenciales
-          </h3>
-          <p className="mt-2 max-w-2xl text-sm leading-relaxed text-tinta-media">
-            ¿Las afirmaciones factuales de las brechas se apoyan en los
-            fragmentos consultados? Todavía no se ha comprobado. Se calcula con
-            el botón «Verificar fidelidad», que descompone cada brecha y busca
-            el fragmento que sostiene cada afirmación evidencial.
-          </p>
-          <p className="mt-2 text-xs text-tinta-suave">
-            Esta medición no decide si la brecha completa es correcta o valiosa:
-            las conclusiones también requieren revisión humana.
-          </p>
-        </div>
-      )}
+      {contenidoRevision}
 
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        {DESTACADAS.map((c) => (
-          <Tarjeta key={c} metrica={porCodigo[c]} />
-        ))}
-      </div>
+      {!datos.validacion_calibrada && <AvisoValidacion />}
 
       <div className="flex flex-col gap-3 rounded-xl border border-acento-borde bg-acento-claro px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-center gap-2 text-sm font-medium text-acento-fuerte">
@@ -861,9 +858,12 @@ export function PanelMetricas({ proyectoId }) {
         </button>
       </div>
 
-      {!datos.validacion_calibrada && <AvisoValidacion />}
-
-      {abierto && <TablaDistribuciones metricas={datos.metricas} />}
+      {abierto && (
+        <div className="space-y-4">
+          <GuiaLecturaMetricas />
+          <TablaDistribuciones metricas={datos.metricas} />
+        </div>
+      )}
     </div>
   );
 }

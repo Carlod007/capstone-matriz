@@ -70,9 +70,9 @@ describe('PanelMetricas', () => {
     render(<PanelMetricas proyectoId="proyecto-1" />)
 
     const titulo = await screen.findByRole('heading', {
-      name: 'Respaldo de afirmaciones evidenciales',
+      name: 'Respaldo de las afirmaciones',
     })
-    expect(within(titulo.closest('article')).getAllByText('0.000').length).toBeGreaterThan(0)
+    expect(within(titulo.closest('article')).getByText('0.000 de 1')).toBeInTheDocument()
 
     await usuario.click(screen.getByRole('button', { name: /Ver las 2 métricas técnicas/i }))
     await usuario.click(screen.getByRole('button', { name: /N4 Resumen/ }))
@@ -84,13 +84,59 @@ describe('PanelMetricas', () => {
   })
 
   it('presenta el IQR como descripción y no como veredicto', async () => {
+    const usuario = userEvent.setup()
     render(<PanelMetricas proyectoId="proyecto-1" />)
 
     await screen.findByText('IQR descriptivo, sin calificación', { exact: false })
-    expect(screen.getByText('Sin umbral común:')).toBeInTheDocument()
+    expect(screen.queryByText('Sin umbral común:')).not.toBeInTheDocument()
+    expect(screen.getByText(/No muestran aprobado o desaprobado/i)).toBeInTheDocument()
     expect(screen.queryByText('Separa los casos')).not.toBeInTheDocument()
     expect(screen.queryByText('Valores parecidos entre sí')).not.toBeInTheDocument()
 
+    await usuario.click(screen.getByRole('button', { name: /Ver las 2 métricas técnicas/i }))
+    expect(screen.getByText('Sin umbral común:')).toBeInTheDocument()
+
     await waitFor(() => expect(fetch).toHaveBeenCalledTimes(1))
+  })
+
+  it('coloca el contenido principal antes de las mediciones', async () => {
+    render(
+      <PanelMetricas
+        proyectoId="proyecto-1"
+        contenidoPrincipal={<h2>Artículos y brechas</h2>}
+      />,
+    )
+
+    const articulos = await screen.findByRole('heading', { name: 'Artículos y brechas' })
+    const mediciones = screen.getByRole('heading', {
+      name: 'Qué dicen las mediciones principales',
+    })
+
+    expect(
+      articulos.compareDocumentPosition(mediciones) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy()
+  })
+
+  it('no explica una cobertura histórica como si usara la fórmula actual', async () => {
+    fetch.mockResolvedValueOnce(respuestaJson({
+      ...datos,
+      metricas: [
+        ...datos.metricas,
+        {
+          ...baseMetrica,
+          codigo: 'N1.2',
+          nombre: 'Cobertura seccional',
+          nivel: 'N1 Recuperación',
+          mediana: 0.5,
+          media: 0.5,
+          version_formula: 1,
+        },
+      ],
+    }))
+
+    render(<PanelMetricas proyectoId="proyecto-historico" />)
+
+    expect(await screen.findByText(/usa la fórmula histórica/i)).toBeInTheDocument()
+    expect(screen.queryByText(/llegó al modelo el 50 %/i)).not.toBeInTheDocument()
   })
 })

@@ -206,6 +206,129 @@ test('abre las brechas mientras se genera el estado del arte', async ({ page }) 
     .toBeVisible()
 })
 
+test('prioriza artículos y lectura sencilla antes del detalle técnico', async ({ page }) => {
+  await iniciarSesion(page)
+  const proyecto = {
+    id: 'p-resultados',
+    tema_principal: 'Estructuras civiles',
+    n_articulos_objetivo: 5,
+    n_articulos: 2,
+    n_brechas: 2,
+    estado_proceso: 'resultados_listos',
+    tiene_estado_arte: true,
+    tiene_estado_arte_actual: true,
+  }
+  const metrica = (codigo, nombre, nivel, mediana, ambito = 'brecha') => ({
+    codigo,
+    nombre,
+    nivel,
+    ambito,
+    minimo: mediana,
+    p25: mediana,
+    mediana,
+    p75: mediana,
+    maximo: mediana,
+    media: mediana,
+    iqr: 0,
+    n: ambito === 'run' ? 1 : 2,
+    n_intentos: ambito === 'run' ? 1 : 2,
+    mejor: 'alto',
+    rango: '0 a 1',
+    descripcion: 'Descripción de prueba.',
+    interpretacion: 'Interpretación de prueba.',
+    version_formula: 2,
+  })
+  const metricas = [
+    metrica('N2.1', 'Respaldo de afirmaciones evidenciales', 'N2 Fidelidad', 0.9),
+    metrica('N2.2', 'Trazabilidad', 'N2 Fidelidad', 0.85),
+    metrica('N2.4', 'Composición evidencial', 'N2 Fidelidad', 0.7),
+    metrica('N2.5', 'Contradicciones', 'N2 Fidelidad', 0),
+    metrica('N2.6', 'Brecha ya resuelta', 'N2 Fidelidad', 0),
+    metrica('N1.2', 'Cobertura seccional', 'N1 Recuperación', 1),
+    metrica('N3.1', 'Discriminabilidad', 'N3 Especificidad', 0.35, 'run'),
+    { ...metrica('N3.2', 'Densidad de anclajes', 'N3 Especificidad', 3), rango: 'por 100 palabras' },
+    metrica('N4.2', 'Similitud semántica', 'N4 Resumen', 0.89),
+    { ...metrica('N2.verificada', 'Verificación realizada', 'N2 Fidelidad', 1), rango: '0 o 1' },
+  ]
+
+  await page.route('**/api/**', async (ruta) => {
+    const camino = new URL(ruta.request().url()).pathname.replace(/^\/api/, '')
+    if (camino === '/proyectos/p-resultados') {
+      await ruta.fulfill({ json: proyecto })
+      return
+    }
+    if (camino === '/proyectos/p-resultados/articulos') {
+      await ruta.fulfill({ json: [
+        { id: 'a-1', titulo: 'Artículo estructural A', doi: '10.1000/a' },
+        { id: 'a-2', titulo: 'Artículo estructural B', doi: '10.1000/b' },
+      ] })
+      return
+    }
+    if (camino === '/proyectos/p-resultados/metricas') {
+      await ruta.fulfill({ json: {
+        run: { id: 'run-1', estado: 'completado', tokens_in: 120, tokens_out: 30 },
+        conteos: { articulos: 2, brechas: 2, por_estado_validacion: {} },
+        estado_arte: { version: 1 },
+        validacion_calibrada: false,
+        metricas,
+      } })
+      return
+    }
+    if (camino === '/proyectos/p-resultados/consumo') {
+      await ruta.fulfill({ json: {
+        generaciones_estimadas: 19,
+        limite_diario_nivel_gratuito: 20,
+        restantes_estimadas: 1,
+        alcanza_para_otra_ejecucion: false,
+        coste_de_una_ejecucion: 5,
+        generaciones_que_faltan: 4,
+        generaciones_fallidas: 0,
+        renovaciones: [],
+      } })
+      return
+    }
+    await ruta.fulfill({ status: 404, json: { detail: 'Ruta simulada no definida' } })
+  })
+
+  await page.goto('/proyectos/p-resultados/brechas')
+
+  await expect(page.getByRole('button', { name: 'Volver a proyectos' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Artículos y brechas' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Qué dicen las mediciones principales' })).toBeVisible()
+  await expect(page.getByText('Fidelidad verificada')).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Verificar fidelidad' })).toHaveCount(0)
+
+  const articulosAntes = await page.locator('body').evaluate(() => {
+    const titulos = [...document.querySelectorAll('h2')]
+    const articulos = titulos.find((nodo) => nodo.textContent === 'Artículos y brechas')
+    const mediciones = titulos.find(
+      (nodo) => nodo.textContent === 'Qué dicen las mediciones principales',
+    )
+    return Boolean(
+      articulos
+      && mediciones
+      && (articulos.compareDocumentPosition(mediciones) & Node.DOCUMENT_POSITION_FOLLOWING),
+    )
+  })
+  expect(articulosAntes).toBeTruthy()
+
+  await page.getByText('Repetir el proceso').click()
+  await expect(page.getByRole('button', { name: 'Volver a verificar' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Volver a analizar' })).toBeVisible()
+
+  await expect(page.getByRole('heading', { name: /Explorar las 10 métricas/i })).toHaveCount(0)
+  await page.getByRole('button', { name: 'Ver las 10 métricas técnicas' }).click()
+  await expect(page.getByRole('heading', { name: /Explorar las 10 métricas/i })).toBeVisible()
+
+  await page.setViewportSize({ width: 390, height: 844 })
+  await expect(page.getByRole('button', { name: 'Volver a proyectos' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Revisar brecha' }).first()).toBeVisible()
+  const desborda = await page.locator('html').evaluate(
+    (nodo) => nodo.scrollWidth > nodo.clientWidth + 1,
+  )
+  expect(desborda).toBe(false)
+})
+
 test('confirma con gravedad antes de eliminar un proyecto con resultados', async ({ page }) => {
   await iniciarSesion(page)
   let eliminado = false

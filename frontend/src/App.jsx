@@ -48,18 +48,33 @@ import {
 const API_BASE = import.meta.env.VITE_API_BASE || "http://127.0.0.1:8000";
 
 /* ---------------- UI core ---------------- */
-function Page({ title, subtitle, children, ancho = "max-w-6xl" }) {
+function Page({
+  title,
+  subtitle,
+  children,
+  ancho = "max-w-6xl",
+  accionCabecera = null,
+}) {
   return (
     <div className="min-h-screen bg-papel">
       <div className={`${ancho} mx-auto px-4 py-10`}>
-        <h1 className="text-3xl font-semibold mb-1 text-tinta tracking-tight">
-          {title}
-        </h1>
-        {subtitle && (
-          <p className="text-sm text-tinta-media mb-8 max-w-2xl leading-relaxed">
-            {subtitle}
-          </p>
-        )}
+        <div
+          className={`${subtitle || accionCabecera ? "mb-8" : "mb-1"} flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between`}
+        >
+          <div className="min-w-0">
+            <h1 className="text-3xl font-semibold text-tinta tracking-tight">
+              {title}
+            </h1>
+            {subtitle && (
+              <p className="mt-1 max-w-2xl text-sm leading-relaxed text-tinta-media">
+                {subtitle}
+              </p>
+            )}
+          </div>
+          {accionCabecera && (
+            <div className="shrink-0">{accionCabecera}</div>
+          )}
+        </div>
         {children}
       </div>
     </div>
@@ -1494,6 +1509,211 @@ function SubirArticulos({ proyecto, goBack }) {
   );
 }
 
+function ArticulosResultados({ articulos, onVerBrecha }) {
+  return (
+    <section>
+      <div className="mb-3">
+        <h2 className="text-lg font-semibold tracking-tight text-tinta">
+          Artículos y brechas
+        </h2>
+        <p className="mt-1 text-sm leading-relaxed text-tinta-media">
+          Empieza por aquí: abre cada resultado y compáralo con el PDF original.
+        </p>
+      </div>
+
+      {articulos.length === 0 ? (
+        <Vacio titulo="Sin artículos en este proyecto" />
+      ) : (
+        <div className="overflow-hidden rounded-xl border border-borde bg-superficie shadow-[var(--sombra-1)]">
+          {articulos.map((articulo) => (
+            <article
+              key={articulo.id}
+              className="grid gap-3 border-b border-borde px-4 py-4 last:border-b-0 sm:grid-cols-[minmax(0,1fr)_minmax(9rem,14rem)_auto] sm:items-center sm:px-5"
+            >
+              <div className="min-w-0 text-sm font-medium leading-relaxed text-tinta">
+                <Recorte>{articulo.titulo || "(sin título)"}</Recorte>
+              </div>
+              <div className="min-w-0 text-xs text-tinta-suave">
+                <span className="mb-1 block text-[10px] font-semibold uppercase tracking-[0.12em]">
+                  DOI
+                </span>
+                <span className="break-all font-mono">{articulo.doi || "—"}</span>
+              </div>
+              <Btn kind="blue" onClick={() => onVerBrecha(articulo)}>
+                Revisar brecha
+              </Btn>
+            </article>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function RevisionHumanaResultados({ cantidad, onRevision, onN26 }) {
+  return (
+    <section>
+      <div className="mb-3">
+        <h2 className="text-lg font-semibold tracking-tight text-tinta">
+          Revisión humana
+        </h2>
+        <p className="mt-1 text-sm leading-relaxed text-tinta-media">
+          Son dos comprobaciones diferentes. Ninguna consume cuota adicional de
+          API.
+        </p>
+      </div>
+      <div className="grid gap-4 lg:grid-cols-2">
+        {/* La revisión se mantiene en su propia pantalla: mostrar aquí las
+            métricas mientras se anota condicionaría el juicio que luego se usa
+            como referencia humana. */}
+        <Panel className="p-5">
+          <h3 className="text-sm font-semibold text-tinta">
+            Revisión general · N6
+          </h3>
+          <p className="mt-2 text-sm leading-relaxed text-tinta-media">
+            Decide si cada brecha es correcta, parcial o incorrecta después de
+            leer el artículo original.
+          </p>
+          <p className="mt-2 text-xs leading-relaxed text-tinta-suave">
+            El resultado se muestra al terminar las {cantidad}, para no influir
+            en las siguientes decisiones.
+          </p>
+          <div className="mt-4">
+            <Btn kind="primary" onClick={onRevision}>
+              Abrir revisión
+            </Btn>
+          </div>
+        </Panel>
+
+        <Panel className="p-5">
+          <h3 className="text-sm font-semibold text-tinta">
+            Comprobación específica · N2.6
+          </h3>
+          <p className="mt-2 text-sm leading-relaxed text-tinta-media">
+            Responde si el artículo ya realizó aquello que la brecha presenta
+            como trabajo pendiente.
+          </p>
+          <p className="mt-2 text-xs leading-relaxed text-tinta-suave">
+            La predicción permanece oculta hasta cerrar el lote y entonces se
+            revela la comparación.
+          </p>
+          <div className="mt-4">
+            <Btn kind="blue" onClick={onN26}>
+              Validar N2.6
+            </Btn>
+          </div>
+        </Panel>
+      </div>
+    </section>
+  );
+}
+
+function AccionesResultados({
+  cargando,
+  completa,
+  total,
+  pendientes,
+  cantidadArticulos,
+  ocupado,
+  onVerificar,
+  onReanalizar,
+}) {
+  return (
+    <Panel className="p-4">
+      <h2 className="text-base font-semibold text-tinta">
+        Revisión de resultados
+      </h2>
+      <p className="mt-1.5 text-xs leading-relaxed text-tinta-media">
+        Completa la fidelidad que falte sin repetir trabajo ni gastar cuota
+        innecesariamente.
+      </p>
+
+      <div className="mt-4">
+        {cargando ? (
+          <div className="rounded-lg border border-borde bg-hundido px-3 py-3 text-xs text-tinta-media">
+            Consultando el estado de la verificación…
+          </div>
+        ) : completa ? (
+          <div className="flex items-start gap-2.5 rounded-lg border border-bien-borde bg-bien-claro px-3 py-3 text-bien">
+            <span className="mt-0.5" aria-hidden="true">✓</span>
+            <div>
+              <p className="text-sm font-medium">Fidelidad verificada</p>
+              <p className="mt-1 text-xs leading-relaxed text-tinta-media">
+                Las {total} brechas tienen sus mediciones N2 completas.
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div>
+            <p className="text-xs leading-relaxed text-tinta-media">
+              {pendientes} de {total || cantidadArticulos} brechas todavía
+              necesitan esta comprobación.
+            </p>
+            <div className="mt-3 grid">
+              <Btn
+                kind="primary"
+                onClick={() => onVerificar(false)}
+                disabled={ocupado}
+                title="Verifica solo las brechas que aún no lo estén"
+              >
+                {ocupado === "verificar" ? "Verificando…" : "Verificar fidelidad"}
+              </Btn>
+            </div>
+          </div>
+        )}
+      </div>
+
+      <details className="mt-4 border-t border-borde pt-3">
+        <summary className="cursor-pointer select-none text-xs font-medium text-tinta-media">
+          Repetir el proceso
+        </summary>
+        <p className="mt-2 text-[11px] leading-relaxed text-tinta-suave">
+          Son acciones excepcionales y vuelven a consumir cuota.
+        </p>
+        <div className="mt-3 flex flex-col gap-2">
+          <Btn
+            kind="ghost"
+            onClick={() => {
+              const n = cantidadArticulos || 0;
+              const aviso =
+                `Se volverán a verificar todas las brechas desde cero.\n\n` +
+                `Cuesta aproximadamente ${n || "una"} ${
+                  n === 1 ? "generación" : "generaciones"
+                } de tu cuota diaria.\n\n` +
+                "Tiene sentido si el verificador ha cambiado; si no, el " +
+                "resultado será el mismo y habrás gastado cuota.";
+              if (window.confirm(aviso)) onVerificar(true);
+            }}
+            disabled={ocupado}
+            title="Recalcula únicamente la fidelidad de todas las brechas"
+          >
+            {ocupado === "rehacer" ? "Rehaciendo…" : "Volver a verificar"}
+          </Btn>
+          <p className="-mt-1 text-[11px] leading-relaxed text-tinta-suave">
+            Recalcula solo N2. Úsalo si cambió el verificador.
+          </p>
+
+          <Btn
+            kind="ghost"
+            onClick={onReanalizar}
+            disabled={ocupado}
+            title="Genera una ejecución completa con brechas y síntesis nuevas"
+          >
+            {ocupado === "analizar"
+              ? "Analizando…"
+              : ocupado === "sintesis"
+                ? "Generando síntesis…"
+                : "Volver a analizar"}
+          </Btn>
+          <p className="-mt-1 text-[11px] leading-relaxed text-tinta-suave">
+            Genera brechas, métricas y estado del arte nuevos.
+          </p>
+        </div>
+      </details>
+    </Panel>
+  );
+}
+
 /* ============ 4) BRECHAS DETECTADAS ============ */
 function BrechasProyecto({ proyecto, goBack }) {
   const [arts, setArts] = useState([]);
@@ -1501,6 +1721,7 @@ function BrechasProyecto({ proyecto, goBack }) {
   const [err, setErr] = useState(null);
   const [ocupado, setOcupado] = useState(null); // "verificar" | "analizar"
   const [recarga, setRecarga] = useState(0);
+  const [metricasProyecto, setMetricasProyecto] = useState(null);
   const [estadoProceso, setEstadoProceso] = useState(proyecto.estado_proceso);
   const avisar = useAviso();
   const navegar = useNavigate();
@@ -1647,6 +1868,39 @@ function BrechasProyecto({ proyecto, goBack }) {
     estado_proceso: estadoProceso,
   });
 
+  // El botón ordinario solo hace falta cuando alguna brecha del último
+  // análisis no conserva el conjunto N2 completo. Si todas están listas, la
+  // interfaz muestra el estado y deja las repeticiones —que consumen cuota—
+  // dentro de acciones avanzadas.
+  const metricasPorCodigo = Object.fromEntries(
+    (metricasProyecto?.metricas || []).map((m) => [m.codigo, m]),
+  );
+  const codigosN2Completos = [
+    "N2.1",
+    "N2.2",
+    "N2.4",
+    "N2.5",
+    "N2.6",
+    "N2.verificada",
+  ];
+  const metricaVerificada = metricasPorCodigo["N2.verificada"];
+  const totalBrechas = metricasProyecto?.conteos?.brechas ?? arts.length;
+  const brechasVerificadas = metricaVerificada?.n
+    ? Math.round(
+        (metricaVerificada.media ?? metricaVerificada.mediana ?? 0) *
+          metricaVerificada.n,
+      )
+    : 0;
+  const brechasConN2Completo = Math.min(
+    brechasVerificadas,
+    ...codigosN2Completos.map(
+      (codigo) => metricasPorCodigo[codigo]?.n ?? 0,
+    ),
+  );
+  const verificacionCompleta =
+    totalBrechas > 0 && brechasConN2Completo === totalBrechas;
+  const brechasPendientes = Math.max(0, totalBrechas - brechasConN2Completo);
+
   // Matriz
   const [mx, setMx] = useState({
     open: false,
@@ -1707,6 +1961,11 @@ function BrechasProyecto({ proyecto, goBack }) {
       title="Resultados"
       subtitle={proyecto.tema_principal}
       ancho="max-w-[92rem]"
+      accionCabecera={
+        <Btn kind="blue" onClick={goBack}>
+          <span aria-hidden="true">←</span> Volver a proyectos
+        </Btn>
+      }
     >
       {(estadoProceso === "generando_estado_arte" ||
         estadoProceso === "estado_arte_fallido") && (
@@ -1735,63 +1994,41 @@ function BrechasProyecto({ proyecto, goBack }) {
       <section className="mb-10">
         <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_19rem]">
           <div className="min-w-0">
-            <PanelMetricas key={recarga} proyectoId={proyecto.id} />
+            <PanelMetricas
+              key={recarga}
+              proyectoId={proyecto.id}
+              onDatos={setMetricasProyecto}
+              contenidoPrincipal={
+                <ArticulosResultados
+                  articulos={arts}
+                  onVerBrecha={verBrechas}
+                />
+              }
+              contenidoRevision={
+                <RevisionHumanaResultados
+                  cantidad={arts.length}
+                  onRevision={() =>
+                    navegar(`/proyectos/${proyecto.id}/revisar`)
+                  }
+                  onN26={() =>
+                    navegar(`/proyectos/${proyecto.id}/validar-n26`)
+                  }
+                />
+              }
+            />
           </div>
 
           <aside className="flex flex-col gap-4 xl:sticky xl:top-5">
-            <Panel className="p-4">
-              <h2 className="text-base font-semibold text-tinta">
-                Revisión de resultados
-              </h2>
-              <p className="mt-1.5 text-xs leading-relaxed text-tinta-media">
-                Comprueba si las afirmaciones están respaldadas por fragmentos
-                de los artículos.
-              </p>
-
-              <div className="mt-4 flex flex-col gap-2">
-                {/* Es la operación ordinaria: solo verifica las brechas que aún
-                    no lo estén y conserva las ya comprobadas. */}
-                <Btn
-                  kind="primary"
-                  onClick={() => verificarFidelidad(false)}
-                  disabled={ocupado}
-                  title="Verifica solo las brechas que aún no lo estén"
-                >
-                  {ocupado === "verificar"
-                    ? "Verificando…"
-                    : "Verificar fidelidad"}
-                </Btn>
-
-                {/* Rehacer una verificación ya pagada conserva exactamente su
-                    confirmación y su cálculo de coste; solo cambia de lugar. */}
-                <Btn
-                  kind="ghost"
-                  onClick={() => {
-                    const n = arts.length || 0;
-                    const aviso =
-                      `Se volverán a verificar todas las brechas desde cero.\n\n` +
-                      `Cuesta aproximadamente ${n || "una"} ${
-                        n === 1 ? "generación" : "generaciones"
-                      } de tu cuota diaria.\n\n` +
-                      "Tiene sentido si el verificador ha cambiado; si no, el " +
-                      "resultado será el mismo y habrás gastado cuota.";
-                    if (window.confirm(aviso)) verificarFidelidad(true);
-                  }}
-                  disabled={ocupado}
-                  title="Rehace la verificación aunque ya esté hecha. Consume cuota."
-                >
-                  {ocupado === "rehacer" ? "Rehaciendo…" : "Volver a verificar"}
-                </Btn>
-
-                <Btn kind="ghost" onClick={reanalizar} disabled={ocupado}>
-                  {ocupado === "analizar"
-                    ? "Analizando…"
-                    : ocupado === "sintesis"
-                      ? "Generando síntesis…"
-                      : "Volver a analizar"}
-                </Btn>
-              </div>
-            </Panel>
+            <AccionesResultados
+              cargando={!metricasProyecto}
+              completa={verificacionCompleta}
+              total={totalBrechas}
+              pendientes={brechasPendientes}
+              cantidadArticulos={arts.length}
+              ocupado={ocupado}
+              onVerificar={verificarFidelidad}
+              onReanalizar={reanalizar}
+            />
 
             <IndicadorConsumo key={recarga} proyectoId={proyecto.id} />
 
@@ -1841,84 +2078,6 @@ function BrechasProyecto({ proyecto, goBack }) {
           </aside>
         </div>
       </section>
-
-      {/* La revisión se hace en su propia pantalla, no aquí.
-          Estaba debajo del panel de métricas, así que quien bajaba a anotar ya
-          había visto que el sistema se daba un 1.000 de fidelidad. Juzgar
-          después de eso no es juzgar: es confirmar. Y entonces comparar las dos
-          columnas deja de medir el acierto del sistema para medir su eco. */}
-      <Seccion
-        titulo="Tu revisión de las brechas"
-        apoyo="Se hace en una pantalla aparte, sin las métricas a la vista, para que tu juicio no quede condicionado por el del sistema. Es el único dato que no sale del propio sistema."
-        acciones={
-          <Btn kind="primary" onClick={() => navegar(`/proyectos/${proyecto.id}/revisar`)}>
-            Abrir revisión
-          </Btn>
-        }
-      >
-        <p className="text-sm leading-relaxed text-tinta-media">
-          Allí verás cada brecha con su artículo y un enlace al PDF original.
-          El resultado aparece al terminar las {arts.length}, junto con la
-          comparación contra las métricas.
-        </p>
-      </Seccion>
-
-      <Seccion
-        titulo="Validación metodológica de N2.6"
-        apoyo="Comprueba con datos nuevos si el detector identifica correctamente cuándo una brecha pide algo que el artículo ya hizo. La revisión se realiza a ciegas."
-        acciones={
-          <Btn kind="blue" onClick={() => navegar(`/proyectos/${proyecto.id}/validar-n26`)}>
-            Validar N2.6
-          </Btn>
-        }
-      >
-        <p className="text-sm leading-relaxed text-tinta-media">
-          Esta evaluación es independiente de la revisión general: produce una matriz de confusión y muestra la incertidumbre del resultado sin cambiar ninguna métrica.
-        </p>
-      </Seccion>
-
-      <Seccion
-        titulo={`Artículos analizados (${arts.length})`}
-        apoyo="Abre cualquiera para ver su brecha, su oportunidad y los fragmentos del artículo en los que se apoyó el análisis."
-        acciones={
-          <Btn kind="gray" onClick={goBack}>
-            Volver
-          </Btn>
-        }
-      >
-        {arts.length === 0 ? (
-          <Vacio titulo="Sin artículos en este proyecto" />
-        ) : (
-          <Tabla>
-            <thead>
-              <tr>
-                <Th>Artículo</Th>
-                <Th ancho="14rem">DOI</Th>
-                <Th ancho="7rem" className="text-right">
-                  <span className="sr-only">Acciones</span>
-                </Th>
-              </tr>
-            </thead>
-            <tbody>
-              {arts.map((a) => (
-                <Fila key={a.id}>
-                  <Td className="text-tinta">
-                    <Recorte>{a.titulo || "(sin título)"}</Recorte>
-                  </Td>
-                  <Td className="text-tinta-suave text-xs font-mono">
-                    {a.doi || "—"}
-                  </Td>
-                  <Td className="text-right">
-                    <Btn kind="blue" onClick={() => verBrechas(a)}>
-                      Revisar brecha
-                    </Btn>
-                  </Td>
-                </Fila>
-              ))}
-            </tbody>
-          </Tabla>
-        )}
-      </Seccion>
 
       {/* Modal detalle de una brecha */}
       <Modal
