@@ -1541,8 +1541,8 @@ function AccionesResultados({
         Revisión de resultados
       </h2>
       <p className="mt-1.5 text-xs leading-relaxed text-tinta-media">
-        Completa la fidelidad que falte sin repetir trabajo ni gastar cuota
-        innecesariamente.
+        Comprueba qué afirmaciones se apoyan en los artículos. El resultado se
+        muestra dentro de cada brecha.
       </p>
 
       <div className="mt-4">
@@ -1564,7 +1564,7 @@ function AccionesResultados({
           <div>
             <p className="text-xs leading-relaxed text-tinta-media">
               {pendientes} de {total || cantidadArticulos} brechas todavía
-              necesitan esta comprobación.
+              necesitan enlazar sus afirmaciones con citas del artículo.
             </p>
             <div className="mt-3 grid">
               <Btn
@@ -1582,10 +1582,11 @@ function AccionesResultados({
 
       <details className="mt-4 border-t border-borde pt-3">
         <summary className="cursor-pointer select-none text-xs font-medium text-tinta-media">
-          Repetir el proceso
+          Repetir una comprobación o el análisis
         </summary>
         <p className="mt-2 text-[11px] leading-relaxed text-tinta-suave">
-          Son acciones excepcionales y vuelven a consumir cuota.
+          Son acciones excepcionales: no hacen falta para considerar terminado
+          un resultado que ya está completo y vuelven a consumir cuota.
         </p>
         <div className="mt-3 flex flex-col gap-2">
           <Btn
@@ -1607,7 +1608,7 @@ function AccionesResultados({
             {ocupado === "rehacer" ? "Rehaciendo…" : "Volver a verificar"}
           </Btn>
           <p className="-mt-1 text-[11px] leading-relaxed text-tinta-suave">
-            Recalcula solo N2. Úsalo si cambió el verificador.
+            Repite las citas del análisis actual. No crea brechas nuevas.
           </p>
 
           <Btn
@@ -1623,7 +1624,8 @@ function AccionesResultados({
                 : "Volver a analizar"}
           </Btn>
           <p className="-mt-1 text-[11px] leading-relaxed text-tinta-suave">
-            Genera brechas, métricas y estado del arte nuevos.
+            Crea una versión nueva de brechas, métricas y estado del arte; la
+            anterior queda disponible en el historial de cada artículo.
           </p>
         </div>
       </details>

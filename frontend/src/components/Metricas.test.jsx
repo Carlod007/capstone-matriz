@@ -232,8 +232,8 @@ describe('DetalleBrecha', () => {
     expect(screen.getByText('No parece una brecha ya resuelta')).toBeInTheDocument()
     expect(screen.getByText('Requiere revisión humana')).toBeInTheDocument()
 
-    expect(screen.getByText('Ver las afirmaciones y sus citas').closest('details')).not.toHaveAttribute('open')
-    expect(screen.getByText('Fragmentos consultados por el análisis').closest('details')).not.toHaveAttribute('open')
+    expect(screen.getByText('Comprobar qué frases se apoyan en el artículo').closest('details')).not.toHaveAttribute('open')
+    expect(screen.getByText('Qué partes del artículo leyó el sistema').closest('details')).not.toHaveAttribute('open')
     expect(screen.getByText('Cómo se evaluó esta brecha').closest('details')).not.toHaveAttribute('open')
   })
 
@@ -246,10 +246,6 @@ describe('DetalleBrecha', () => {
     expect(screen.getByText('Contexto consultado · 1')).toBeInTheDocument()
     expect(screen.getByText('Fidelidad · 1')).toBeInTheDocument()
     expect(screen.getByText('Resumen · 1')).toBeInTheDocument()
-    expect(screen.getByText('Resumen · 1').closest('details')).not.toHaveAttribute('open')
-
-    await usuario.click(screen.getByText('Resumen · 1'))
-
     expect(screen.getByText('ROUGE-1 precisión')).toBeInTheDocument()
     expect(screen.getByText('no aplicable')).toBeInTheDocument()
     expect(screen.getByText('El resumen y el abstract están en idiomas distintos.')).toBeInTheDocument()
@@ -259,7 +255,7 @@ describe('DetalleBrecha', () => {
     const usuario = userEvent.setup()
     render(<DetalleBrecha brecha={brecha} />)
 
-    await usuario.click(screen.getByText('Fragmentos consultados por el análisis'))
+    await usuario.click(screen.getByText('Qué partes del artículo leyó el sistema'))
 
     expect(screen.getByText('método · 1')).toBeInTheDocument()
     expect(screen.getByText('resultados · 1')).toBeInTheDocument()
@@ -283,7 +279,7 @@ describe('DetalleBrecha', () => {
     expect(screen.getByText(/servicio de análisis estaba temporalmente saturado/i))
       .toBeInTheDocument()
     expect(screen.getByText(/La brecha sigue guardada/i)).toBeInTheDocument()
-    expect(screen.queryByText('Ver las afirmaciones y sus citas')).not.toBeInTheDocument()
+    expect(screen.queryByText('Comprobar qué frases se apoyan en el artículo')).not.toBeInTheDocument()
     expect(screen.queryByText(/503 UNAVAILABLE/i)).not.toBeInTheDocument()
     expect(screen.queryByText(/high demand/i)).not.toBeInTheDocument()
   })
