@@ -347,7 +347,13 @@ test('prioriza artículos y lectura sencilla antes del detalle técnico', async 
     if (camino === '/proyectos/p-resultados/metricas') {
       await ruta.fulfill({ json: {
         run: { id: 'run-1', estado: 'completado', tokens_in: 120, tokens_out: 30 },
-        conteos: { articulos: 2, brechas: 2, por_estado_validacion: {} },
+        conteos: {
+          articulos: 2,
+          brechas: 2,
+          brechas_verificadas: 1,
+          brechas_pendientes: 1,
+          por_estado_validacion: {},
+        },
         estado_arte: { version: 1 },
         validacion_calibrada: false,
         metricas,

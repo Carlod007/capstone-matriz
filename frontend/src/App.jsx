@@ -1814,15 +1814,21 @@ function BrechasProyecto({ proyecto, goBack }) {
           metricaVerificada.n,
       )
     : 0;
-  const brechasConN2Completo = Math.min(
-    brechasVerificadas,
-    ...codigosN2Completos.map(
-      (codigo) => metricasPorCodigo[codigo]?.n ?? 0,
-    ),
-  );
+  const conteoVerificadas = metricasProyecto?.conteos?.brechas_verificadas;
+  const brechasConN2Completo = Number.isInteger(conteoVerificadas)
+    ? Math.min(totalBrechas, Math.max(0, conteoVerificadas))
+    : Math.min(
+        brechasVerificadas,
+        ...codigosN2Completos.map(
+          (codigo) => metricasPorCodigo[codigo]?.n ?? 0,
+        ),
+      );
   const verificacionCompleta =
     totalBrechas > 0 && brechasConN2Completo === totalBrechas;
-  const brechasPendientes = Math.max(0, totalBrechas - brechasConN2Completo);
+  const conteoPendientes = metricasProyecto?.conteos?.brechas_pendientes;
+  const brechasPendientes = Number.isInteger(conteoPendientes)
+    ? Math.min(totalBrechas, Math.max(0, conteoPendientes))
+    : Math.max(0, totalBrechas - brechasConN2Completo);
 
   // Matriz
   const [mx, setMx] = useState({

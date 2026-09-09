@@ -178,8 +178,9 @@ class TestVerificacionCompleta:
         nadie volveria a mirar.
         """
         from app.models.metrica import AMBITO_BRECHA, Metrica
-        from app.routers.verificacion_rt import (
-            CODIGOS_N2_COMPLETOS, _brechas_verificadas_completas,
+        from app.services.estado_verificacion import (
+            CODIGOS_N2_COMPLETOS,
+            brechas_verificadas_completas,
         )
 
         pid = brecha_con_fragmentos["proyecto"]
@@ -195,9 +196,9 @@ class TestVerificacionCompleta:
         faltan = sorted(CODIGOS_N2_COMPLETOS)
         for codigo in faltan[:-1]:
             anotar(codigo)
-            assert bid not in _brechas_verificadas_completas(db, pid), (
+            assert bid not in brechas_verificadas_completas(db, pid), (
                 "con %s todavia sin guardar no puede darse por completa"
                 % faltan[-1])
 
         anotar(faltan[-1])
-        assert bid in _brechas_verificadas_completas(db, pid)
+        assert bid in brechas_verificadas_completas(db, pid)

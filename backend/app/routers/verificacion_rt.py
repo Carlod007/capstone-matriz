@@ -33,27 +33,12 @@ from app.models.run_item import RunItem
 from app.services.ventana_evidencia import fragmentos_de_brecha
 from app.services.verificacion import verificar
 from app.services.registro_metricas import registrar_metrica
+from app.services.estado_verificacion import (
+    CODIGOS_N2_COMPLETOS,
+    brechas_verificadas_completas,
+)
 
 router = APIRouter(prefix="/proyectos", tags=["verificacion"])
-
-
-CODIGOS_N2_COMPLETOS = {"N2.1", "N2.2", "N2.4", "N2.5", "N2.6", "N2.verificada"}
-
-
-def _brechas_verificadas_completas(db: Session, proyecto_id: str) -> set[str]:
-    """Brechas cuya verificacion disponible conserva todos sus resultados."""
-    filas = (db.query(Metrica.referencia_id, Metrica.codigo, Metrica.valor)
-             .filter(Metrica.proyecto_id == proyecto_id,
-                     Metrica.codigo.in_(CODIGOS_N2_COMPLETOS))
-             .all())
-    por_brecha: dict[str, set[str]] = {}
-    disponibles: set[str] = set()
-    for referencia_id, codigo, valor in filas:
-        por_brecha.setdefault(referencia_id, set()).add(codigo)
-        if codigo == "N2.verificada" and valor == 1.0:
-            disponibles.add(referencia_id)
-    return {referencia_id for referencia_id in disponibles
-            if CODIGOS_N2_COMPLETOS <= por_brecha.get(referencia_id, set())}
 
 
 @router.post("/{proyecto_id}/verificar")
@@ -83,7 +68,7 @@ def verificar_proyecto(rehacer: bool = False,
     if not filas:
         raise HTTPException(status_code=400, detail="El análisis no dejó brechas.")
 
-    ya_hechas = _brechas_verificadas_completas(db, proyecto_id)
+    ya_hechas = brechas_verificadas_completas(db, proyecto_id)
 
     resultados = []
     verificadas = 0

@@ -46,6 +46,89 @@ def proyecto_con_sintesis_medida(db, usuario_prueba):
         db.commit()
 
 
+@pytest.fixture
+def proyecto_verificado_en_dos_revisiones(db, usuario_prueba):
+    """Cinco brechas completas cuya auditoría técnica forma dos series."""
+    from app.models.articulo import Articulo
+    from app.models.metrica import AMBITO_BRECHA, Metrica
+    from app.models.proyecto import Proyecto
+    from app.models.resultado_brecha import ResultadoBrecha
+    from app.models.run import EstadoRun, Run
+    from app.models.run_item import EstadoRunItem, RunItem
+    from app.services.estado_verificacion import CODIGOS_N2_COMPLETOS
+    from app.services.metricas.catalogo import ficha
+
+    pid, rid = str(uuid.uuid4()), str(uuid.uuid4())
+    db.add(Proyecto(
+        id=pid,
+        usuario_id=usuario_prueba["id"],
+        tema_principal="Fidelidad entre revisiones",
+        objetivo="Comprobar el conteo operativo de la fidelidad",
+        n_articulos_objetivo=5,
+        estado_arte_generado=False,
+    ))
+    db.flush()
+    db.add(Run(
+        id=rid,
+        proyecto_id=pid,
+        estado=EstadoRun.completado,
+        iniciado_en=datetime(2026, 3, 1),
+        n_items_total=5,
+        n_items_ok=5,
+    ))
+    db.flush()
+
+    for indice in range(5):
+        aid, item_id, brecha_id = (str(uuid.uuid4()) for _ in range(3))
+        db.add(Articulo(
+            id=aid,
+            proyecto_id=pid,
+            titulo="Artículo %s" % (indice + 1),
+            doi="10.1000/revision.%s" % indice,
+        ))
+        db.flush()
+        db.add(RunItem(
+            id=item_id,
+            run_id=rid,
+            articulo_id=aid,
+            estado=EstadoRunItem.analizado,
+        ))
+        db.flush()
+        db.add(ResultadoBrecha(
+            id=brecha_id,
+            run_item_id=item_id,
+            tipo_brecha="otra",
+            brecha="Brecha de prueba",
+            oportunidad="Oportunidad de prueba",
+            rag_hits=[],
+        ))
+        db.flush()
+
+        revision = "revision-a" if indice < 4 else "revision-b"
+        for codigo in CODIGOS_N2_COMPLETOS:
+            definicion = ficha(codigo)
+            db.add(Metrica(
+                id=str(uuid.uuid4()),
+                proyecto_id=pid,
+                ambito=AMBITO_BRECHA,
+                referencia_id=brecha_id,
+                codigo=codigo,
+                version_formula=(
+                    definicion.version_formula if definicion else None
+                ),
+                valor=1.0,
+                procedencia={"revision_codigo": revision},
+            ))
+
+    db.commit()
+    try:
+        yield pid
+    finally:
+        db.rollback()
+        db.query(Proyecto).filter(Proyecto.id == pid).delete()
+        db.commit()
+
+
 class TestCatalogo:
     def test_toda_ficha_declara_su_direccion_de_lectura(self):
         """Sin esto un panel puede pintar de verde justo lo que va mal."""
@@ -148,6 +231,22 @@ class TestEndpoints:
         assert {"p25", "mediana", "p75", "iqr", "n"} <= set(metrica)
         assert "discrimina" not in metrica
         assert "veredicto" not in metrica
+
+    def test_cuenta_cada_brecha_completa_aunque_haya_dos_revisiones(
+            self, cliente, proyecto_verificado_en_dos_revisiones):
+        """La procedencia divide distribuciones, no el estado de completitud."""
+        datos = cliente.get(
+            "/proyectos/%s/metricas" % proyecto_verificado_en_dos_revisiones
+        ).json()
+
+        series = [
+            metrica for metrica in datos["metricas"]
+            if metrica["codigo"] == "N2.verificada"
+        ]
+        assert sorted(metrica["n"] for metrica in series) == [1, 4]
+        assert datos["conteos"]["brechas"] == 5
+        assert datos["conteos"]["brechas_verificadas"] == 5
+        assert datos["conteos"]["brechas_pendientes"] == 0
 
     def test_no_atribuye_la_sintesis_anterior_a_un_run_nuevo(
             self, db, cliente, proyecto_con_sintesis_medida):

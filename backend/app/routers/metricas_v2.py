@@ -33,6 +33,7 @@ from app.models.run_item import RunItem
 from app.services import limitador, registro_api, verificacion
 from app.services.metricas import distribucion as D
 from app.services.metricas.catalogo import CATALOGO, ficha_para_version
+from app.services.estado_verificacion import brechas_verificadas_completas
 
 router = APIRouter(prefix="/proyectos", tags=["metricas-v2"])
 
@@ -155,6 +156,13 @@ def metricas_proyecto(
                  .filter(ResultadoBrecha.id.in_(ids_brecha or ["-"])).all()):
         estados[e or ""] = estados.get(e or "", 0) + 1
 
+    # Este es un estado por brecha, no una distribución. Las métricas pueden
+    # quedar separadas arriba por revisión o versión de fórmula sin que eso
+    # haga parecer pendiente una comprobación que ya existe.
+    verificadas = brechas_verificadas_completas(db, proyecto_id, ids_brecha)
+    n_verificadas = len(verificadas)
+    n_pendientes = max(0, len(ids_brecha) - n_verificadas)
+
     return {
         "proyecto_id": proyecto_id,
         "run": {
@@ -170,6 +178,8 @@ def metricas_proyecto(
         "conteos": {
             "articulos": len(set(ids_articulo)),
             "brechas": len(ids_brecha),
+            "brechas_verificadas": n_verificadas,
+            "brechas_pendientes": n_pendientes,
             "por_estado_validacion": estados,
         },
         "estado_arte": ({"version": ea.version, "fecha": str(ea.created_at),
