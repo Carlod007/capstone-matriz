@@ -10,6 +10,48 @@ async function iniciarSesion(page) {
   })
 }
 
+test('presenta bienvenida y acceso juntos y entra directamente a proyectos', async ({ page }) => {
+  await page.route('**/api/**', async (ruta) => {
+    const peticion = ruta.request()
+    const camino = new URL(peticion.url()).pathname.replace(/^\/api/, '')
+    if (camino === '/auth/login' && peticion.method() === 'POST') {
+      await ruta.fulfill({ json: { token: 'token-e2e', nombre: 'Investigadora' } })
+      return
+    }
+    if (camino === '/proyectos') {
+      await ruta.fulfill({ json: [] })
+      return
+    }
+    if (camino === '/consumo') {
+      await ruta.fulfill({ json: {} })
+      return
+    }
+    await ruta.fulfill({ status: 404, json: { detail: 'Ruta simulada no definida' } })
+  })
+
+  await page.goto('/')
+
+  await expect(page.getByRole('heading', {
+    name: 'Convierte artículos científicos en hallazgos verificables',
+  })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'Entra a tus proyectos' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Comenzar' })).toHaveCount(0)
+
+  await page.setViewportSize({ width: 390, height: 844 })
+  await expect(page.getByLabel('Correo')).toBeVisible()
+  const desbordaAcceso = await page.locator('html').evaluate(
+    (nodo) => nodo.scrollWidth > nodo.clientWidth + 1,
+  )
+  expect(desbordaAcceso).toBe(false)
+
+  await page.getByLabel('Correo').fill('persona@universidad.edu')
+  await page.getByLabel('Contraseña').fill('secreto')
+  await page.getByRole('button', { name: 'Entrar a mis proyectos' }).click()
+
+  await expect(page).toHaveURL(/\/proyectos$/)
+  await expect(page.getByRole('heading', { name: 'Proyectos' })).toBeVisible()
+})
+
 test('crea un proyecto conservando los datos introducidos', async ({ page }) => {
   await iniciarSesion(page)
   let recibido = null

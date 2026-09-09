@@ -278,89 +278,6 @@ async function downloadFile(url, filename) {
   URL.revokeObjectURL(a.href);
 }
 
-/* ================ 0) WELCOME ================ */
-function WelcomeScreen({ onStart, onList }) {
-  return (
-    <div className="min-h-screen bg-papel">
-      <div className="max-w-5xl mx-auto px-4 py-16">
-        <div
-          className="rounded-3xl bg-lienzo border border-borde overflow-hidden"
-          style={{ boxShadow: "var(--sombra-2)" }}
-        >
-          <div className="p-8 md:p-12 grid md:grid-cols-2 gap-10 items-center">
-            <div>
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-acento-claro text-acento-fuerte text-xs font-medium mb-5 border border-acento-borde">
-                <span className="h-1.5 w-1.5 rounded-full bg-acento"></span>
-                Matriz de brechas con IA generativa
-              </div>
-              <h1 className="text-3xl md:text-4xl font-bold text-tinta leading-tight tracking-tight">
-                Bienvenido
-              </h1>
-              <p className="mt-4 text-tinta-media leading-relaxed">
-                Carga artículos científicos, analízalos y obtén las brechas de
-                investigación y el estado del arte. Puedes empezar creando un
-                tema o revisar tus proyectos existentes.
-              </p>
-
-              <ul className="mt-7 space-y-3 text-sm text-tinta-media">
-                {[
-                  "Define el tema, el objetivo y la metodología",
-                  "Sube los PDFs y ejecuta el análisis",
-                  "Consulta brechas, oportunidades y su respaldo documental",
-                  "Descarga la matriz y las métricas del proyecto",
-                ].map((t, i) => (
-                  <li key={i} className="flex items-start gap-3">
-                    <span className="mt-[7px] h-1.5 w-1.5 shrink-0 rounded-full bg-acento" />
-                    <span className="leading-relaxed">{t}</span>
-                  </li>
-                ))}
-              </ul>
-
-              <div className="mt-9 flex flex-wrap gap-3">
-                <Btn kind="yellow" onClick={onStart}>
-                  Comenzar
-                </Btn>
-                <Btn kind="blue" onClick={onList}>
-                  Ir a proyectos
-                </Btn>
-              </div>
-            </div>
-
-            <div className="rounded-2xl border border-borde bg-superficie p-6">
-              <div className="text-xs text-tinta-suave font-medium uppercase tracking-wide">
-                Vista previa
-              </div>
-              <div className="mt-4 space-y-2 text-xs">
-                {[
-                  ["Proyecto", "IA aplicada a procesos de ingeniería"],
-                  ["Artículos", "5 / 5"],
-                  ["Brechas detectadas", "5"],
-                  ["Estado del arte", "versión 1"],
-                ].map(([k, v]) => (
-                  <div
-                    key={k}
-                    className="rounded-lg border border-borde bg-lienzo px-3 py-2.5"
-                  >
-                    <div className="text-tinta-suave">{k}</div>
-                    <div className="font-medium text-tinta mt-0.5">{v}</div>
-                  </div>
-                ))}
-              </div>
-              <div className="mt-4 text-[10px] text-tinta-suave">
-                Ilustrativo
-              </div>
-            </div>
-          </div>
-
-          <div className="px-8 py-4 bg-hundido border-t border-borde text-xs text-tinta-suave">
-            Requiere el backend en ejecución para procesar artículos.
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 /* Iconos mínimos de la lista de proyectos. Son decorativos: la información
    importante también aparece como texto para no depender del color o del dibujo. */
 function Icono({ tipo, className = "h-5 w-5" }) {
@@ -2450,7 +2367,7 @@ export default function App() {
 
   const content = (
     <Routes>
-      <Route path="/" element={<WelcomeScreen onStart={goCreate} onList={goList} />} />
+      <Route path="/" element={<Navigate to="/proyectos" replace />} />
       <Route
         path="/proyectos"
         element={<Lista goCreate={goCreate} goProyecto={goProyecto} />}

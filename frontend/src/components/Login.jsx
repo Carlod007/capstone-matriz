@@ -1,6 +1,5 @@
 import { useState } from "react";
 
-import { Panel } from "./UI";
 import { guardarSesion } from "../sesion";
 
 /**
@@ -55,65 +54,111 @@ export default function Login({ apiBase, onEntrar }) {
   const listo = correo.trim() && contrasena && !enviando;
 
   return (
-    <div className="min-h-screen flex items-center justify-center px-5 py-10">
-      <div className="w-full max-w-sm">
-        <div className="mb-7 text-center">
-          <h1 className="text-xl font-semibold text-tinta">
+    <main className="min-h-screen bg-papel px-4 py-8 sm:px-6 sm:py-12">
+      <div
+        className="mx-auto grid w-full max-w-5xl overflow-hidden rounded-3xl border border-borde bg-lienzo lg:grid-cols-[1.1fr_0.9fr]"
+        style={{ boxShadow: "var(--sombra-2)" }}
+      >
+        <section className="order-2 border-t border-borde p-6 sm:p-9 lg:order-1 lg:border-r lg:border-t-0 lg:p-12">
+          <div className="inline-flex items-center gap-2 rounded-full border border-acento-borde bg-acento-claro px-3 py-1 text-xs font-medium text-acento-fuerte">
+            <span className="h-1.5 w-1.5 rounded-full bg-acento" aria-hidden="true" />
             Matriz de brechas de investigación
-          </h1>
-          <p className="mt-1.5 text-sm text-tinta-media">
-            Entra para ver tus proyectos.
-          </p>
-        </div>
+          </div>
 
-        <Panel>
-          <form onSubmit={entrar} className="flex flex-col gap-4 p-5">
-            <label className="flex flex-col gap-1.5">
-              <span className="text-xs font-medium text-tinta-media">Correo</span>
-              <input
+          <h1 className="mt-6 text-2xl font-bold leading-tight tracking-tight text-tinta sm:text-3xl">
+            Convierte artículos científicos en hallazgos verificables
+          </h1>
+          <p className="mt-4 max-w-xl leading-relaxed text-tinta-media">
+            Organiza tus artículos, identifica brechas y oportunidades de
+            investigación, y comprueba en qué fragmentos se apoya cada resultado.
+          </p>
+
+          <ol className="mt-7 space-y-4 text-sm text-tinta-media">
+            {[
+              ["1", "Define el proyecto", "Indica el tema, el objetivo y la metodología."],
+              ["2", "Analiza los artículos", "Sube los PDF y deja que el sistema localice evidencia relevante."],
+              ["3", "Revisa los resultados", "Consulta brechas, oportunidades, citas y el estado del arte."],
+            ].map(([numero, titulo, descripcion]) => (
+              <li key={numero} className="flex items-start gap-3">
+                <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full border border-acento-borde bg-acento-claro text-xs font-semibold text-acento-fuerte">
+                  {numero}
+                </span>
+                <div>
+                  <div className="font-medium text-tinta">{titulo}</div>
+                  <div className="mt-0.5 leading-relaxed">{descripcion}</div>
+                </div>
+              </li>
+            ))}
+          </ol>
+
+          <p className="mt-8 border-l-2 border-acento pl-3 text-xs leading-relaxed text-tinta-suave">
+            Herramienta de apoyo: los resultados deben revisarse con criterio
+            académico y contrastarse con los artículos originales.
+          </p>
+        </section>
+
+        <section className="order-1 flex items-center bg-superficie p-6 sm:p-9 lg:order-2 lg:p-12" aria-labelledby="titulo-acceso">
+          <div className="w-full">
+            <div>
+              <div className="text-xs font-medium uppercase tracking-wider text-tinta-suave">
+                Acceso
+              </div>
+              <h2 id="titulo-acceso" className="mt-2 text-xl font-semibold text-tinta">
+                Entra a tus proyectos
+              </h2>
+              <p className="mt-1.5 text-sm leading-relaxed text-tinta-media">
+                Usa la cuenta habilitada para esta instalación.
+              </p>
+            </div>
+
+            <form onSubmit={entrar} className="mt-7 flex flex-col gap-4">
+              <label className="flex flex-col gap-1.5">
+                <span className="text-xs font-medium text-tinta-media">Correo</span>
+                <input
                 type="email"
                 autoComplete="username"
-                autoFocus
-                value={correo}
-                onChange={(e) => setCorreo(e.target.value)}
-                className="rounded-lg border border-borde bg-superficie px-3 py-2 text-sm text-tinta outline-none focus:border-acento"
-              />
-            </label>
+                  autoFocus
+                  value={correo}
+                  onChange={(e) => setCorreo(e.target.value)}
+                  placeholder="correo@universidad.edu"
+                  className="rounded-lg border border-borde bg-lienzo px-3 py-2.5 text-sm text-tinta outline-none transition-colors placeholder:text-tinta-suave focus:border-acento focus:ring-2 focus:ring-acento/20"
+                />
+              </label>
 
-            <label className="flex flex-col gap-1.5">
-              <span className="text-xs font-medium text-tinta-media">Contraseña</span>
-              <input
-                type="password"
-                autoComplete="current-password"
-                value={contrasena}
-                onChange={(e) => setContrasena(e.target.value)}
-                className="rounded-lg border border-borde bg-superficie px-3 py-2 text-sm text-tinta outline-none focus:border-acento"
-              />
-            </label>
+              <label className="flex flex-col gap-1.5">
+                <span className="text-xs font-medium text-tinta-media">Contraseña</span>
+                <input
+                  type="password"
+                  autoComplete="current-password"
+                  value={contrasena}
+                  onChange={(e) => setContrasena(e.target.value)}
+                  placeholder="Tu contraseña"
+                  className="rounded-lg border border-borde bg-lienzo px-3 py-2.5 text-sm text-tinta outline-none transition-colors placeholder:text-tinta-suave focus:border-acento focus:ring-2 focus:ring-acento/20"
+                />
+              </label>
 
-            {error && (
-              <p role="alert" className="rounded-lg border border-mal-borde bg-mal-claro px-3 py-2 text-sm text-mal">
-                {error}
-              </p>
-            )}
+              {error && (
+                <p role="alert" className="rounded-lg border border-mal-borde bg-mal-claro px-3 py-2 text-sm text-mal">
+                  {error}
+                </p>
+              )}
 
-            {/* Dorado: es la acción principal de esta pantalla, la misma
-                convención que sigue el resto de la aplicación. */}
-            <button
-              type="submit"
-              disabled={!listo}
-              className="rounded-lg bg-oro px-4 py-2.5 text-sm font-medium text-oro-tinta shadow-[var(--sombra-1)] transition-[background-color,transform] hover:bg-oro-hover active:scale-[0.985] disabled:opacity-45 disabled:cursor-not-allowed disabled:hover:bg-oro"
-            >
-              {enviando ? "Entrando…" : "Entrar"}
-            </button>
-          </form>
-        </Panel>
+              <button
+                type="submit"
+                disabled={!listo}
+                className="mt-1 rounded-lg bg-oro px-4 py-2.5 text-sm font-medium text-oro-tinta shadow-[var(--sombra-1)] transition-[background-color,transform] hover:bg-oro-hover active:scale-[0.985] disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:bg-oro"
+              >
+                {enviando ? "Entrando…" : "Entrar a mis proyectos"}
+              </button>
+            </form>
 
-        <p className="mt-4 text-center text-xs leading-relaxed text-tinta-suave">
-          ¿Aún no tienes cuenta? Se crea desde la terminal, en <code>backend/</code>,
-          con <code>python crear_cuenta.py</code>.
-        </p>
+            <p className="mt-5 text-xs leading-relaxed text-tinta-suave">
+              El acceso está restringido. Si necesitas una cuenta, solicítala al
+              responsable de la aplicación.
+            </p>
+          </div>
+        </section>
       </div>
-    </div>
+    </main>
   );
 }
