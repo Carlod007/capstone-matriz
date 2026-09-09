@@ -290,7 +290,7 @@ test('prioriza artículos y lectura sencilla antes del detalle técnico', async 
     metrica('N3.1', 'Discriminabilidad', 'N3 Especificidad', 0.35, 'run'),
     { ...metrica('N3.2', 'Densidad de anclajes', 'N3 Especificidad', 3), rango: 'por 100 palabras' },
     metrica('N4.2', 'Similitud semántica', 'N4 Resumen', 0.89),
-    { ...metrica('N2.verificada', 'Verificación realizada', 'N2 Fidelidad', 1), rango: '0 o 1' },
+    { ...metrica('N2.verificada', 'Verificación realizada', 'N2 Fidelidad', 1), n: 1, n_intentos: 1, rango: '0 o 1' },
   ]
   const brechaDetalle = {
     id: 'b-1',
@@ -367,6 +367,15 @@ test('prioriza artículos y lectura sencilla antes del detalle técnico', async 
       } })
       return
     }
+    if (camino === '/proyectos/p-resultados/verificar') {
+      await new Promise((resolver) => setTimeout(resolver, 500))
+      await ruta.fulfill({ json: {
+        brechas: 2,
+        verificadas: 1,
+        detalle: [{ articulo: 'Artículo estructural B', estado: 'verificada' }],
+      } })
+      return
+    }
     if (camino === '/articulos/a-1/brechas') {
       await ruta.fulfill({ json: [brechaDetalle] })
       return
@@ -379,8 +388,10 @@ test('prioriza artículos y lectura sencilla antes del detalle técnico', async 
   await expect(page.getByRole('button', { name: 'Volver a proyectos' })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Artículos y brechas' })).toBeVisible()
   await expect(page.getByRole('heading', { name: 'Qué dicen las mediciones principales' })).toBeVisible()
-  await expect(page.getByText('Fidelidad verificada')).toBeVisible()
-  await expect(page.getByRole('button', { name: 'Verificar fidelidad' })).toHaveCount(0)
+  await expect(page.getByText(/1 de 2 brechas todavía/)).toBeVisible()
+  await page.getByRole('button', { name: 'Verificar fidelidad' }).click()
+  await expect(page.getByText('Comprobando las brechas pendientes…')).toBeVisible()
+  await expect(page.getByText('Comprobando las brechas pendientes…')).not.toBeVisible()
 
   const articulosAntes = await page.locator('body').evaluate(() => {
     const titulos = [...document.querySelectorAll('h2')]

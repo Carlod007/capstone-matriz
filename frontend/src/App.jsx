@@ -153,7 +153,11 @@ function Modal({ open, onClose, title, children, footer, ancho = "max-w-5xl" }) 
 }
 
 /* Overlay de carga */
-function LoadingOverlay({ show, text = "Procesando…" }) {
+function LoadingOverlay({
+  show,
+  text = "Procesando…",
+  description = "Este proceso puede tardar según la cantidad de artículos.",
+}) {
   if (!show) return null;
   return (
     <div className="fixed inset-0 z-50">
@@ -164,9 +168,9 @@ function LoadingOverlay({ show, text = "Procesando…" }) {
           style={{ boxShadow: "var(--sombra-3)" }}
         >
           <div className="mx-auto mb-4 h-9 w-9 rounded-full border-[3px] border-borde border-t-acento animate-spin" />
-          <p className="text-tinta font-medium">{text}</p>
+          <p className="text-tinta font-medium" role="status">{text}</p>
           <p className="text-xs text-tinta-suave mt-2 leading-relaxed">
-            Este proceso puede tardar según la cantidad de artículos.
+            {description}
           </p>
         </div>
       </div>
@@ -1876,16 +1880,26 @@ function BrechasProyecto({ proyecto, goBack }) {
   }
 
   return (
-    <Page
-      title="Resultados"
-      subtitle={proyecto.tema_principal}
-      ancho="max-w-[92rem]"
-      accionCabecera={
-        <Btn kind="blue" onClick={goBack}>
-          <span aria-hidden="true">←</span> Volver a proyectos
-        </Btn>
-      }
-    >
+    <>
+      <LoadingOverlay
+        show={ocupado === "verificar" || ocupado === "rehacer"}
+        text={
+          ocupado === "rehacer"
+            ? "Volviendo a comprobar las brechas…"
+            : "Comprobando las brechas pendientes…"
+        }
+        description="Estamos comparando sus afirmaciones con citas de los artículos. Solo se procesan las brechas que correspondan a esta acción."
+      />
+      <Page
+        title="Resultados"
+        subtitle={proyecto.tema_principal}
+        ancho="max-w-[92rem]"
+        accionCabecera={
+          <Btn kind="blue" onClick={goBack}>
+            <span aria-hidden="true">←</span> Volver a proyectos
+          </Btn>
+        }
+      >
       {(estadoProceso === "generando_estado_arte" ||
         estadoProceso === "estado_arte_fallido") && (
         <div
@@ -2116,8 +2130,9 @@ function BrechasProyecto({ proyecto, goBack }) {
         )}
       </Modal>
 
-      <ErrorModal error={err} onClose={() => setErr(null)} />
-    </Page>
+        <ErrorModal error={err} onClose={() => setErr(null)} />
+      </Page>
+    </>
   );
 }
 
