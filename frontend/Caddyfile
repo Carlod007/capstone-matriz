@@ -46,9 +46,16 @@
 
 	# Los archivos con huella en el nombre cambian de nombre cuando cambia su
 	# contenido, asi que se pueden guardar para siempre. index.html no lleva
-	# huella y no debe guardarse: es quien dice cuales son los archivos
-	# actuales.
+	# huella y debe revalidarse: es quien dice cuales son los archivos actuales.
+	#
+	# El matcher usa la direccion solicitada, no el archivo al que `try_files`
+	# la traduce. Aplicar la regla solo a /index.html dejaba fuera / y las rutas
+	# del router, de modo que un acceso guardado podia abrir una compilacion
+	# anterior hasta que la persona actualizaba manualmente.
 	@estaticos path /assets/*
 	header @estaticos Cache-Control "public, max-age=31536000, immutable"
-	header /index.html Cache-Control "no-cache"
+	@documento_frontend {
+		not path /api/* /assets/*
+	}
+	header @documento_frontend Cache-Control "no-cache, must-revalidate"
 }
