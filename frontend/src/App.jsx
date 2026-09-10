@@ -1539,6 +1539,8 @@ function AccionesResultados({
   onVerificar,
   onReanalizar,
 }) {
+  const [confirmarRehacer, setConfirmarRehacer] = useState(false);
+
   return (
     <Panel className="p-4">
       <h2 className="text-base font-semibold text-tinta">
@@ -1595,17 +1597,7 @@ function AccionesResultados({
         <div className="mt-3 flex flex-col gap-2">
           <Btn
             kind="ghost"
-            onClick={() => {
-              const n = cantidadArticulos || 0;
-              const aviso =
-                `Se volverán a verificar todas las brechas desde cero.\n\n` +
-                `Cuesta aproximadamente ${n || "una"} ${
-                  n === 1 ? "generación" : "generaciones"
-                } de tu cuota diaria.\n\n` +
-                "Tiene sentido si el verificador ha cambiado; si no, el " +
-                "resultado será el mismo y habrás gastado cuota.";
-              if (window.confirm(aviso)) onVerificar(true);
-            }}
+            onClick={() => setConfirmarRehacer(true)}
             disabled={ocupado}
             title="Recalcula únicamente la fidelidad de todas las brechas"
           >
@@ -1633,6 +1625,49 @@ function AccionesResultados({
           </p>
         </div>
       </details>
+
+      <Modal
+        open={confirmarRehacer}
+        onClose={() => setConfirmarRehacer(false)}
+        title="Volver a verificar todas las brechas"
+        ancho="max-w-lg"
+        footer={
+          <>
+            <Btn kind="gray" onClick={() => setConfirmarRehacer(false)}>
+              Cancelar
+            </Btn>
+            <Btn
+              kind="yellow"
+              onClick={() => {
+                setConfirmarRehacer(false);
+                onVerificar(true);
+              }}
+            >
+              Volver a verificar
+            </Btn>
+          </>
+        }
+      >
+        <div className="space-y-3 text-sm leading-relaxed text-tinta-media">
+          <p>
+            Se repetirán las comprobaciones de citas del análisis actual. No se
+            crearán brechas nuevas ni se modificará el estado del arte.
+          </p>
+          <div className="rounded-lg border border-aviso-borde bg-aviso-claro px-3 py-3">
+            <p className="font-medium text-aviso">Consumo estimado</p>
+            <p className="mt-1">
+              Aproximadamente {cantidadArticulos || "una"}{" "}
+              {cantidadArticulos === 1 ? "generación" : "generaciones"} de la
+              cuota diaria.
+            </p>
+          </div>
+          <p className="text-xs text-tinta-suave">
+            Úsalo cuando necesites unificar las verificaciones con la versión
+            actual del sistema. Al confirmar verás una ventana de carga hasta
+            que termine.
+          </p>
+        </div>
+      </Modal>
     </Panel>
   );
 }

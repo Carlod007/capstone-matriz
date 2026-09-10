@@ -427,8 +427,16 @@ test('prioriza artículos y lectura sencilla antes del detalle técnico', async 
   await page.getByRole('button', { name: 'Cerrar', exact: true }).click()
 
   await page.getByText('Repetir una comprobación o el análisis').click()
-  await expect(page.getByRole('button', { name: 'Volver a verificar' })).toBeVisible()
+  const botonReverificar = page.getByRole('button', { name: 'Volver a verificar' })
+  await expect(botonReverificar).toBeVisible()
   await expect(page.getByRole('button', { name: 'Volver a analizar' })).toBeVisible()
+  await botonReverificar.click()
+  const confirmacion = page.getByRole('dialog', { name: 'Volver a verificar todas las brechas' })
+  await expect(confirmacion).toBeVisible()
+  await expect(confirmacion.getByText(/Aproximadamente 2 generaciones/)).toBeVisible()
+  await confirmacion.getByRole('button', { name: 'Volver a verificar' }).click()
+  await expect(page.getByText('Volviendo a comprobar las brechas…')).toBeVisible()
+  await expect(page.getByText('Volviendo a comprobar las brechas…')).not.toBeVisible()
 
   await expect(page.getByRole('heading', { name: /Explorar las 10 métricas/i })).toHaveCount(0)
   await page.getByRole('button', { name: 'Ver las 10 métricas técnicas' }).click()
